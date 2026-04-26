@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA ESPN Campus Survey — Production Compliance</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js" onerror="console.warn('config.js not found — running in offline mode')"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+    --pass-bg: #dcfce7;
+    --pass-fg: #15803d;
+    --fail-bg: #fee2e2;
+    --fail-fg: #991b1b;
+    --warn-bg: #fef3c7;
+    --warn-fg: #92400e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+    background: #f0f2f5;
+    min-height: 100vh;
+    color: #222;
+  }
+  .header {
+    background: var(--navy);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header img {
+    height: 28px;
+    filter: brightness(0) invert(1);
+  }
+  .header h1 {
+    color: var(--white);
+    font-size: 18px;
+    margin: 0;
+    flex: 1;
+    font-weight: 700;
+  }
+  .header .subtitle { color: var(--gray); font-size: 12px; }
+  .tab-bar {
+    background: var(--white);
+    border-bottom: 3px solid var(--espn-red);
+    display: flex;
+    overflow-x: auto;
+  }
+  .tab-bar button {
+    padding: 12px 24px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--navy);
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .tab-bar button.active {
+    background: var(--espn-red);
+    color: var(--white);
+    border-bottom-color: var(--navy);
+  }
+  .tab-bar button:hover:not(.active) {
+    background: #f5f5f5;
+  }
+  .content {
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  h2 {
+    color: var(--navy);
+    margin: 0;
+    font-size: 20px;
+  }
+  .section-title { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .section-title img { height: 22px; }
+  .muted { color: #666; font-size: 12px; margin: 0 0 16px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 12px;
+    background: var(--white);
+  }
+  th {
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    border-bottom: 2px solid var(--navy);
+    text-align: left;
+    white-space: nowrap;
+    background: var(--gray);
+    color: var(--navy);
+  }
+  th.school-col { background: var(--navy); color: var(--white); text-align: center; min-width: 110px; }
+  td { padding: 6px 10px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) td { background: #fafafa; }
+  td.label { font-weight: 600; color: var(--navy); }
+  td.status-pass { background: var(--pass-bg) !important; color: var(--pass-fg); font-weight: 700; text-align: center; }
+  td.status-fail { background: var(--fail-bg) !important; color: var(--fail-fg); font-weight: 700; text-align: center; }
+  td.status-warn { background: var(--warn-bg) !important; color: var(--warn-fg); font-weight: 700; text-align: center; }
+  td.total-row { font-weight: 800; font-size: 14px; }
+  .table-wrap { overflow-x: auto; }
+  .card {
+    background: var(--white);
+    border-radius: 8px;
+    border: 1px solid var(--gray);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .card-header {
+    background: var(--navy);
+    color: var(--white);
+    padding: 10px 16px;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card-header.red { background: var(--espn-red); }
+  .card-header.red img { height: 16px; filter: brightness(0) invert(1); margin-right: 10px; }
+  .lens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1px;
+    background: #eee;
+  }
+  .lens-item {
+    padding: 10px 14px;
+    font-size: 11px;
+  }
+  .lens-item .school { font-weight: 700; color: var(--navy); margin-bottom: 2px; }
+  .ref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .ref-row { display: flex; border-bottom: 1px solid #eee; }
+  .ref-row .k { width: 140px; padding: 8px 12px; font-weight: 600; font-size: 12px; color: var(--navy); background: #f8f9fa; flex-shrink: 0; }
+  .ref-row .v { padding: 8px 12px; font-size: 12px; color: #333; flex: 1; }
+  /* Editor */
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+  .btn { padding: 8px 16px; color: var(--white); border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; font-family: inherit; }
+  .btn.blue { background: var(--blue); }
+  .btn.gray { background: #888; }
+  .btn.red { background: var(--espn-red); }
+  .school-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 20px; }
+  .school-card {
+    padding: 12px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid var(--gray);
+    background: var(--white);
+    color: var(--navy);
+    transition: all 0.15s;
+  }
+  .school-card:hover { border-color: var(--blue); }
+  .school-card.active { background: var(--navy); color: var(--white); border-color: var(--espn-red); }
+  .school-card .name { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .school-card .stats { font-size: 11px; opacity: 0.7; }
+  .editor-wrap {
+    background: var(--white);
+    border-radius: 8px;
+    border: 2px solid var(--espn-red);
+    overflow: hidden;
+  }
+  .editor-header {
+    background: var(--espn-red);
+    color: var(--white);
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .editor-header span { font-weight: 700; font-size: 16px; }
+  .editor-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .editor-body { grid-template-columns: 1fr 1fr; } .ref-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 600px) { .editor-body { grid-template-columns: 1fr; } }
+  .field-section { margin-bottom: 12px; }
+  .field-section-title {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--navy);
+    border-bottom: 2px solid var(--espn-red);
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+  .field { margin-bottom: 6px; }
+  .field label { display: block; font-size: 10px; font-weight: 600; color: #666; margin-bottom: 2px; }
+  .field input {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .field input.below-min { border-color: var(--red); background: var(--fail-bg); }
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .toggle {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    background: #ccc;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--green); }
+  .toggle .knob {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--white);
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  }
+  .toggle.on .knob { left: 18px; }
+  .toggle-label { font-size: 11px; color: #444; }
+  .sport-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .sport-chip {
+    padding: 3px 8px;
+    font-size: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    color: #555;
+    transition: all 0.15s;
+  }
+  .sport-chip.on { background: var(--blue); color: var(--white); border-color: var(--blue); }
+  .empty-state { color: #888; font-size: 14px; text-align: center; padding: 40px; }
+  .sport-school-header {
+    background: var(--navy);
+    color: var(--white);
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .sport-school-header .name { font-weight: 700; font-size: 14px; }
+  .sport-school-header .inv { font-size: 11px; color: var(--gray); }
+  .transmission-note {
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #333;
+  }
+  .transmission-note p { margin: 0 0 8px; }
+  .transmission-note p:last-child { margin: 0; }
+  .save-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--green);
+    color: var(--navy);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .save-indicator.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img id="header-logo" alt="ESPN">
+  <h1>CUSA Campus Survey — Production Compliance Dashboard</h1>
+  <div class="subtitle">2025–26 Standards</div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="compliance">Equipment Compliance</button>
+  <button class="tab-btn" data-tab="sports">Sport Minimums</button>
+  <button class="tab-btn" data-tab="reference">ESPN Standards</button>
+  <button class="tab-btn" data-tab="editor">School Editor</button>
+  <button class="tab-btn" data-tab="audit">Audit Log</button>
+</div>
+
+<div class="content" id="content"></div>
+
+<div class="save-indicator" id="save-indicator">Saved ✓</div>
+
+<script>
+/* ── ESPN logo (transparent PNG) ── */
+const ESPN_LOGO = "data:image/png;base64,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";
+document.getElementById('header-logo').src = ESPN_LOGO;
+
+/* ── Reference data ── */
+const ALL_SPORTS = [
+  "Baseball","Basketball","Bowling","Fencing","Field Hockey","Football",
+  "Golf","Gymnastics","Hockey","Ice Hockey","Lacrosse","Soccer","Softball",
+  "Swimming","Swimming and Diving","Tennis","Track","Track and Field",
+  "Volleyball","Water Polo","Wrestling"
+];
+
+const SPORT_MINS = {
+  Baseball:{cam:3,rep:1,comm:"PxP",gfx:"Score",note:"3 cams: high home, center field, low or high 1st base"},
+  Basketball:{cam:4,rep:1,comm:"PxP/Analyst",gfx:"Clock/Score/Inserts"},
+  Bowling:{cam:2,rep:0,comm:"PxP",gfx:"Score"},
+  Fencing:{cam:1,rep:0,comm:"PxP",gfx:"Score"},
+  "Field Hockey":{cam:2,rep:1,comm:"PxP",gfx:"Clock/Score"},
+  Football:{cam:4,rep:1,comm:"PxP/Analyst",gfx:"Clock/Score/Inserts"},
+  Golf:{cam:3,rep:1,comm:"PxP",gfx:"Score"},
+  Gymnastics:{cam:3,rep:1,comm:"PxP",gfx:"Score"},
+  Hockey:{cam:2,rep:1,comm:"PxP",gfx:"Clock/Score"},
+  "Ice Hockey":{cam:2,rep:1,comm:"PxP",gfx:"Clock/Score"},
+  Lacrosse:{cam:2,rep:1,comm:"PxP",gfx:"Clock/Score"},
+  Soccer:{cam:4,rep:1,comm:"PxP",gfx:"Clock/Score"},
+  Softball:{cam:3,rep:1,comm:"PxP",gfx:"Score",note:"3 cams: high home, center field, low or high 1st base"},
+  Swimming:{cam:2,rep:1,comm:"PxP",gfx:"Clock/Score"},
+  "Swimming and Diving":{cam:2,rep:1,comm:"PxP",gfx:"Clock/Score"},
+  Tennis:{cam:1,rep:0,comm:"PxP",gfx:"Score"},
+  Track:{cam:3,rep:0,comm:"PxP",gfx:"Clock/Score"},
+  "Track and Field":{cam:3,rep:0,comm:"PxP",gfx:"Score"},
+  Volleyball:{cam:4,rep:1,comm:"PxP",gfx:"Clock/Score/Inserts"},
+  "Water Polo":{cam:2,rep:0,comm:"PxP",gfx:"Clock/Score"},
+  Wrestling:{cam:1,rep:0,comm:"PxP",gfx:"Score"}
+};
+
+// Sports CUSA officially tracks for compliance — the Sport Minimums view filters to these.
+const CUSA_SPONSORED_SPORTS = ['Football', 'Basketball', 'Volleyball', 'Soccer', 'Baseball', 'Softball'];
+
+// Sports that have dedicated per-sport camera count fields
+const PER_SPORT_CAM_FIELDS = {
+  'Football':'cam_football','Basketball':'cam_basketball','Volleyball':'cam_volleyball',
+  'Soccer':'cam_soccer','Baseball':'cam_baseball','Softball':'cam_softball'
+};
+
+const ADMIN_EMAIL = 'keithmkingjr@gmail.com';
+
+const FIELD_LABELS = {
+  sw_model:'Switcher Model', sw_inputs:'Switcher Inputs', sw_keyers:'Switcher Keyers', sw_mes:'Switcher M/Es',
+  cameras:'Total Cameras', camera_models:'Camera Models',
+  cam_football:'Football Cameras', cam_basketball:'Basketball Cameras', cam_volleyball:'Volleyball Cameras',
+  cam_soccer:'Soccer Cameras', cam_baseball:'Baseball Cameras', cam_softball:'Softball Cameras',
+  has_40x_lens:'40x+ Lens', lens_detail:'Lens Detail', has_14x_lens:'14x+ Lens',
+  replay_model:'Replay Model', replay_units:'Replay Units', replay_inputs:'Replay Inputs', replay_outputs:'Replay Outputs',
+  audio_model:'Audio Model', audio_inputs:'Audio Inputs', audio_outputs:'Audio Outputs', audio_faders:'Audio Faders',
+  intercom_model:'Intercom Model', intercom_ch:'Intercom Channels',
+  gfx_model:'Graphics Platform', gfx_channels:'Graphics Channels', gfx_approved:'Graphics Approved',
+  tx_digital:'Encoder', tx_approved:'Haivision Approved', backup_power:'Backup Power',
+  mv_sources:'Multiviewer Sources', mv_software:'Multiviewer Software', sports:'Sports Produced'
+};
+function fieldLabel(k) { return FIELD_LABELS[k] || k; }
+
+// For the 6 sports above, we use the school's per-sport input.
+// For other sports (Tennis, Track, etc.), we still use total cameras as there is no per-sport field.
+function getCamerasForSport(school, sport) {
+  const key = PER_SPORT_CAM_FIELDS[sport];
+  if (key) return Number(school[key]) || 0;
+  return Number(school.cameras) || 0;
+}
+
+function hasPerSportField(sport) {
+  return !!PER_SPORT_CAM_FIELDS[sport];
+}
+
+const EQUIP_CHECKS = [
+  {key:"swInputs",label:"Switcher Inputs",min:10,bool:false},
+  {key:"swKeyers",label:"Switcher Keyers",min:2,bool:false},
+  {key:"swMEs",label:"Switcher M/Es",min:1,bool:false},
+  {key:"cameras",label:"Cameras",min:4,bool:false},
+  {key:"has40xLens",label:"40x+ Lens w/ Extender",bool:true},
+  {key:"has14xLens",label:"14x+ Lens (≥3 cams)",bool:true},
+  {key:"replayInputs",label:"Replay Inputs",min:4,bool:false},
+  {key:"replayOutputs",label:"Replay Outputs",min:2,bool:false},
+  {key:"intercomCh",label:"Intercom Channels",min:10,bool:false},
+  {key:"audioInputs",label:"Audio Inputs",min:24,bool:false},
+  {key:"audioOutputs",label:"Audio Outputs",min:2,bool:false},
+  {key:"gfxApproved",label:"Graphics (XPression/Viz/AJT)",bool:true},
+  {key:"txApproved",label:"Transmission (Haivision)",bool:true},
+  {key:"backupPower",label:"Backup Power",bool:true}
+];
+
+const blankSchool = () => ({
+  name:"",conference:"CUSA",auth_email:"",sports:[],
+  swModel:"",swInputs:0,swKeyers:0,swMEs:0,
+  cameras:0,cameraModels:"",
+  cam_football:0,cam_basketball:0,cam_volleyball:0,cam_soccer:0,cam_baseball:0,cam_softball:0,
+  has40xLens:false,lensDetail:"",has14xLens:false,
+  replayModel:"",replayUnits:0,replayInputs:0,replayOutputs:0,
+  audioModel:"",audioInputs:0,audioOutputs:0,audioFaders:0,
+  intercomModel:"",intercomCh:0,
+  gfxModel:"",gfxChannels:0,gfxApproved:true,
+  txDigital:"Haivision IP Encoder",txApproved:true,backupPower:false,
+  mvSources:0,mvSoftware:""
+});
+
+/* ── Supabase client ── */
+let _db = null;
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+function toDbRow(s) {
+  return {
+    id: s.id,
+    name: s.name, conference: s.conference, auth_email: s.auth_email, sports: s.sports,
+    sw_model: s.swModel, sw_inputs: s.swInputs, sw_keyers: s.swKeyers, sw_mes: s.swMEs,
+    cameras: s.cameras, camera_models: s.cameraModels,
+    cam_football: s.cam_football, cam_basketball: s.cam_basketball, cam_volleyball: s.cam_volleyball,
+    cam_soccer: s.cam_soccer, cam_baseball: s.cam_baseball, cam_softball: s.cam_softball,
+    has_40x_lens: s.has40xLens, lens_detail: s.lensDetail, has_14x_lens: s.has14xLens,
+    replay_model: s.replayModel, replay_units: s.replayUnits, replay_inputs: s.replayInputs, replay_outputs: s.replayOutputs,
+    audio_model: s.audioModel, audio_inputs: s.audioInputs, audio_outputs: s.audioOutputs, audio_faders: s.audioFaders,
+    intercom_model: s.intercomModel, intercom_ch: s.intercomCh,
+    gfx_model: s.gfxModel, gfx_channels: s.gfxChannels, gfx_approved: s.gfxApproved,
+    tx_digital: s.txDigital, tx_approved: s.txApproved, backup_power: s.backupPower,
+    mv_sources: s.mvSources, mv_software: s.mvSoftware,
+    updated_by: s.updatedBy || null
+  };
+}
+
+function fromDbRow(r) {
+  return {
+    id: r.id, name: r.name, conference: r.conference || 'CUSA', auth_email: r.auth_email || '',
+    sports: r.sports || [],
+    swModel: r.sw_model || '', swInputs: r.sw_inputs || 0, swKeyers: r.sw_keyers || 0, swMEs: r.sw_mes || 0,
+    cameras: r.cameras || 0, cameraModels: r.camera_models || '',
+    cam_football: r.cam_football || 0, cam_basketball: r.cam_basketball || 0, cam_volleyball: r.cam_volleyball || 0,
+    cam_soccer: r.cam_soccer || 0, cam_baseball: r.cam_baseball || 0, cam_softball: r.cam_softball || 0,
+    has40xLens: r.has_40x_lens || false, lensDetail: r.lens_detail || '', has14xLens: r.has_14x_lens || false,
+    replayModel: r.replay_model || '', replayUnits: r.replay_units || 0, replayInputs: r.replay_inputs || 0, replayOutputs: r.replay_outputs || 0,
+    audioModel: r.audio_model || '', audioInputs: r.audio_inputs || 0, audioOutputs: r.audio_outputs || 0, audioFaders: r.audio_faders || 0,
+    intercomModel: r.intercom_model || '', intercomCh: r.intercom_ch || 0,
+    gfxModel: r.gfx_model || '', gfxChannels: r.gfx_channels || 0, gfxApproved: r.gfx_approved !== false,
+    txDigital: r.tx_digital || 'Haivision IP Encoder', txApproved: r.tx_approved !== false,
+    backupPower: r.backup_power || false, mvSources: r.mv_sources || 0, mvSoftware: r.mv_software || ''
+  };
+}
+
+const DEFAULT_SCHOOLS = [
+  {...blankSchool(),name:"Western Kentucky",auth_email:"jordan.basham@wku.edu",sports:["Baseball","Basketball","Football","Soccer","Softball","Volleyball"],swModel:"Grass Valley Kayenne",swInputs:48,swKeyers:4,swMEs:2.5,cameras:6,cameraModels:"6 Ikegami HDK-77EC",has40xLens:true,lensDetail:"Fujinon XA 50x9.5 (2)",has14xLens:true,replayModel:"NewTek 3Play / Vizrt 3Play",replayUnits:2,replayInputs:4,replayOutputs:2,intercomModel:"RTS Telex",intercomCh:8,audioModel:"Yamaha M7CL",audioInputs:48,audioOutputs:32,audioFaders:62,gfxModel:"Ross XPression + AJT Livebook",gfxChannels:3,gfxApproved:true,backupPower:false,txApproved:true,mvSources:8,mvSoftware:"Evertz Magnum"},
+  {...blankSchool(),name:"Sam Houston",auth_email:"JDB014@shsu.edu",sports:["Baseball","Basketball","Football","Soccer","Softball","Volleyball"],swModel:"Ross Carbonite",swInputs:24,swKeyers:4,swMEs:2,cameras:6,cameraModels:"6 Hitachi 5550",has40xLens:false,lensDetail:"Max 26x (Fujinon Box Lens 26x)",has14xLens:true,replayModel:"3Play 4800 / 3Play 440",replayUnits:2,replayInputs:8,replayOutputs:2,intercomModel:"Clear Com",intercomCh:4,audioModel:"Beringer X32",audioInputs:32,audioOutputs:16,audioFaders:24,gfxModel:"Ross Xpression + XPN Go",gfxChannels:4,gfxApproved:true,backupPower:true,txApproved:true,mvSources:24,mvSoftware:"Ross"},
+  {...blankSchool(),name:"New Mexico State",auth_email:"vconway@nmsu.edu",sports:["Baseball","Basketball","Football","Softball","Volleyball"],swModel:"Ross Carbonite Ultra CUF-124",swInputs:24,swKeyers:4,swMEs:2,cameras:13,cameraModels:"6 Sony HSC 100R + 3 Marshall CV506 + others",has40xLens:true,lensDetail:"Canon XJ60X9BIE (2)",has14xLens:true,replayModel:"EVS XT-VIA",replayUnits:1,replayInputs:6,replayOutputs:2,intercomModel:"RTS Odin 32",intercomCh:32,audioModel:"Yamaha DM7",audioInputs:32,audioOutputs:16,audioFaders:28,gfxModel:"Ross Xpression 3ch",gfxChannels:3,gfxApproved:true,backupPower:false,txApproved:true,mvSources:24,mvSoftware:"Ross Dashboard"},
+  {...blankSchool(),name:"MTSU",auth_email:"nathan.wallach@mtsu.edu",sports:["Baseball","Basketball","Football","Soccer","Softball","Volleyball"],swModel:"Carbonite Ultra CUF-124",swInputs:24,swKeyers:2,swMEs:2.5,cameras:5,cameraModels:"5 Panasonic AK-HC3900GSJ",has40xLens:true,lensDetail:"Canon XJ80x8.8B (1)",has14xLens:true,replayModel:"Ross Mira+",replayUnits:1,replayInputs:8,replayOutputs:8,intercomModel:"Clear Com Free Speak",intercomCh:0,audioModel:"Yamaha DM7-EX",audioInputs:120,audioOutputs:120,audioFaders:32,gfxModel:"XPression XST3",gfxChannels:3,gfxApproved:true,backupPower:true,txApproved:true,mvSources:16,mvSoftware:"Ross"},
+  {...blankSchool(),name:"Missouri State",auth_email:"rkindhart@missouristate.edu",conference:"MVC",sports:["Baseball","Basketball","Football","Soccer","Softball","Swimming","Volleyball"],swModel:"Ross Carbonite Multi Media",swInputs:16,swKeyers:4,swMEs:2,cameras:4,cameraModels:"4 HXC FB80",has40xLens:true,lensDetail:"Canon Super 55, Fujinon 42X",has14xLens:true,replayModel:"Newtek 3 Play",replayUnits:1,replayInputs:4,replayOutputs:2,intercomModel:"Clear Com PL",intercomCh:1,audioModel:"Behringer X32",audioInputs:32,audioOutputs:16,audioFaders:32,gfxModel:"Ross Xpression SCE",gfxChannels:1,gfxApproved:true,backupPower:false,txApproved:true,mvSources:16,mvSoftware:"Built in to Switcher"},
+  {...blankSchool(),name:"Liberty",auth_email:"rfkeating@liberty.edu",sports:["Baseball","Basketball","Field Hockey","Football","Ice Hockey","Lacrosse","Soccer","Softball","Swimming","Tennis","Track","Volleyball"],swModel:"GV Kayenne K-Frame XP",swInputs:72,swKeyers:6,swMEs:4,cameras:20,cameraModels:"12+ Sony HXC-FB80 (x20 total)",has40xLens:true,lensDetail:"Fujinon UA107X8.4 (2), UA70X8.7 (7)",has14xLens:true,replayModel:"DreamCatcher",replayUnits:1,replayInputs:12,replayOutputs:12,intercomModel:"Riedel Artist 1024",intercomCh:1024,audioModel:"Calrec Artemis+",audioInputs:256,audioOutputs:512,audioFaders:64,gfxModel:"XPression (x6 centralized)",gfxChannels:8,gfxApproved:true,backupPower:true,txApproved:true,mvSources:96,mvSoftware:"Evertz EV 670/3067"},
+  {...blankSchool(),name:"Jacksonville State",auth_email:"klflippo@jsu.edu",sports:["Baseball","Basketball","Football","Soccer","Softball","Volleyball"],swModel:"NewTek Tricaster TC1",swInputs:16,swKeyers:4,swMEs:4,cameras:6,cameraModels:"4 JVC GY-HC500U + 2 JVC GY-HM620U",has40xLens:false,lensDetail:"Max 23x (Fujinon Zoom 23x)",has14xLens:true,replayModel:"NewTek 3Play 3P1",replayUnits:1,replayInputs:4,replayOutputs:1,intercomModel:"Clear-Com Encore MS702",intercomCh:8,audioModel:"Mackie 1402-VLZ4",audioInputs:14,audioOutputs:7,audioFaders:10,gfxModel:"Ross Xpression 10.5 + AJT",gfxChannels:2,gfxApproved:true,backupPower:false,txApproved:true,mvSources:8,mvSoftware:"Tricaster"},
+  {...blankSchool(),name:"FIU",auth_email:"ngarrido@fiu.edu",sports:["Baseball","Basketball","Football","Soccer","Softball","Volleyball"],swModel:"NewTek TC1",swInputs:16,swKeyers:2,swMEs:2,cameras:5,cameraModels:"5 SONY PXW",has40xLens:false,lensDetail:"Lenses listed as N/A",has14xLens:false,replayModel:"NewTek 3Play",replayUnits:1,replayInputs:4,replayOutputs:4,intercomModel:"Hollyland Solidcom M1",intercomCh:8,audioModel:"Allen & Heath AH-SQ-6",audioInputs:48,audioOutputs:48,audioFaders:24,gfxModel:"AJT Livebook (x2)",gfxChannels:4,gfxApproved:true,backupPower:false,txApproved:true,mvSources:8,mvSoftware:"TC1"},
+  {...blankSchool(),name:"Delaware",auth_email:"pfleiger@udel.edu",sports:["Baseball","Basketball","Field Hockey","Football","Lacrosse","Soccer","Softball","Volleyball"],swModel:"Ross Carbonite + TC1 Tri Casters",swInputs:24,swKeyers:4,swMEs:2,cameras:11,cameraModels:"5 Hitachi SK HD1000 + 6 JVC Gy-HM180U",has40xLens:true,lensDetail:"Fujinon Digipower 50 (3)",has14xLens:true,replayModel:"Ross Mira + 3Play 3P1 (x2)",replayUnits:3,replayInputs:4,replayOutputs:2,intercomModel:"Clear-Com Free Speak II",intercomCh:12,audioModel:"Soundcraft EPM12",audioInputs:12,audioOutputs:2,audioFaders:12,gfxModel:"Ross Xpression + AJT LiveBook",gfxChannels:7,gfxApproved:true,backupPower:true,txApproved:false,txDigital:"Not specified",mvSources:16,mvSoftware:"Ross Carbonite"},
+  {...blankSchool(),name:"Kennesaw State",auth_email:"Nalexa29@kennesaw.edu",sports:["Baseball","Basketball","Football","Lacrosse","Soccer","Softball","Volleyball"],swModel:"Ross Carbonite (x2)",swInputs:24,swKeyers:4,swMEs:2,cameras:8,cameraModels:"4 Panasonic HPX-370 + 4 Panasonic CX-350",has40xLens:false,lensDetail:"Max 18-20x (Panasonic 18x)",has14xLens:true,replayModel:"Ross Mira Replay",replayUnits:4,replayInputs:9,replayOutputs:3,intercomModel:"ClearComm",intercomCh:0,audioModel:"Behringer X32",audioInputs:16,audioOutputs:16,audioFaders:16,gfxModel:"Ross Xpression (x3)",gfxChannels:3,gfxApproved:true,backupPower:true,txApproved:true,mvSources:0,mvSoftware:"n/a"}
+];
+
+/* ── State ── */
+const STORAGE_KEY = "cusa-campus-surveys-v1";
+const PW_HASH_KEY = "cusa-compliance-pw-hash";
+const UNLOCK_KEY = "cusa-compliance-unlocked";
+// SHA-256 of the default admin password — seeded on first load so no setup screen appears
+const DEFAULT_PW_HASH = "9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2";
+let state = {
+  schools: loadSchools(),
+  activeTab: 'editor',
+  editingIdx: null,
+  pendingEditIdx: null,
+  unlocked: localStorage.getItem(UNLOCK_KEY) === 'true',
+  session: null,
+  isAdmin: false,
+  authorizedSchoolEmail: null,
+  auditLog: null
+};
+
+function loadSchools() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_SCHOOLS));
+}
+
+function saveSchools() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools));
+    showSaved();
+  } catch(e) {}
+}
+
+function showSaved() {
+  const el = document.getElementById('save-indicator');
+  el.classList.add('show');
+  clearTimeout(showSaved._t);
+  showSaved._t = setTimeout(() => el.classList.remove('show'), 1500);
+}
+
+/* ── Password protection ── */
+async function hashPassword(pw) {
+  const enc = new TextEncoder().encode(pw);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function hasPasswordSet() {
+  return !!localStorage.getItem(PW_HASH_KEY);
+}
+
+async function setPassword(pw) {
+  const h = await hashPassword(pw);
+  localStorage.setItem(PW_HASH_KEY, h);
+}
+
+async function verifyPassword(pw) {
+  const stored = localStorage.getItem(PW_HASH_KEY);
+  if (!stored) return false;
+  const h = await hashPassword(pw);
+  return h === stored;
+}
+
+function lockCompliance() {
+  state.unlocked = false;
+  localStorage.removeItem(UNLOCK_KEY);
+  if (_db && state.session) { _db.auth.signOut(); }
+  state.session = null;
+  state.isAdmin = false;
+  state.authorizedSchoolEmail = null;
+  state.editingIdx = null;
+}
+
+function unlockCompliance() {
+  state.unlocked = true;
+  localStorage.setItem(UNLOCK_KEY, 'true');
+}
+
+function clearPassword() {
+  localStorage.removeItem(PW_HASH_KEY);
+  lockCompliance();
+}
+
+function seedDefaultPassword() {
+  if (!localStorage.getItem(PW_HASH_KEY)) {
+    localStorage.setItem(PW_HASH_KEY, DEFAULT_PW_HASH);
+  }
+}
+
+async function saveSchool(school) {
+  school.updatedBy = state.session?.user?.email || null;
+  if (_db && state.session) {
+    let result;
+    if (school.id) {
+      result = await _db.from('schools').update(toDbRow(school)).eq('id', school.id);
+    } else {
+      result = await _db.from('schools').insert(toDbRow(school)).select('id').single();
+      if (result.data?.id) school.id = result.data.id;
+    }
+    if (!result.error) showSaved();
+  } else {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {}
+    showSaved();
+  }
+}
+
+function setupRealtime() {
+  if (!_db) return;
+  _db.channel('schools-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'schools' }, payload => {
+      if (payload.eventType === 'UPDATE' && payload.new) {
+        const updated = fromDbRow(payload.new);
+        const idx = state.schools.findIndex(s => s.id === updated.id);
+        if (idx !== -1) {
+          if (idx !== state.editingIdx) state.schools[idx] = updated;
+        }
+        render();
+      } else if (payload.eventType === 'INSERT' && payload.new) {
+        const exists = state.schools.find(s => s.id === payload.new.id);
+        if (!exists) { state.schools.push(fromDbRow(payload.new)); render(); }
+      } else if (payload.eventType === 'DELETE' && payload.old?.id) {
+        state.schools = state.schools.filter(s => s.id !== payload.old.id);
+        if (state.editingIdx !== null && state.schools[state.editingIdx]?.id === payload.old.id) {
+          state.editingIdx = null;
+        }
+        render();
+      }
+    })
+    .subscribe();
+}
+
+/* ── Helpers ── */
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function checkStatus(school, check) {
+  const val = school[check.key];
+  if (check.bool) return { pass: val === true, display: val ? "Yes" : "No" };
+  return { pass: Number(val) >= check.min, display: String(val) };
+}
+
+function countPassing(school) {
+  return EQUIP_CHECKS.reduce((n, c) => n + (checkStatus(school, c).pass ? 1 : 0), 0);
+}
+
+/* ── Rendering ── */
+function render() {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === state.activeTab);
+  });
+  const content = document.getElementById('content');
+  if (state.activeTab === 'compliance') {
+    content.innerHTML = renderCompliance();
+    wireCompliance();
+  }
+  else if (state.activeTab === 'sports') {
+    content.innerHTML = renderSports();
+    wireCompliance();
+  }
+  else if (state.activeTab === 'reference') content.innerHTML = renderReference();
+  else if (state.activeTab === 'editor') {
+    content.innerHTML = renderEditor();
+    wireEditor();
+  }
+  else if (state.activeTab === 'audit') {
+    content.innerHTML = renderAuditLog();
+    wireAuditLog();
+  }
+}
+
+function wireCompliance() {
+  // Setup password flow
+  const setupBtn = document.getElementById('pw-setup-submit');
+  if (setupBtn) {
+    const submit = async () => {
+      const pw1 = document.getElementById('pw-new').value;
+      const pw2 = document.getElementById('pw-confirm').value;
+      const err = document.getElementById('pw-error');
+      if (!pw1 || pw1.length < 4) {
+        err.textContent = 'Password must be at least 4 characters.';
+        err.style.display = 'block'; return;
+      }
+      if (pw1 !== pw2) {
+        err.textContent = 'Passwords do not match.';
+        err.style.display = 'block'; return;
+      }
+      await setPassword(pw1);
+      unlockCompliance();
+      if (state.pendingEditIdx !== null) {
+        state.editingIdx = state.pendingEditIdx;
+        state.pendingEditIdx = null;
+      }
+      render();
+    };
+    setupBtn.addEventListener('click', submit);
+    ['pw-new','pw-confirm'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    });
+    document.getElementById('pw-new').focus();
+  }
+
+  // Enter password / sign-in flow
+  const submitBtn = document.getElementById('pw-submit');
+  if (submitBtn) {
+    const isEditorGate = state.pendingEditIdx !== null;
+    const submit = async () => {
+      const pw = document.getElementById('pw-enter').value;
+      const err = document.getElementById('pw-error');
+
+      if (isEditorGate && _db) {
+        // Supabase Auth for school editing
+        const email = document.getElementById('pw-email')?.value?.trim() || '';
+        if (!email) { err.textContent = 'Enter your email address.'; err.style.display = 'block'; return; }
+        if (!pw) { err.textContent = 'Enter your password.'; err.style.display = 'block'; return; }
+        const { data, error } = await _db.auth.signInWithPassword({ email, password: pw });
+        if (error) { err.textContent = error.message || 'Sign-in failed.'; err.style.display = 'block'; return; }
+        const userEmail = data.session.user.email.toLowerCase();
+        const isAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
+        const schoolToEdit = state.schools[state.pendingEditIdx];
+        const authorized = isAdmin || userEmail === (schoolToEdit?.auth_email || '').toLowerCase();
+        if (!authorized) {
+          await _db.auth.signOut();
+          err.textContent = `${email} is not authorized to edit ${schoolToEdit?.name || 'this school'}.`;
+          err.style.display = 'block';
+          return;
+        }
+        state.session = data.session;
+        state.isAdmin = isAdmin;
+        state.authorizedSchoolEmail = isAdmin ? null : userEmail;
+        state.unlocked = true;
+        localStorage.setItem(UNLOCK_KEY, 'true');
+        state.editingIdx = state.pendingEditIdx;
+        state.pendingEditIdx = null;
+        render();
+      } else {
+        // SHA-256 gate for compliance/sports or no-Supabase fallback
+        const ok = await verifyPassword(pw);
+        if (ok) {
+          unlockCompliance();
+          if (state.pendingEditIdx !== null) {
+            state.editingIdx = state.pendingEditIdx;
+            state.pendingEditIdx = null;
+          }
+          render();
+        } else {
+          err.textContent = 'Incorrect password.';
+          err.style.display = 'block';
+          document.getElementById('pw-enter').value = '';
+        }
+      }
+    };
+    submitBtn.addEventListener('click', submit);
+    document.getElementById('pw-enter').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    const focusEl = document.getElementById('pw-email') || document.getElementById('pw-enter');
+    focusEl?.focus();
+
+    document.getElementById('pw-reset')?.addEventListener('click', () => {
+      if (!confirm('Clear the saved password? You will need to create a new one to protect this section.')) return;
+      clearPassword();
+      render();
+    });
+  }
+
+  // Unlocked footer buttons
+  document.getElementById('lock-now')?.addEventListener('click', () => {
+    lockCompliance();
+    render();
+  });
+  document.getElementById('change-pw')?.addEventListener('click', () => {
+    if (!confirm('Clear the current password and set a new one?')) return;
+    clearPassword();
+    render();
+  });
+  document.getElementById('export-xlsx')?.addEventListener('click', exportCompliance);
+}
+
+function exportCompliance() {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel export library failed to load. Please check your internet connection and refresh.');
+    return;
+  }
+  const schools = state.schools;
+  const today = new Date().toISOString().slice(0,10);
+
+  // Style helpers
+  const navyFill = {patternType:'solid', fgColor:{rgb:'00263A'}};
+  const espnRedFill = {patternType:'solid', fgColor:{rgb:'EF4035'}};
+  const grayFill = {patternType:'solid', fgColor:{rgb:'BFCED6'}};
+  const passFill = {patternType:'solid', fgColor:{rgb:'C6EFCE'}};
+  const failFill = {patternType:'solid', fgColor:{rgb:'FFC7CE'}};
+  const warnFill = {patternType:'solid', fgColor:{rgb:'FFEB9C'}};
+  const whiteText = {color:{rgb:'FFFFFF'}, bold:true, name:'Arial', sz:11};
+  const navyText = {color:{rgb:'00263A'}, bold:true, name:'Arial', sz:10};
+  const passText = {color:{rgb:'006100'}, bold:true, name:'Arial', sz:10};
+  const failText = {color:{rgb:'9C0006'}, bold:true, name:'Arial', sz:10};
+  const warnText = {color:{rgb:'9C5700'}, bold:true, name:'Arial', sz:10};
+  const normalText = {name:'Arial', sz:10};
+  const border = {
+    top:{style:'thin',color:{rgb:'CCCCCC'}}, bottom:{style:'thin',color:{rgb:'CCCCCC'}},
+    left:{style:'thin',color:{rgb:'CCCCCC'}}, right:{style:'thin',color:{rgb:'CCCCCC'}}
+  };
+  const cellCenter = {alignment:{horizontal:'center', vertical:'center', wrapText:true}, border};
+  const cellLeft = {alignment:{horizontal:'left', vertical:'center', wrapText:true}, border};
+
+  const mkCell = (v, style={}) => ({v: v == null ? '' : v, t:'s', s:{...style, border}});
+  const mkNum = (v, style={}) => ({v: Number(v) || 0, t:'n', s:{...style, border}});
+
+  // Build rows
+  const rows = [];
+
+  // Title row (row 0)
+  rows.push([{v:`ESPN 2025-26 EQUIPMENT COMPLIANCE DASHBOARD — Exported ${today}`, t:'s',
+    s:{fill:espnRedFill, font:{...whiteText, sz:14}, alignment:{horizontal:'center'}, border}}]);
+  // Spacer
+  rows.push([{v:'', s:{border}}]);
+
+  // Header row
+  const headerRow = [mkCell('ESPN Minimum Requirement', {fill:navyFill, font:whiteText, alignment:{horizontal:'center', wrapText:true}})];
+  schools.forEach(s => headerRow.push(mkCell(s.name, {fill:navyFill, font:whiteText, alignment:{horizontal:'center', wrapText:true}})));
+  rows.push(headerRow);
+
+  // Check rows
+  EQUIP_CHECKS.forEach(check => {
+    const labelText = check.bool ? check.label : `${check.label} (≥${check.min})`;
+    const row = [mkCell(labelText, {fill:grayFill, font:navyText, alignment:{horizontal:'left', wrapText:true}})];
+    schools.forEach(s => {
+      const st = checkStatus(s, check);
+      const style = st.pass
+        ? {fill:passFill, font:passText, alignment:{horizontal:'center'}}
+        : {fill:failFill, font:failText, alignment:{horizontal:'center'}};
+      row.push(check.bool ? mkCell(st.display, style) : mkNum(Number(st.display), style));
+    });
+    rows.push(row);
+  });
+
+  // Total passing row
+  const totalRow = [mkCell(`TOTAL PASSING (of ${EQUIP_CHECKS.length})`, {fill:grayFill, font:{...navyText, sz:11}, alignment:{horizontal:'left'}})];
+  schools.forEach(s => {
+    const n = countPassing(s);
+    let style;
+    if (n >= 12) style = {fill:passFill, font:{...passText, sz:12}, alignment:{horizontal:'center'}};
+    else if (n >= 9) style = {fill:warnFill, font:{...warnText, sz:12}, alignment:{horizontal:'center'}};
+    else style = {fill:failFill, font:{...failText, sz:12}, alignment:{horizontal:'center'}};
+    totalRow.push(mkCell(`${n}/${EQUIP_CHECKS.length}`, style));
+  });
+  rows.push(totalRow);
+
+  // Spacer
+  rows.push([{v:'', s:{}}]);
+
+  // Lens detail section
+  const lensHeader = [mkCell('LENS DETAIL (40x+ Requirement)', {fill:navyFill, font:whiteText, alignment:{horizontal:'center'}})];
+  schools.forEach(() => lensHeader.push({v:'', s:{fill:navyFill, border}}));
+  rows.push(lensHeader);
+
+  const lensRow = [mkCell('Longest Lens Available', {fill:grayFill, font:navyText, alignment:{horizontal:'left'}})];
+  schools.forEach(s => {
+    const style = s.has40xLens
+      ? {fill:passFill, font:{...normalText, color:{rgb:'006100'}}, alignment:{horizontal:'center', wrapText:true}}
+      : {fill:failFill, font:{...normalText, color:{rgb:'9C0006'}}, alignment:{horizontal:'center', wrapText:true}};
+    lensRow.push(mkCell(s.lensDetail || 'Not specified', style));
+  });
+  rows.push(lensRow);
+
+  // Build worksheet
+  const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.map(c => c.v)));
+
+  // Apply styles
+  rows.forEach((row, rIdx) => {
+    row.forEach((cell, cIdx) => {
+      const addr = XLSX.utils.encode_cell({r: rIdx, c: cIdx});
+      if (ws[addr]) {
+        ws[addr].s = cell.s;
+        if (cell.t) ws[addr].t = cell.t;
+      } else if (cell.v !== undefined && cell.v !== '') {
+        ws[addr] = {v: cell.v, t: cell.t || 's', s: cell.s};
+      }
+    });
+  });
+
+  // Merge title row across all columns
+  ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:schools.length}}];
+  // Merge lens header row
+  const lensHdrRow = 3 + EQUIP_CHECKS.length + 2; // title + spacer + header + checks + total + spacer
+  ws['!merges'].push({s:{r:lensHdrRow,c:0}, e:{r:lensHdrRow,c:schools.length}});
+
+  // Column widths
+  ws['!cols'] = [{wch:30}].concat(schools.map(() => ({wch:18})));
+  // Row heights
+  ws['!rows'] = [{hpt:24}, {hpt:8}, {hpt:36}]; // title, spacer, header
+  for (let i = 0; i < EQUIP_CHECKS.length; i++) ws['!rows'].push({hpt:20});
+  ws['!rows'].push({hpt:26}); // total
+  ws['!rows'].push({hpt:8}); // spacer
+  ws['!rows'].push({hpt:24}); // lens header
+  ws['!rows'].push({hpt:44}); // lens detail
+
+  // Build reference sheet
+  const refRows = [
+    [{v:'ESPN 2025-26 MINIMUM PRODUCTION STANDARDS', s:{fill:espnRedFill, font:{...whiteText, sz:13}, alignment:{horizontal:'center'}, border}}],
+    [{v:''}],
+    [{v:'GENERAL EQUIPMENT MINIMUMS', s:{fill:navyFill, font:whiteText, alignment:{horizontal:'center'}, border}}],
+    ['Video Switcher','10 inputs, 2 keyers, 1 ME, 8 aux buses'],
+    ['Resolution','720p or 1080i / 59.4 fps minimum'],
+    ['Cameras','Min 4 w/ operator; 3 w/ ≥14x4.3 lens; 1 w/ ≥40x + extender'],
+    ['Graphics','ESPN insert look — Ross XPression, Viz RT, or AJT'],
+    ['Replay','Min 1 DVR unit, 4 input / 2 output'],
+    ['Intercom','10–16 channels'],
+    ['Audio Console','24 inputs, 8 sub mixers, 2 outputs'],
+    ['Transmission','Haivision IP Encoder or LTN'],
+    [{v:''}],
+    [{v:'MINIMUM SPECS PER SPORT', s:{fill:navyFill, font:whiteText, alignment:{horizontal:'center'}, border}}],
+    ['Sport','Min Cameras','Min Replay','Commentary','Graphics']
+  ];
+  Object.entries(SPORT_MINS).filter(([k]) => !["Ice Hockey","Swimming and Diving","Track and Field"].includes(k)).forEach(([sport, m]) => {
+    refRows.push([sport, m.cam, m.rep, m.comm, m.gfx]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(refRows.map(r => r.map(c => (c && typeof c === 'object' && 'v' in c) ? c.v : c)));
+  ws2['!cols'] = [{wch:22},{wch:16},{wch:14},{wch:16},{wch:22}];
+  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}}, {s:{r:2,c:0},e:{r:2,c:4}}, {s:{r:12,c:0},e:{r:12,c:4}}];
+
+  // Create workbook
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Equipment Compliance');
+  XLSX.utils.book_append_sheet(wb, ws2, 'ESPN Standards');
+
+  // Write file
+  const filename = `CUSA_ESPN_Compliance_${today}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+function renderCompliance() {
+  if (!state.session && !hasPasswordSet()) return renderSetupPassword();
+  if (!state.session && !state.unlocked) return renderPasswordPrompt();
+
+  const schools = state.schools;
+  let rows = '';
+  EQUIP_CHECKS.forEach(check => {
+    let cells = `<td class="label">${escapeHtml(check.label)}${check.bool ? '' : ` <span style="color:#999">(≥${check.min})</span>`}</td>`;
+    schools.forEach(s => {
+      const st = checkStatus(s, check);
+      cells += `<td class="${st.pass ? 'status-pass' : 'status-fail'}">${escapeHtml(st.display)}</td>`;
+    });
+    rows += `<tr>${cells}</tr>`;
+  });
+  // Total row
+  let totalCells = `<td class="label total-row" style="background:var(--gray)">TOTAL PASSING</td>`;
+  schools.forEach(s => {
+    const n = countPassing(s);
+    const cls = n >= 12 ? 'status-pass' : n >= 9 ? 'status-warn' : 'status-fail';
+    totalCells += `<td class="${cls} total-row">${n}/${EQUIP_CHECKS.length}</td>`;
+  });
+  rows += `<tr>${totalCells}</tr>`;
+
+  let headers = `<th>ESPN Minimum</th>`;
+  schools.forEach(s => headers += `<th class="school-col">${escapeHtml(s.name)}</th>`);
+
+  let lensItems = schools.map(s => `
+    <div class="lens-item" style="background:${s.has40xLens ? 'var(--pass-bg)' : 'var(--fail-bg)'}">
+      <div class="school">${escapeHtml(s.name)}</div>
+      <div style="color:${s.has40xLens ? 'var(--pass-fg)' : 'var(--fail-fg)'}">${escapeHtml(s.lensDetail || 'Not specified')}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="section-title" style="justify-content:space-between;width:100%">
+      <div style="display:flex;align-items:center;gap:12px">
+        <img src="${ESPN_LOGO}" alt="ESPN">
+        <h2>2025-26 Equipment Compliance Matrix</h2>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="export-xlsx" style="background:var(--green);color:var(--navy);font-size:11px;padding:6px 12px">⬇ Export to Excel</button>
+        <button class="btn gray" id="lock-now" style="font-size:11px;padding:6px 12px">🔒 Lock Again</button>
+        <button class="btn blue" id="change-pw" style="font-size:11px;padding:6px 12px">Change Password</button>
+      </div>
+    </div>
+    <p class="muted">Each school's equipment checked against ESPN 2025-26 minimum production standards. Updates to the School Editor tab recalculate instantly.</p>
+    <div class="table-wrap">
+      <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <div class="card-header">Lens Detail (40x+ Requirement)</div>
+      <div class="lens-grid">${lensItems}</div>
+    </div>
+  `;
+}
+
+function renderSetupPassword() {
+  return `
+    <div style="max-width:480px;margin:60px auto;background:var(--white);border-radius:8px;border:2px solid var(--espn-red);overflow:hidden">
+      <div style="background:var(--espn-red);color:var(--white);padding:14px 20px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
+        <img src="${ESPN_LOGO}" alt="ESPN" style="height:16px;filter:brightness(0) invert(1)">
+        <span>🔒 Set Password for Protected Sections</span>
+      </div>
+      <div style="padding:24px">
+        <p style="margin:0 0 16px;font-size:13px;color:#444;line-height:1.5">
+          The Equipment Compliance and Sport Minimums tabs contain aggregated data across all schools. Create a password to restrict access — only people with this password will be able to view these sections.
+        </p>
+        <div class="field">
+          <label>New Password</label>
+          <input type="password" id="pw-new" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Confirm Password</label>
+          <input type="password" id="pw-confirm" autocomplete="new-password">
+        </div>
+        <div id="pw-error" style="color:var(--fail-fg);font-size:12px;margin:8px 0;display:none"></div>
+        <button class="btn red" id="pw-setup-submit" style="width:100%;margin-top:8px">Set Password & Unlock</button>
+        <p style="margin:16px 0 0;font-size:11px;color:#888;line-height:1.5">
+          <strong>Note:</strong> Password is stored locally in this browser only. If you forget it, you can reset by clearing your browser's site data — but all protection will be lost. Anyone with access to this page's source code can bypass client-side protection, so treat this as a deterrent rather than strong security.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+function renderPasswordPrompt() {
+  const isEditorGate = state.pendingEditIdx !== null;
+  const school = isEditorGate ? state.schools[state.pendingEditIdx] : null;
+  const schoolName = school?.name || 'this school';
+  const useSupabase = isEditorGate && !!_db;
+  const title = isEditorGate ? `🔒 Edit: ${escapeHtml(schoolName)}` : '🔒 Protected Data Access';
+  const desc = isEditorGate
+    ? `Sign in to edit ${escapeHtml(schoolName)}'s equipment data.`
+    : `Enter the password to view the Equipment Compliance and Sport Minimums dashboards.`;
+  const topMargin = isEditorGate ? '40px' : '60px';
+  return `
+    <div style="max-width:420px;margin:${topMargin} auto;background:var(--white);border-radius:8px;border:2px solid var(--navy);overflow:hidden">
+      <div style="background:var(--navy);color:var(--white);padding:14px 20px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
+        <img src="${ESPN_LOGO}" alt="ESPN" style="height:16px;filter:brightness(0) invert(1)">
+        <span>${title}</span>
+      </div>
+      <div style="padding:24px">
+        <p style="margin:0 0 16px;font-size:13px;color:#444">${desc}</p>
+        ${useSupabase ? `<div class="field">
+          <label>Email</label>
+          <input type="email" id="pw-email" value="${escapeHtml(school?.auth_email || '')}" autocomplete="email" placeholder="your@email.edu">
+        </div>` : ''}
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="pw-enter" autocomplete="current-password">
+        </div>
+        <div id="pw-error" style="color:var(--fail-fg);font-size:12px;margin:8px 0;display:none"></div>
+        <button class="btn red" id="pw-submit" style="width:100%;margin-top:8px">${isEditorGate ? 'Sign In to Edit' : 'Unlock'}</button>
+        ${isEditorGate ? '' : `<button class="btn gray" id="pw-reset" style="width:100%;margin-top:8px;font-size:11px">Forgot password? Reset (clears saved password)</button>`}
+      </div>
+    </div>
+  `;
+}
+
+function checkReplayDetail(s, mins) {
+  if (mins.rep === 0) return { ok: true, reason: 'Replay not required for this sport' };
+  const issues = [];
+  if (s.replayUnits < 1) issues.push(`0 replay units`);
+  if (s.replayInputs < 4) issues.push(`only ${s.replayInputs} inputs (need ≥4)`);
+  if (s.replayOutputs < 2) issues.push(`only ${s.replayOutputs} outputs (need ≥2)`);
+  if (issues.length === 0) return { ok: true, reason: `${s.replayUnits} unit(s), ${s.replayInputs}in/${s.replayOutputs}out — meets ESPN minimum` };
+  return { ok: false, reason: issues.join(', ') };
+}
+
+function renderSports() {
+  if (!state.session && !hasPasswordSet()) return renderSetupPassword();
+  if (!state.session && !state.unlocked) return renderPasswordPrompt();
+
+  let out = `
+    <div class="section-title" style="justify-content:space-between;width:100%">
+      <div style="display:flex;align-items:center;gap:12px">
+        <img src="${ESPN_LOGO}" alt="ESPN">
+        <h2>Per-Sport Minimum Standards</h2>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn gray" id="lock-now" style="font-size:11px;padding:6px 12px">🔒 Lock Again</button>
+        <button class="btn blue" id="change-pw" style="font-size:11px;padding:6px 12px">Change Password</button>
+      </div>
+    </div>
+    <p class="muted">Each CUSA-sponsored sport the school produces is checked against two requirements: camera count (sport-specific) and replay capability (ESPN general minimum). Sports outside the CUSA-sponsored set are not shown here.</p>
+    <div class="card" style="margin-bottom:20px;border-left:4px solid var(--blue)">
+      <div class="card-header" style="background:var(--blue);color:var(--navy)">How the Checks Work</div>
+      <div style="padding:14px 18px;font-size:12px;line-height:1.7;color:#333">
+        <p style="margin:0 0 8px"><strong>CUSA-sponsored sports:</strong> Football, Basketball, Volleyball, Soccer, Baseball, Softball.</p>
+        <p style="margin:0 0 8px"><strong>Cameras — CUSA minimums:</strong> Football, Basketball, Volleyball, and Soccer require <strong>4 cameras</strong>. Baseball and Softball require <strong>3 cameras</strong> (high home, center field, low or high 1st base). The School Cams value comes directly from what each school enters in the <em>Sport-Specific Cameras</em> section of the School Editor. If a school hasn't entered a value yet, it shows as <strong>—</strong> and fails the check until filled in.</p>
+        <p style="margin:0 0 8px"><strong>Replay:</strong> for sports that require replay, the school's replay system must meet <em>all three</em> of ESPN's general equipment minimums:</p>
+        <ul style="margin:0 0 8px 20px;padding:0">
+          <li>At least <strong>1 replay unit</strong></li>
+          <li>At least <strong>4 replay inputs</strong></li>
+          <li>At least <strong>2 replay outputs</strong></li>
+        </ul>
+        <p style="margin:0;color:#666;font-style:italic">If any one of those three is below minimum, replay fails for <strong>every</strong> sport that requires replay. The "Why?" column below shows which specific spec is the problem.</p>
+      </div>
+    </div>
+  `;
+  state.schools.forEach(s => {
+    if (!s.sports || !s.sports.length) return;
+    // Filter to CUSA-sponsored sports this school produces
+    const displaySports = s.sports.filter(sp => CUSA_SPONSORED_SPORTS.includes(sp));
+    if (!displaySports.length) return;
+    // School-level equipment check
+    const unitsOk = s.replayUnits >= 1;
+    const inputsOk = s.replayInputs >= 4;
+    const outputsOk = s.replayOutputs >= 2;
+    const invBadge = (ok, txt) => `<span style="color:${ok ? 'var(--pass-fg)' : 'var(--fail-fg)'};font-weight:${ok ? '500' : '700'}">${ok ? '' : '✗ '}${txt}</span>`;
+
+    let rows = '';
+    displaySports.forEach(sport => {
+      const mins = SPORT_MINS[sport] || {cam:2,rep:1,comm:"PxP",gfx:"Score"};
+      const perSport = hasPerSportField(sport);
+      const schoolCams = getCamerasForSport(s, sport);
+      const notEntered = perSport && schoolCams === 0;
+      const camOk = !notEntered && schoolCams >= mins.cam;
+      const rep = checkReplayDetail(s, mins);
+
+      // Why? text
+      let camReason = null;
+      if (notEntered) camReason = `Cams: per-sport value not entered in School Editor`;
+      else if (!camOk) camReason = `Cams: only ${schoolCams} ${perSport ? 'per-sport' : 'total'} cams (need ≥${mins.cam})`;
+
+      const whyParts = [];
+      if (camReason) whyParts.push(camReason);
+      if (!rep.ok) whyParts.push(`Replay: ${rep.reason}`);
+      if (camOk && rep.ok) whyParts.push('All checks pass');
+      const whyText = whyParts.join(' · ');
+      const whyColor = (camOk && rep.ok) ? 'var(--pass-fg)' : 'var(--fail-fg)';
+
+      const camDisplay = notEntered ? '—' : String(schoolCams);
+      const camTitle = perSport
+        ? (notEntered ? 'Not entered in School Editor' : 'Per-sport camera count from School Editor')
+        : 'Total cameras (no per-sport field for this sport)';
+
+      rows += `<tr>
+        <td class="label">${escapeHtml(sport)}</td>
+        <td style="text-align:center">${mins.cam}</td>
+        <td class="${camOk ? 'status-pass' : 'status-fail'}" title="${camTitle}">${camDisplay}</td>
+        <td class="${camOk ? 'status-pass' : 'status-fail'}">${camOk ? '✓ Meets' : '✗ Below'}</td>
+        <td style="text-align:center">${mins.rep === 0 ? '—' : mins.rep}</td>
+        <td class="${rep.ok ? 'status-pass' : 'status-fail'}">${mins.rep === 0 ? 'N/A' : (rep.ok ? '✓ Meets' : '✗ Below')}</td>
+        <td style="font-size:11px;color:${whyColor};font-style:${(camOk && rep.ok) ? 'normal' : 'italic'}">${escapeHtml(whyText)}</td>
+        <td style="text-align:center;color:#555">${escapeHtml(mins.comm)}</td>
+      </tr>`;
+    });
+
+    // Per-sport camera summary for this school (no fallback to total)
+    const perSportBadges = Object.entries(PER_SPORT_CAM_FIELDS)
+      .filter(([sport]) => s.sports.includes(sport))
+      .map(([sport, key]) => {
+        const val = Number(s[key]) || 0;
+        const min = SPORT_MINS[sport].cam;
+        const ok = val >= min;
+        const display = val > 0 ? `${sport.slice(0,3)}:${val}` : `${sport.slice(0,3)}:—`;
+        return `<span style="color:${ok ? 'var(--pass-fg)' : 'var(--fail-fg)'};font-weight:${ok ? '500' : '700'}">${display}</span>`;
+      }).join(' · ');
+
+    out += `
+      <div class="card">
+        <div class="sport-school-header">
+          <span class="name">${escapeHtml(s.name)}</span>
+          <span class="inv">Total ${s.cameras} cams · Replay: ${invBadge(unitsOk, `${s.replayUnits} unit${s.replayUnits===1?'':'s'}`)} · ${invBadge(inputsOk, `${s.replayInputs} inputs`)} · ${invBadge(outputsOk, `${s.replayOutputs} outputs`)}</span>
+        </div>
+        ${perSportBadges ? `<div style="background:#fafafa;padding:8px 16px;font-size:11px;border-bottom:1px solid #eee;color:#555">Per-sport cams: ${perSportBadges}</div>` : ''}
+        <table>
+          <thead><tr>
+            <th>Sport</th>
+            <th style="text-align:center">Min Cams</th>
+            <th style="text-align:center">School Cams</th>
+            <th style="text-align:center">Cam Check</th>
+            <th style="text-align:center">Replay Required</th>
+            <th style="text-align:center">Replay Check</th>
+            <th>Why?</th>
+            <th style="text-align:center">Commentary</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  });
+  return out;
+}
+
+function renderReference() {
+  const generalSpecs = [
+    ["Video Switcher","10 inputs, 2 keyers, 1 ME, 8 aux buses"],
+    ["Resolution","720p or 1080i / 59.4 fps minimum"],
+    ["Cameras","Min 4 w/ operator; 3 w/ ≥14x4.3 lens; 1 w/ ≥40x + extender"],
+    ["Graphics","ESPN insert look — Ross XPression, Viz RT, or AJT"],
+    ["Replay","Min 1 DVR unit, 4 input / 2 output"],
+    ["Intercom","10–16 channels"],
+    ["Audio Console","24 inputs, 8 sub mixers, 2 outputs"],
+    ["Audio Config","Ch1/2 Stereo Mix L/R, Ch3/4 Int'l Sound L/R"],
+    ["Transmission","Haivision IP Encoder or LTN"],
+    ["Clock/Score","School responsibility — ESPN does NOT supply"]
+  ];
+  let leftRows = generalSpecs.map(([k,v]) => `<div class="ref-row"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`).join('');
+
+  const mainSports = Object.keys(SPORT_MINS).filter(k => !["Ice Hockey","Swimming and Diving","Track and Field"].includes(k));
+  let sportRows = mainSports.map(sport => {
+    const m = SPORT_MINS[sport];
+    return `<tr>
+      <td class="label">${escapeHtml(sport)}</td>
+      <td style="text-align:center">${m.cam}</td>
+      <td style="text-align:center">${m.rep}</td>
+      <td style="text-align:center">${escapeHtml(m.comm)}</td>
+      <td style="text-align:center">${escapeHtml(m.gfx)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="section-title">
+      <img src="${ESPN_LOGO}" alt="ESPN">
+      <h2>2025-26 Minimum Production Standards</h2>
+    </div>
+    <div class="ref-grid">
+      <div class="card">
+        <div class="card-header">General Equipment Minimums</div>
+        ${leftRows}
+      </div>
+      <div class="card">
+        <div class="card-header">Minimum Specs per Sport</div>
+        <table>
+          <thead><tr>
+            <th>Sport</th><th style="text-align:center">Cams</th><th style="text-align:center">Replay</th>
+            <th style="text-align:center">Commentary</th><th style="text-align:center">Graphics</th>
+          </tr></thead>
+          <tbody>${sportRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <div class="card-header red"><img src="${ESPN_LOGO}" alt="ESPN"><span>Transmission Requirements</span></div>
+      <div class="transmission-note">
+        <p><strong>IP:</strong> ESPN provides (1) Haivision encoder per institution. Haivision Makito X / T21 encoders and gateways — MPEG4/H.264 via SRT over public internet.</p>
+        <p><strong>A/V Handoff:</strong> 720p/59.94, HD-SDI with Embedded Audio → nominal 10 Mbps video (~13 Mbps ethernet).</p>
+        <p><strong>LTN:</strong> Coordinate LTN line with ESPN Transmission Conference Contact prior to booking.</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderEditor() {
+  const cards = state.schools.map((s, i) => {
+    const isActive = state.editingIdx === i || state.pendingEditIdx === i;
+    return `<div class="school-card ${isActive ? 'active' : ''}" data-idx="${i}">
+      <div class="name">${escapeHtml(s.name || 'Unnamed')}</div>
+    </div>`;
+  }).join('');
+
+  let form = '';
+  if (state.pendingEditIdx !== null && !state.unlocked) {
+    form = renderPasswordPrompt();
+  } else if (state.editingIdx !== null && state.schools[state.editingIdx]) {
+    const s = state.schools[state.editingIdx];
+    const fld = (label, key, type='text', min) => {
+      const val = s[key] == null ? '' : s[key];
+      const below = type === 'number' && min !== undefined && Number(val) < min;
+      return `<div class="field">
+        <label>${escapeHtml(label)}</label>
+        <input type="${type}" data-key="${key}" value="${escapeHtml(val)}" ${min !== undefined ? `data-min="${min}"` : ''} class="${below ? 'below-min' : ''}" ${type === 'number' ? 'step="any"' : ''}>
+      </div>`;
+    };
+    const tgl = (label, key) => `<div class="toggle-row">
+      <div class="toggle ${s[key] ? 'on' : ''}" data-toggle="${key}"><div class="knob"></div></div>
+      <span class="toggle-label">${escapeHtml(label)}</span>
+    </div>`;
+    const chips = ALL_SPORTS.map(sp => `<button class="sport-chip ${s.sports.includes(sp) ? 'on' : ''}" data-sport="${escapeHtml(sp)}">${escapeHtml(sp)}</button>`).join('');
+
+    form = `<div class="editor-wrap">
+      <div class="editor-header">
+        <span>Editing: ${escapeHtml(s.name)}</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="save-school" style="background:var(--green);color:var(--navy)">Save</button>
+          ${state.unlocked ? `<button class="btn" id="remove-school" style="background:#fff;color:var(--espn-red)">Remove</button>` : ''}
+        </div>
+      </div>
+      <div class="editor-body">
+        <div class="field-section">
+          <div class="field-section-title">School Info</div>
+          ${fld('School Name','name')}
+          ${fld('Conference','conference')}
+          ${fld('Contact Email','auth_email')}
+          <label style="display:block;font-size:10px;font-weight:600;color:#666;margin:8px 0 4px">Sports Produced</label>
+          <div class="sport-chips">${chips}</div>
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Switcher</div>
+          ${fld('Model','swModel')}
+          ${fld('Inputs','swInputs','number',10)}
+          ${fld('Keyers','swKeyers','number',2)}
+          ${fld('M/Es','swMEs','number',1)}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Cameras & Lenses</div>
+          ${fld('Total Cameras','cameras','number',4)}
+          ${fld('Camera Models','cameraModels')}
+          ${tgl('Has 40x+ Lens w/ Extender','has40xLens')}
+          ${fld('40x Lens Detail','lensDetail')}
+          ${tgl('Has 14x+ Lens (≥3 cams)','has14xLens')}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Sport-Specific Cameras</div>
+          <p style="font-size:10px;color:#666;margin:0 0 8px;line-height:1.4">Cameras used per sport. Leave at 0 to fall back to Total Cameras. CUSA min: <strong>4</strong> for FB/BB/VB/SOC, <strong>3</strong> for BB/SB (high home, CF, low or high 1st).</p>
+          ${fld('Football (min 4)','cam_football','number',4)}
+          ${fld('Basketball (min 4)','cam_basketball','number',4)}
+          ${fld('Volleyball (min 4)','cam_volleyball','number',4)}
+          ${fld('Soccer (min 4)','cam_soccer','number',4)}
+          ${fld('Baseball (min 3)','cam_baseball','number',3)}
+          ${fld('Softball (min 3)','cam_softball','number',3)}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Replay</div>
+          ${fld('Model','replayModel')}
+          ${fld('# Units','replayUnits','number')}
+          ${fld('Inputs','replayInputs','number',4)}
+          ${fld('Outputs','replayOutputs','number',2)}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Audio</div>
+          ${fld('Model','audioModel')}
+          ${fld('Inputs','audioInputs','number',24)}
+          ${fld('Outputs','audioOutputs','number',2)}
+          ${fld('Faders','audioFaders','number')}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Intercom</div>
+          ${fld('Model','intercomModel')}
+          ${fld('Channels','intercomCh','number',10)}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Graphics</div>
+          ${fld('Platform','gfxModel')}
+          ${fld('Channels','gfxChannels','number')}
+          ${tgl('Approved Platform (XPression/Viz/AJT)','gfxApproved')}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Transmission</div>
+          ${fld('Digital Encoder','txDigital')}
+          ${tgl('Haivision Approved','txApproved')}
+          ${tgl('Backup Power','backupPower')}
+        </div>
+        <div class="field-section">
+          <div class="field-section-title">Multiviewer</div>
+          ${fld('# Sources','mvSources','number')}
+          ${fld('Software','mvSoftware')}
+        </div>
+      </div>
+    </div>`;
+  } else {
+    form = `<div class="empty-state">Select a school above to edit its equipment data. Changes save automatically and update the Compliance and Sport Minimums tabs in real time.</div>`;
+  }
+
+  return `
+    <div class="toolbar">
+      <h2>School Equipment Editor</h2>
+      ${state.unlocked ? `<button class="btn blue" id="add-school">+ Add School</button>` : ''}
+    </div>
+    <div class="school-grid">${cards}</div>
+    ${form}
+  `;
+}
+
+/* ── Audit Log ── */
+async function loadAuditLog() {
+  if (!_db) { state.auditLog = []; render(); return; }
+  const { data } = await _db
+    .from('school_audit_log')
+    .select('id, changed_at, changed_by, field_name, old_value, new_value, schools(name)')
+    .order('changed_at', { ascending: false })
+    .limit(200);
+  state.auditLog = data || [];
+  render();
+}
+
+function renderAuditLog() {
+  if (!state.session && !hasPasswordSet()) return renderSetupPassword();
+  if (!state.session && !state.unlocked) return renderPasswordPrompt();
+
+  if (state.auditLog === null) {
+    loadAuditLog();
+    return `<div class="empty-state" style="padding:60px">Loading audit log…</div>`;
+  }
+
+  const rows = state.auditLog.length ? state.auditLog.map(e => `
+    <tr>
+      <td style="white-space:nowrap;font-size:11px">${new Date(e.changed_at).toLocaleString()}</td>
+      <td style="font-weight:600">${escapeHtml(e.schools?.name || '—')}</td>
+      <td style="font-size:11px">${escapeHtml(e.changed_by || '—')}</td>
+      <td>${escapeHtml(fieldLabel(e.field_name))}</td>
+      <td style="color:var(--fail-fg);font-size:11px">${escapeHtml(e.old_value ?? '—')}</td>
+      <td style="color:var(--pass-fg);font-size:11px">${escapeHtml(e.new_value ?? '—')}</td>
+    </tr>`).join('') :
+    `<tr><td colspan="6" style="text-align:center;color:#888;padding:32px">No changes recorded yet.</td></tr>`;
+
+  return `
+    <div class="section-title" style="justify-content:space-between;width:100%;margin-bottom:4px">
+      <h2>Audit Log</h2>
+      <button class="btn blue" id="audit-refresh" style="font-size:11px;padding:6px 12px">↻ Refresh</button>
+    </div>
+    <p class="muted">200 most recent field-level changes across all schools${!_db ? ' — connect Supabase to enable' : ''}.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Timestamp</th><th>School</th><th>Changed By</th><th>Field</th>
+          <th>Previous Value</th><th>New Value</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function wireAuditLog() {
+  wireCompliance();
+  document.getElementById('audit-refresh')?.addEventListener('click', () => {
+    state.auditLog = null;
+    render();
+  });
+}
+
+/* ── Wiring ── */
+function wireEditor() {
+  if (state.pendingEditIdx !== null && !state.unlocked) {
+    wireCompliance();
+    document.querySelectorAll('.school-card').forEach(card => {
+      card.addEventListener('click', () => {
+        state.pendingEditIdx = Number(card.dataset.idx);
+        render();
+      });
+    });
+    return;
+  }
+
+  document.querySelectorAll('.school-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (!state.unlocked) {
+        state.pendingEditIdx = Number(card.dataset.idx);
+        render();
+        return;
+      }
+      state.editingIdx = Number(card.dataset.idx);
+      render();
+    });
+  });
+
+  document.getElementById('add-school')?.addEventListener('click', async () => {
+    const newSchool = {...blankSchool(), name: `New School ${state.schools.length + 1}`};
+    state.schools.push(newSchool);
+    state.editingIdx = state.schools.length - 1;
+    await saveSchool(newSchool);
+    render();
+  });
+
+  document.getElementById('save-school')?.addEventListener('click', async () => {
+    if (state.editingIdx === null) return;
+    await saveSchool(state.schools[state.editingIdx]);
+  });
+
+  document.getElementById('remove-school')?.addEventListener('click', async () => {
+    if (state.editingIdx === null) return;
+    const school = state.schools[state.editingIdx];
+    if (!confirm(`Remove ${school.name}?`)) return;
+    if (_db && state.session && school.id) {
+      await _db.from('schools').delete().eq('id', school.id);
+    }
+    state.schools.splice(state.editingIdx, 1);
+    state.editingIdx = null;
+    if (!_db) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {} }
+    render();
+  });
+
+  document.querySelectorAll('[data-key]').forEach(input => {
+    input.addEventListener('input', () => {
+      if (state.editingIdx === null) return;
+      const key = input.dataset.key;
+      const val = input.type === 'number' ? Number(input.value) : input.value;
+      state.schools[state.editingIdx][key] = val;
+      if (input.type === 'number' && input.dataset.min !== undefined) {
+        input.classList.toggle('below-min', val < Number(input.dataset.min));
+      }
+    });
+    if (input.dataset.key === 'name') {
+      input.addEventListener('blur', render);
+    }
+  });
+
+  document.querySelectorAll('[data-toggle]').forEach(tog => {
+    tog.addEventListener('click', () => {
+      if (state.editingIdx === null) return;
+      const key = tog.dataset.toggle;
+      state.schools[state.editingIdx][key] = !state.schools[state.editingIdx][key];
+      saveSchool(state.schools[state.editingIdx]);
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-sport]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (state.editingIdx === null) return;
+      const sport = chip.dataset.sport;
+      const s = state.schools[state.editingIdx];
+      s.sports = s.sports.includes(sport) ? s.sports.filter(x => x !== sport) : [...s.sports, sport];
+      saveSchool(s);
+      render();
+    });
+  });
+}
+
+/* ── Tab nav ── */
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    state.activeTab = b.dataset.tab;
+    if (b.dataset.tab === 'audit') state.auditLog = null;
+    render();
+  });
+});
+
+/* ── Boot ── */
+async function boot() {
+  seedDefaultPassword();
+  initSupabase();
+
+  if (_db) {
+    const { data: { session } } = await _db.auth.getSession();
+    if (session) {
+      const email = session.user.email.toLowerCase();
+      state.session = session;
+      state.isAdmin = email === ADMIN_EMAIL.toLowerCase();
+      state.authorizedSchoolEmail = state.isAdmin ? null : email;
+      state.unlocked = true;
+      localStorage.setItem(UNLOCK_KEY, 'true');
+    }
+
+    const { data, error } = await _db.from('schools').select('*').order('name');
+    if (!error && data?.length) state.schools = data.map(fromDbRow);
+
+    setupRealtime();
+  }
+
+  render();
+}
+
+boot();
+</script>
+
+</body>
+</html>

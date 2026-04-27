@@ -62,6 +62,7 @@
   .btn-append { background: var(--blue); color: var(--white); }
   .btn-export { background: var(--navy); color: var(--white); }
   .btn-clear { background: #888; color: var(--white); }
+  .btn-save { background: var(--green); color: var(--navy); }
   .file-input-wrapper { position: relative; display: inline-block; }
   .file-input-wrapper input[type=file] { position: absolute; left: -9999px; }
   .status {
@@ -198,14 +199,24 @@
     <label for="fileInput" class="btn btn-import">📂 Import Excel</label>
     <input type="file" id="fileInput" accept=".xlsx,.xls">
   </div>
+  <button class="btn btn-save" id="saveBtn" title="Save current data to local storage">💾 Save</button>
   <div class="file-input-wrapper">
     <label for="appendInput" class="btn btn-append">➕ Add New Period</label>
     <input type="file" id="appendInput" accept=".xlsx,.xls">
   </div>
-  <button class="btn btn-export" id="exportBtn">💾 Export Current Tab</button>
+  <button class="btn btn-export" id="exportBtn">📤 Export Current Tab</button>
   <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
   <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
   <div class="status" id="status">No data loaded</div>
+</div>
+
+<!-- Meta bar -->
+<div id="metaBar" style="display:none;background:var(--white);border-bottom:1px solid #ddd;padding:7px 20px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;font-size:11px;">
+  <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Reporting Period:</span>
+  <span id="metaPeriod" style="color:var(--espn-red);font-weight:700;">—</span>
+  <span style="color:#ccc;">|</span>
+  <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Last Modified:</span>
+  <span id="metaModified" style="color:#555;">—</span>
 </div>
 
 <!-- Tab bar -->
@@ -267,6 +278,7 @@
   // Global state
   let rawData = [];
   const STORAGE_KEY = 'cusa_tracker_data';
+  const META_KEY = 'cusa_tracker_meta';
 
   const CUSA_SCHOOLS = [
     'Delaware','Florida International','Jacksonville State','Kennesaw State',
@@ -300,6 +312,7 @@
     document.getElementById('schoolSearchBtn').addEventListener('click', performSchoolSearch);
     document.getElementById('exportSchoolBtn').addEventListener('click', exportSchoolData);
     document.getElementById('clearBtn').addEventListener('click', clearAllData);
+    document.getElementById('saveBtn').addEventListener('click', saveData);
   }
 
   function handleFileImport(event, appendMode = false) {
@@ -357,13 +370,47 @@
   }
 
   function saveToStorage() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rawData)); } catch(e) {}
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rawData));
+      const meta = { modified: new Date().toISOString(), period: getCurrentPeriod() };
+      localStorage.setItem(META_KEY, JSON.stringify(meta));
+      updateMetaBar(meta);
+    } catch(e) {}
+  }
+
+  function saveData() {
+    if (!rawData.length) { updateStatus('No data to save'); return; }
+    saveToStorage();
+    updateStatus(`Saved ${rawData.length} events`);
+    const btn = document.getElementById('saveBtn');
+    btn.textContent = '✓ Saved';
+    setTimeout(() => { btn.textContent = '💾 Save'; }, 2000);
+  }
+
+  function getCurrentPeriod() {
+    const periods = [...new Set(rawData.map(r => r.REPORT_PERIOD).filter(p => p))].sort();
+    return periods.length ? periods[periods.length - 1] : '—';
+  }
+
+  function updateMetaBar(meta) {
+    const bar = document.getElementById('metaBar');
+    if (!meta || !rawData.length) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    document.getElementById('metaPeriod').textContent = meta.period || '—';
+    document.getElementById('metaModified').textContent = meta.modified
+      ? new Date(meta.modified).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' })
+      : '—';
   }
 
   function loadFromStorage() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) { rawData = JSON.parse(stored); updateStatus(`Loaded ${rawData.length} events from storage`); }
+      if (stored) {
+        rawData = JSON.parse(stored);
+        updateStatus(`Loaded ${rawData.length} events from storage`);
+        const meta = JSON.parse(localStorage.getItem(META_KEY) || 'null');
+        updateMetaBar(meta || { modified: null, period: getCurrentPeriod() });
+      }
     } catch(e) {}
   }
 

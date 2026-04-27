@@ -596,11 +596,20 @@ async function saveSchool(school) {
 
 async function saveSchoolPassword(school) {
   if (!school.pw_hash) return false;
-  // Save pw_hash as a targeted single-field update — never part of a bulk save
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {}
-  if (!_db || !school.id) {
-    showToast('⚠ School has no Supabase ID — save the school first then set the password.', true);
+  if (!_db) {
+    showToast('⚠ Supabase not connected — password saved locally only.', true);
     return false;
+  }
+  // If no ID in local state, look up by school name
+  if (!school.id) {
+    const { data } = await _db.from('schools').select('id').eq('name', school.name).single();
+    if (data?.id) {
+      school.id = data.id;
+    } else {
+      showToast('⚠ School "' + school.name + '" not found in Supabase. Make sure the seed SQL has been run.', true);
+      return false;
+    }
   }
   const result = await _db.from('schools')
     .update({ pw_hash: school.pw_hash })
@@ -611,7 +620,7 @@ async function saveSchoolPassword(school) {
     return false;
   }
   if (!result.data?.length) {
-    showToast('⚠ Password save failed: school ID not found in Supabase database.', true);
+    showToast('⚠ Password save failed: school not found in Supabase.', true);
     return false;
   }
   return true;

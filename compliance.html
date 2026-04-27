@@ -1603,10 +1603,9 @@ function wireEditor() {
     const h = await hashPassword(pw);
     state.schools[state.editingIdx].pw_hash = h;
     const ok = await saveSchool(state.schools[state.editingIdx]);
-    msg.textContent = ok
+    showToast(ok
       ? '✓ Password saved to Supabase — share it with the school contact.'
-      : '⚠ Saved locally only — Supabase update failed. Check the error message.';
-    msg.style.color = ok ? '#15803d' : '#991b1b'; msg.style.display = 'block';
+      : '⚠ Saved locally only — Supabase update failed. See red error above.', !ok);
     document.getElementById('school-pw-new').value = '';
     render();
   });

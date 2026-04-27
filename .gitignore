@@ -1,7 +1,6 @@
 # Environment / secrets
 .env
 .env.local
-config.js
 
 # Logs
 logs

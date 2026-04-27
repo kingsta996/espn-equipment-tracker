@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA ESPN – Commercial Formats</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js" onerror="console.warn('config.js not found — running offline')"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+    --conf-bg: #e0f4fd;
+    --conf-fg: #00506e;
+    --conf-border: #a0dcf0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI','Helvetica Neue',sans-serif; background: #f0f2f5; min-height: 100vh; color: #222; }
+
+  /* ── Header ── */
+  .header {
+    background: var(--navy);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header .img-fallback { color: var(--white); font-size: 16px; font-weight: 900; letter-spacing: -0.5px; }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; }
+  .header a:hover { color: var(--white); }
+  .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
+  .btn-admin { background: rgba(255,255,255,0.15); color: var(--white); border: 1px solid rgba(255,255,255,0.25); }
+  .btn-admin:hover { background: rgba(255,255,255,0.25); }
+  .btn-admin.active { background: var(--espn-red); border-color: var(--espn-red); }
+
+  /* ── Active commercials bar ── */
+  .active-bar {
+    background: var(--white);
+    border-bottom: 2px solid var(--blue);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    min-height: 42px;
+  }
+  .active-bar-label { font-size: 11px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+  .active-bar-empty { font-size: 11px; color: #999; font-style: italic; }
+  .spot-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--conf-bg);
+    border: 1px solid var(--conf-border);
+    color: var(--conf-fg);
+    border-radius: 100px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .spot-pill .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    background: var(--white);
+    border-bottom: 3px solid var(--espn-red);
+    display: flex;
+    overflow-x: auto;
+  }
+  .tab-bar button {
+    padding: 11px 20px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--navy);
+    border-bottom: 3px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+    margin-bottom: -3px;
+  }
+  .tab-bar button.active { background: var(--espn-red); color: var(--white); border-bottom-color: var(--navy); }
+  .tab-bar button:hover:not(.active) { background: #f5f5f5; }
+
+  /* ── Content ── */
+  .content { padding: 16px 20px; max-width: 1100px; margin: 0 auto; }
+
+  /* ── Format meta header ── */
+  .format-meta {
+    background: var(--navy);
+    color: var(--white);
+    border-radius: 8px 8px 0 0;
+    padding: 10px 16px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 11px;
+  }
+  .format-meta .meta-item { }
+  .format-meta .meta-label { color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+  .format-meta .meta-val { color: var(--white); font-weight: 700; }
+  .format-meta .upload-btn {
+    margin-left: auto;
+    background: rgba(255,255,255,0.15);
+    color: var(--white);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .format-meta .upload-btn:hover { background: rgba(255,255,255,0.25); }
+
+  /* ── Format table ── */
+  .format-wrap { background: var(--white); border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none; overflow-x: auto; margin-bottom: 20px; }
+  .format-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .format-table th {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+    background: #f0f2f5;
+    color: var(--navy);
+    border-bottom: 2px solid #ddd;
+    white-space: nowrap;
+  }
+  .format-table td { padding: 6px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+
+  /* Network break row */
+  .row-network td { color: #555; }
+  .row-network td.cell-break { font-weight: 700; color: var(--navy); }
+  .row-network .spot-label { color: #888; font-style: italic; }
+
+  /* Conference break row */
+  .row-conference td { background: var(--conf-bg); }
+  .row-conference td.cell-break { font-weight: 700; color: var(--conf-fg); }
+  .row-conference td.cell-segment { font-weight: 600; color: var(--conf-fg); }
+  .row-conference .spot-label { color: var(--conf-fg); font-weight: 700; }
+
+  /* Segment divider */
+  .row-segment td { background: #f8f9fa; font-weight: 700; font-size: 11px; color: var(--navy); padding: 5px 12px; border-bottom: 2px solid var(--espn-red); letter-spacing: 0.3px; text-transform: uppercase; }
+
+  /* Assignment select */
+  .assign-select {
+    padding: 3px 8px;
+    border: 1px solid var(--conf-border);
+    border-radius: 4px;
+    font-size: 11px;
+    background: var(--white);
+    color: var(--conf-fg);
+    font-family: inherit;
+    min-width: 160px;
+    cursor: pointer;
+  }
+  .assign-select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .assign-display { font-size: 11px; font-weight: 600; color: var(--conf-fg); }
+  .assign-display.unassigned { color: #bbb; font-style: italic; font-weight: 400; }
+
+  /* ── Box tab ── */
+  .box-panel {
+    background: var(--white);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    padding: 40px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .box-panel img { height: 36px; margin-bottom: 20px; opacity: 0.7; }
+  .box-panel h2 { font-size: 18px; color: var(--navy); margin-bottom: 8px; }
+  .box-panel p { font-size: 13px; color: #666; margin-bottom: 24px; }
+  .box-link-btn {
+    display: inline-block;
+    background: #0061d5;
+    color: var(--white);
+    padding: 12px 32px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14px;
+    transition: background 0.15s;
+  }
+  .box-link-btn:hover { background: #0050b0; }
+  .box-link-btn.no-link { background: #ccc; color: #777; cursor: not-allowed; pointer-events: none; }
+  .box-edit-row { margin-top: 20px; display: none; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  .box-edit-row.visible { display: flex; }
+  .box-edit-input {
+    padding: 7px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 340px;
+    max-width: 100%;
+    font-family: inherit;
+  }
+  .box-edit-input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .btn-save { background: var(--green); color: var(--navy); }
+  .btn-save:hover { filter: brightness(0.95); }
+  .btn-cancel { background: #888; color: var(--white); }
+
+  /* ── Admin modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 580px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-header {
+    background: var(--navy);
+    color: var(--white);
+    padding: 14px 20px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-header h2 { font-size: 16px; margin: 0; }
+  .modal-close { background: none; border: none; color: var(--white); font-size: 22px; cursor: pointer; line-height: 1; padding: 0; }
+  .modal-body { padding: 20px; }
+  .modal-section { margin-bottom: 24px; }
+  .modal-section h3 { font-size: 12px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid var(--espn-red); }
+
+  /* Commercial list */
+  .comm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .comm-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    background: #fafafa;
+  }
+  .comm-item.inactive { opacity: 0.5; }
+  .comm-item .comm-name { flex: 1; font-size: 13px; font-weight: 600; }
+  .comm-item .comm-status {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .comm-item .comm-status.active { background: #dcfce7; color: #15803d; }
+  .comm-item .comm-status.inactive { background: #f3f4f6; color: #9ca3af; }
+  .btn-toggle { background: none; border: 1px solid #ddd; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: #555; font-family: inherit; }
+  .btn-toggle:hover { background: #f0f0f0; }
+  .btn-del { background: none; border: 1px solid #fca5a5; border-radius: 4px; padding: 3px 6px; font-size: 11px; cursor: pointer; color: var(--red); font-family: inherit; }
+  .btn-del:hover { background: #fef2f2; }
+
+  /* Add commercial form */
+  .add-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .add-form input {
+    flex: 1;
+    min-width: 140px;
+    padding: 7px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .add-form input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .btn-add { background: var(--blue); color: var(--white); border-radius: 6px; padding: 7px 14px; font-size: 12px; }
+  .btn-add:hover { filter: brightness(0.9); }
+
+  /* Upload format */
+  .upload-list { display: flex; flex-direction: column; gap: 6px; }
+  .upload-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    background: #fafafa;
+    font-size: 12px;
+  }
+  .upload-row .sport-label { flex: 1; font-weight: 600; color: var(--navy); }
+  .upload-row .custom-badge { font-size: 10px; color: var(--blue); background: #e0f4fd; border-radius: 4px; padding: 1px 6px; font-weight: 700; }
+  .upload-file-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    background: #f0f2f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+  }
+  .upload-file-btn:hover { background: #e0e2e5; }
+  .upload-reset-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    background: none;
+    border: 1px solid #fca5a5;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--red);
+    font-family: inherit;
+  }
+  .upload-reset-btn:hover { background: #fef2f2; }
+
+  /* Password modal */
+  .pw-modal {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .pw-modal.open { display: flex; }
+  .pw-box {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .pw-box h2 { font-size: 18px; color: var(--navy); margin-bottom: 6px; }
+  .pw-box p { font-size: 12px; color: #666; margin-bottom: 20px; }
+  .pw-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+    letter-spacing: 2px;
+    font-family: inherit;
+    margin-bottom: 12px;
+  }
+  .pw-input:focus { outline: none; border-color: var(--blue); }
+  .pw-error { color: var(--red); font-size: 12px; margin-bottom: 10px; display: none; }
+  .pw-actions { display: flex; gap: 8px; justify-content: center; }
+  .btn-unlock { background: var(--espn-red); color: var(--white); border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 700; }
+  .btn-unlock:hover { filter: brightness(0.9); }
+  .btn-cancel-pw { background: #eee; color: #555; border-radius: 8px; padding: 10px 18px; font-size: 13px; }
+
+  /* Misc */
+  .save-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--navy);
+    color: var(--white);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: all 0.25s;
+    z-index: 300;
+    pointer-events: none;
+  }
+  .save-toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 600px) {
+    .content { padding: 12px; }
+    .format-meta { gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback img-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>Commercial Formats</h1>
+  <div class="header-actions">
+    <a href="hub.html">← Hub</a>
+    <button class="btn btn-admin" id="adminBtn" onclick="handleAdminClick()">Admin Mode</button>
+  </div>
+</div>
+
+<!-- Active commercials bar -->
+<div class="active-bar" id="activeBar">
+  <span class="active-bar-label">Active Spots:</span>
+  <span class="active-bar-empty" id="activeBarEmpty">No active commercials — Admin can add spots below</span>
+</div>
+
+<!-- Sport tabs -->
+<div class="tab-bar" id="tabBar">
+  <button onclick="switchTab('baseball')" data-tab="baseball">Baseball</button>
+  <button onclick="switchTab('softball')" data-tab="softball">Softball</button>
+  <button onclick="switchTab('womens_basketball')" data-tab="womens_basketball">Women's Basketball</button>
+  <button onclick="switchTab('mens_basketball')" data-tab="mens_basketball">Men's Basketball</button>
+  <button onclick="switchTab('soccer')" data-tab="soccer">Soccer</button>
+  <button onclick="switchTab('volleyball')" data-tab="volleyball">Volleyball</button>
+  <button onclick="switchTab('football')" data-tab="football">Football</button>
+  <button onclick="switchTab('box')" data-tab="box">Box</button>
+</div>
+
+<!-- Tab content -->
+<div class="content" id="tabContent"></div>
+
+<!-- Save toast -->
+<div class="save-toast" id="saveToast">Saved</div>
+
+<!-- Password modal -->
+<div class="pw-modal" id="pwModal">
+  <div class="pw-box">
+    <h2>Admin Access</h2>
+    <p>Enter the admin password to manage commercials and assignments</p>
+    <input class="pw-input" id="pwInput" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-error" id="pwError">Incorrect password. Try again.</div>
+    <div class="pw-actions">
+      <button class="btn btn-cancel-pw" onclick="closePwModal()">Cancel</button>
+      <button class="btn btn-unlock" onclick="submitPw()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin panel modal -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Admin Panel</h2>
+      <button class="modal-close" onclick="closeAdminModal()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Commercial management -->
+      <div class="modal-section">
+        <h3>Commercials</h3>
+        <div class="comm-list" id="commList"></div>
+        <div class="add-form">
+          <input type="text" id="addCommName" placeholder="Advertiser / spot name" onkeydown="if(event.key==='Enter')addCommercial()">
+          <button class="btn btn-add" onclick="addCommercial()">+ Add</button>
+        </div>
+      </div>
+
+      <!-- Box link -->
+      <div class="modal-section">
+        <h3>Box Link</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">Set the URL for the Box tab. Users will see a button linking to this address.</p>
+        <div class="add-form">
+          <input type="url" id="boxLinkInput" placeholder="https://app.box.com/..." style="flex:2">
+          <button class="btn btn-save" onclick="saveBoxLink()">Save</button>
+        </div>
+      </div>
+
+      <!-- Format uploads -->
+      <div class="modal-section">
+        <h3>Upload Formats</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">Upload an updated ESPN+ commercial format Excel file (.xlsx) for any sport. The file must have a "Format" sheet matching the ESPN+ layout.</p>
+        <div class="upload-list" id="uploadList"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Format data ── */
+const FORMAT_DATA = {
+  football: {
+    name: "Football",
+    meta: {"YEAR": "2025-26", "NETWORK": "ESPN+", "SPORT": "College Football", "MINUTES": "48 Minutes", "KICK/TIP": ":02/:32"},
+    breaks: [
+      {segment:"Game Start",brk:1,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Game Start",brk:2,dur:"2:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Game Start",brk:3,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 1st Quarter",brk:4,dur:"3:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 1st Quarter",brk:5,dur:"2:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 1st Quarter",brk:6,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 1st Quarter",brk:7,dur:"2:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 1st Quarter",brk:8,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:9,dur:"3:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:10,dur:"3:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:11,dur:"3:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:12,dur:"3:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"2nd Half Starts",brk:13,dur:"2:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"2nd Half Starts",brk:14,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"2nd Half Starts",brk:15,dur:"2:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 3rd Quarter",brk:16,dur:"3:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 3rd Quarter",brk:17,dur:"2:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 3rd Quarter",brk:18,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 3rd Quarter",brk:19,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 3rd Quarter",brk:20,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+    ]
+  },
+  baseball: {
+    name: "Baseball",
+    meta: {"YEAR": "2025-26", "NETWORK": "ESPN+", "SPORT": "COLLEGE BASEBALL", "MINUTES": "19 Minutes", "KICK/TIP": ":05/:35"},
+    breaks: [
+      {segment:"Pre-Game Break",brk:1,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 1st",brk:2,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 1st",brk:3,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Middle of 2nd",brk:4,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 2nd",brk:5,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 3rd",brk:6,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 3rd",brk:7,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 4th",brk:8,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 4th",brk:9,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Middle of 5th",brk:10,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 5th",brk:11,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 6th",brk:12,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 6th",brk:13,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 7th",brk:14,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 7th",brk:15,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Middle of 8th",brk:16,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 8th",brk:17,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 9th",brk:18,dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+    ]
+  },
+  softball: {
+    name: "Softball",
+    meta: {"YEAR": "2025-26", "NETWORK": "ESPN+", "SPORT": "COLLEGE SOFTBALL", "MINUTES": "23 Minutes", "KICK/TIP": ":05/:35"},
+    breaks: [
+      {segment:"Pre-Game Break",brk:1,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 1st",brk:2,dur:"1:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 1st",brk:3,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 2nd",brk:4,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 2nd",brk:5,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 3rd",brk:6,dur:"1:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 3rd",brk:7,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 4th",brk:8,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 4th",brk:9,dur:"1:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Middle of 5th",brk:10,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 5th",brk:11,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 6th",brk:12,dur:"1:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 6th",brk:13,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Middle of 7th",brk:14,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Pitching Change / End of Game",brk:15,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+    ]
+  },
+  volleyball: {
+    name: "Volleyball",
+    meta: {"YEAR": "2025-26", "NETWORK": "ESPN+", "SPORT": "VOLLEYBALL", "MINUTES": "9 Minutes", "KICK/TIP": ":02/:32"},
+    breaks: [
+      {segment:"Game 1",brk:1,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of Game 1",brk:2,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Game 2",brk:3,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of Game 2 / 5-Minute Break",brk:4,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Game 3",brk:5,dur:"1:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of Game 3",brk:6,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Bonus — If Games 4 & 5 Needed",brk:"A",dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Bonus — If Games 4 & 5 Needed",brk:"B",dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Bonus — If Games 4 & 5 Needed",brk:"C",dur:"1:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+    ]
+  },
+  mens_basketball: {
+    name: "Men's Basketball",
+    meta: {"YEAR": "2025-26", "NETWORK": "ESPN+", "SPORT": "College Hoops — Men's", "MINUTES": "24.5 Minutes", "KICK/TIP": ":02/:32"},
+    breaks: [
+      {segment:"Start of 1st Half",brk:1,dur:"1:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 1st Half",brk:2,dur:"1:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Start of 1st Half",brk:3,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 1st Half",brk:4,dur:"1:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 1st Half / Halftime",brk:5,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 1st Half / Halftime",brk:6,dur:"3:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of 1st Half / Halftime",brk:7,dur:"3:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 2nd Half",brk:8,dur:"2:00",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Start of 2nd Half",brk:9,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 2nd Half",brk:10,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 2nd Half",brk:11,dur:"1:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"2nd Half — First Team Timeout",brk:12,dur:"2:00",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Bonus — First Team Timeout in OT",brk:"A",dur:":30",spots:[{type:"network",spot:":30 Network"}]},
+    ]
+  },
+  womens_basketball: {
+    name: "Women's Basketball",
+    meta: {"YEAR": "2025-26", "NETWORK": "ESPN+", "SPORT": "College Hoops — Women's", "MINUTES": "25 Minutes", "KICK/TIP": ":02/:32"},
+    breaks: [
+      {segment:"Start of 1st Quarter",brk:1,dur:"2:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 1st Quarter",brk:2,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 2nd Quarter",brk:3,dur:"2:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"End of 2nd Quarter / Halftime",brk:4,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:5,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:6,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 3rd Quarter",brk:7,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 3rd Quarter",brk:8,dur:"2:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Start of 3rd Quarter",brk:9,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Start of 3rd Quarter",brk:10,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Bonus — First Team Timeout in OT",brk:"A",dur:":30",spots:[{type:"network",spot:":30 Network"}]},
+    ]
+  },
+  soccer: {
+    name: "Soccer",
+    meta: {"YEAR": "2025-26", "NETWORK": "ESPN+", "SPORT": "College Soccer", "MINUTES": "12.5 Minutes + 2:00 Hydration", "KICK/TIP": ":05/:35"},
+    breaks: [
+      {segment:"1st Half",brk:1,dur:"2:30",spots:[{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"},{type:"conference",spot:":30 Conference"}]},
+      {segment:"Halftime",brk:2,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:3,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"Halftime",brk:4,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+      {segment:"End of Game",brk:5,dur:"2:30",spots:[{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"},{type:"network",spot:":30 Network"}]},
+    ]
+  },
+};
+
+/* ── Storage keys ── */
+const COMM_KEY = 'cusa-commercials';
+const ASSIGN_KEY = 'cusa-assignments';
+const BOX_KEY = 'cusa-box-link';
+const FORMAT_OVERRIDE_KEY = 'cusa-format-overrides';
+const ADMIN_UNLOCKED_KEY = 'cusa-comm-admin';
+const PW_HASH_KEY = 'cusa-compliance-pw-hash';
+const DEFAULT_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+
+/* ── State ── */
+let state = {
+  tab: 'baseball',
+  adminUnlocked: false,
+  commercials: [],
+  assignments: {},
+  boxLink: '',
+  formatOverrides: {},
+};
+
+/* ── Init ── */
+function init() {
+  if (!localStorage.getItem(PW_HASH_KEY)) {
+    localStorage.setItem(PW_HASH_KEY, DEFAULT_PW_HASH);
+  }
+  state.commercials = loadJSON(COMM_KEY, []);
+  state.assignments = loadJSON(ASSIGN_KEY, {});
+  state.boxLink = localStorage.getItem(BOX_KEY) || '';
+  state.formatOverrides = loadJSON(FORMAT_OVERRIDE_KEY, {});
+  renderActiveBar();
+  switchTab('baseball');
+}
+
+function loadJSON(key, def) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
+}
+
+function saveState() {
+  localStorage.setItem(COMM_KEY, JSON.stringify(state.commercials));
+  localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
+  localStorage.setItem(BOX_KEY, state.boxLink);
+  localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
+  showToast('Saved');
+}
+
+function showToast(msg) {
+  const el = document.getElementById('saveToast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+/* ── Password ── */
+async function hashPassword(pw) {
+  const enc = new TextEncoder().encode(pw);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function handleAdminClick() {
+  if (state.adminUnlocked) {
+    state.adminUnlocked = false;
+    document.getElementById('adminBtn').textContent = 'Admin Mode';
+    document.getElementById('adminBtn').classList.remove('active');
+    renderCurrentTab();
+    return;
+  }
+  openPwModal();
+}
+
+function openPwModal() {
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwError').style.display = 'none';
+  document.getElementById('pwModal').classList.add('open');
+  setTimeout(() => document.getElementById('pwInput').focus(), 100);
+}
+
+function closePwModal() {
+  document.getElementById('pwModal').classList.remove('open');
+}
+
+async function submitPw() {
+  const pw = document.getElementById('pwInput').value;
+  if (!pw) return;
+  const h = await hashPassword(pw);
+  const stored = localStorage.getItem(PW_HASH_KEY) || DEFAULT_PW_HASH;
+  if (h === stored) {
+    closePwModal();
+    state.adminUnlocked = true;
+    document.getElementById('adminBtn').textContent = '🔓 Admin Active';
+    document.getElementById('adminBtn').classList.add('active');
+    renderCurrentTab();
+    openAdminModal();
+  } else {
+    document.getElementById('pwError').style.display = 'block';
+  }
+}
+
+/* ── Admin modal ── */
+function openAdminModal() {
+  renderCommList();
+  renderUploadList();
+  document.getElementById('boxLinkInput').value = state.boxLink;
+  document.getElementById('adminModal').classList.add('open');
+}
+
+function closeAdminModal() {
+  document.getElementById('adminModal').classList.remove('open');
+}
+
+function renderCommList() {
+  const el = document.getElementById('commList');
+  if (!state.commercials.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#999;padding:6px 0;">No commercials yet. Add one below.</div>';
+    return;
+  }
+  el.innerHTML = state.commercials.map((c, i) => `
+    <div class="comm-item ${c.status === 'inactive' ? 'inactive' : ''}">
+      <span class="comm-name">${esc(c.name)}</span>
+      <span class="comm-status ${c.status}">${c.status}</span>
+      <button class="btn-toggle" onclick="toggleCommStatus(${i})">${c.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+      <button class="btn-del" onclick="deleteComm(${i})" title="Delete">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderUploadList() {
+  const el = document.getElementById('uploadList');
+  const sportKeys = Object.keys(FORMAT_DATA);
+  el.innerHTML = sportKeys.map(key => {
+    const sport = FORMAT_DATA[key];
+    const hasOverride = !!state.formatOverrides[key];
+    return `
+      <div class="upload-row">
+        <span class="sport-label">${sport.name}</span>
+        ${hasOverride ? '<span class="custom-badge">Custom</span>' : ''}
+        <button class="upload-file-btn" onclick="triggerUpload('${key}')">Upload .xlsx</button>
+        ${hasOverride ? `<button class="upload-reset-btn" onclick="resetFormat('${key}')">Reset</button>` : ''}
+        <input type="file" id="upload_${key}" accept=".xlsx" style="display:none" onchange="handleUpload(this,'${key}')">
+      </div>
+    `;
+  }).join('');
+}
+
+function triggerUpload(key) {
+  document.getElementById(`upload_${key}`).click();
+}
+
+function resetFormat(key) {
+  if (!confirm(`Reset ${FORMAT_DATA[key].name} format to default?`)) return;
+  delete state.formatOverrides[key];
+  localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
+  renderUploadList();
+  if (state.tab === key) renderCurrentTab();
+  showToast('Format reset');
+}
+
+function handleUpload(input, key) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets['Format'];
+      if (!ws) { alert('Sheet "Format" not found in the uploaded file.'); return; }
+      const parsed = parseFormatSheet(ws, FORMAT_DATA[key].name);
+      if (!parsed) { alert('Could not parse the format sheet. Make sure it follows the ESPN+ commercial format layout.'); return; }
+      state.formatOverrides[key] = parsed;
+      localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
+      renderUploadList();
+      if (state.tab === key) renderCurrentTab();
+      showToast('Format uploaded');
+    } catch(err) {
+      alert('Error reading file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+function parseFormatSheet(ws, sportName) {
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  const meta = {};
+  const breaks = [];
+  let currentSegment = null;
+  let currentBreak = null;
+  let done = false;
+
+  for (const row of rows) {
+    if (done) break;
+    const c0 = row[0] != null ? String(row[0]).trim() : '';
+    const c1 = row[1];
+    const c2 = row[2];
+    const c3 = row[3] != null ? String(row[3]).trim() : '';
+
+    if (c0 === 'TALENT CLOSE COPY') { done = true; break; }
+    if (c0 === 'ESPN+ COMMERCIAL FORMATTING' || c0 === 'SEGMENT') continue;
+    if (['YEAR','NETWORK','SPORT','MINUTES','KICK/TIP'].includes(c0)) { meta[c0] = c1 ? String(c1).trim() : ''; continue; }
+
+    const brkNum = (c1 != null && c1 !== ' ') ? (Number.isInteger(c1) ? c1 : (typeof c1 === 'string' && /^[A-E]$/.test(c1.trim()) ? c1.trim() : null)) : null;
+
+    if (brkNum != null && c3) {
+      const dur = c2 != null ? fmtXLSXTime(c2) : '';
+      currentBreak = { segment: currentSegment || '', brk: brkNum, dur, spots: [{ type: c3.includes('Conference') ? 'conference' : 'network', spot: c3 }] };
+      breaks.push(currentBreak);
+    } else if (c3 && currentBreak) {
+      currentBreak.spots.push({ type: c3.includes('Conference') ? 'conference' : 'network', spot: c3 });
+    } else if (c0 && c0 !== ' ' && brkNum == null && !c3) {
+      const c1s = c1 != null ? String(c1).trim() : '';
+      if (!c1s || c1s === ' ') currentSegment = c0;
+    }
+  }
+  if (!breaks.length) return null;
+  return { name: sportName, meta, breaks };
+}
+
+function fmtXLSXTime(v) {
+  if (typeof v === 'number') {
+    const totalSecs = Math.round(v * 86400);
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
+    return s ? `${m}:${String(s).padStart(2,'0')}` : `${m}:00`;
+  }
+  return String(v);
+}
+
+function addCommercial() {
+  const name = document.getElementById('addCommName').value.trim();
+  if (!name) return;
+  state.commercials.push({ id: Date.now().toString(), name, status: 'active' });
+  saveState();
+  document.getElementById('addCommName').value = '';
+  renderCommList();
+  renderActiveBar();
+  renderCurrentTab();
+}
+
+function toggleCommStatus(i) {
+  state.commercials[i].status = state.commercials[i].status === 'active' ? 'inactive' : 'active';
+  saveState();
+  renderCommList();
+  renderActiveBar();
+  renderCurrentTab();
+}
+
+function deleteComm(i) {
+  const c = state.commercials[i];
+  if (!confirm(`Delete "${c.name}"? Any assignments using this commercial will be cleared.`)) return;
+  const id = c.id;
+  state.commercials.splice(i, 1);
+  for (const k of Object.keys(state.assignments)) {
+    if (state.assignments[k] === id) delete state.assignments[k];
+  }
+  saveState();
+  renderCommList();
+  renderActiveBar();
+  renderCurrentTab();
+}
+
+function saveBoxLink() {
+  state.boxLink = document.getElementById('boxLinkInput').value.trim();
+  saveState();
+  if (state.tab === 'box') renderCurrentTab();
+  showToast('Box link saved');
+}
+
+/* ── Active bar ── */
+function renderActiveBar() {
+  const bar = document.getElementById('activeBar');
+  const empty = document.getElementById('activeBarEmpty');
+  const active = state.commercials.filter(c => c.status === 'active');
+  const existing = bar.querySelectorAll('.spot-pill');
+  existing.forEach(e => e.remove());
+  if (!active.length) {
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  active.forEach(c => {
+    const pill = document.createElement('span');
+    pill.className = 'spot-pill';
+    pill.innerHTML = `<span class="pill-dot"></span>${esc(c.name)}`;
+    bar.appendChild(pill);
+  });
+}
+
+/* ── Tab rendering ── */
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  renderCurrentTab();
+}
+
+function renderCurrentTab() {
+  const el = document.getElementById('tabContent');
+  if (state.tab === 'box') { el.innerHTML = renderBoxTab(); return; }
+  const sportData = state.formatOverrides[state.tab] || FORMAT_DATA[state.tab];
+  if (!sportData) { el.innerHTML = ''; return; }
+  el.innerHTML = renderFormatTab(state.tab, sportData);
+}
+
+function renderFormatTab(key, sportData) {
+  const meta = sportData.meta;
+  const isCustom = !!state.formatOverrides[key];
+  // adminUploadBtn handled inline in metaHtml below
+
+  const metaHtml = `
+    <div class="format-meta">
+      <span class="meta-item"><span class="meta-label">Sport</span><span class="meta-val">${esc(meta.SPORT || sportData.name)}</span></span>
+      <span class="meta-item"><span class="meta-label">Network</span><span class="meta-val">${esc(meta.NETWORK || 'ESPN+')}</span></span>
+      <span class="meta-item"><span class="meta-label">Year</span><span class="meta-val">${esc(meta.YEAR || '')}</span></span>
+      <span class="meta-item"><span class="meta-label">Total Mins</span><span class="meta-val">${esc(meta.MINUTES || '')}</span></span>
+      <span class="meta-item"><span class="meta-label">Kick/Tip</span><span class="meta-val">${esc(meta['KICK/TIP'] || '')}</span></span>
+      ${isCustom ? '<span style="font-size:10px;color:#a0dcf0;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Custom Upload</span>' : ''}
+      ${state.adminUnlocked ? `<button class="upload-btn" onclick="document.getElementById('fmtup_${key}').click()">⬆ Upload Format</button><input type="file" id="fmtup_${key}" accept=".xlsx" style="display:none" onchange="handleUpload(this,'${key}')">` : ''}
+    </div>
+  `;
+
+  const activeComms = state.commercials.filter(c => c.status === 'active');
+  let tableRows = '';
+  let lastSegment = null;
+
+  for (let bi = 0; bi < sportData.breaks.length; bi++) {
+    const b = sportData.breaks[bi];
+    const isConf = b.spots.some(s => s.type === 'conference');
+    const allNet = b.spots.every(s => s.type === 'network');
+
+    if (b.segment && b.segment !== lastSegment) {
+      tableRows += `<tr class="row-segment"><td colspan="5">${esc(b.segment)}</td></tr>`;
+      lastSegment = b.segment;
+    }
+
+    if (allNet) {
+      const count = b.spots.length;
+      tableRows += `
+        <tr class="row-network">
+          <td class="cell-break">${esc(String(b.brk))}</td>
+          <td>${esc(b.dur)}</td>
+          <td colspan="3" class="spot-label">${count} × :30 Network</td>
+        </tr>`;
+    } else {
+      for (let si = 0; si < b.spots.length; si++) {
+        const spot = b.spots[si];
+        const isFirst = si === 0;
+        const assignKey = `${key}:${b.brk}:${si}`;
+        const assignedId = state.assignments[assignKey] || '';
+        const assignedComm = state.commercials.find(c => c.id === assignedId);
+        const rowClass = spot.type === 'conference' ? 'row-conference' : 'row-network';
+
+        let assignCell = '';
+        if (spot.type === 'conference') {
+          if (state.adminUnlocked) {
+            const opts = activeComms.map(c =>
+              `<option value="${esc(c.id)}" ${c.id === assignedId ? 'selected' : ''}>${esc(c.name)}</option>`
+            ).join('');
+            assignCell = `<select class="assign-select" onchange="assignSpot('${assignKey}', this.value)">
+              <option value="">— Unassigned —</option>${opts}
+            </select>`;
+          } else {
+            assignCell = assignedComm
+              ? `<span class="assign-display">${esc(assignedComm.name)}</span>`
+              : `<span class="assign-display unassigned">—</span>`;
+          }
+        }
+
+        tableRows += `
+          <tr class="${rowClass}">
+            <td class="cell-break">${isFirst ? esc(String(b.brk)) : ''}</td>
+            <td>${isFirst ? esc(b.dur) : ''}</td>
+            <td class="spot-label">${esc(spot.spot)}</td>
+            <td>${spot.type === 'conference' ? '<span style="font-size:10px;background:#c5eaf7;color:#00506e;padding:1px 6px;border-radius:3px;font-weight:700;text-transform:uppercase;">Conference</span>' : ''}</td>
+            <td>${assignCell}</td>
+          </tr>`;
+      }
+    }
+  }
+
+  return `
+    ${metaHtml}
+    <div class="format-wrap">
+      <table class="format-table">
+        <thead><tr>
+          <th>Break</th><th>Duration</th><th>Spot</th><th>Type</th><th>Assignment</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderBoxTab() {
+  const hasLink = !!state.boxLink;
+  return `
+    <div class="box-panel">
+      <h2>Box — CUSA Media Resources</h2>
+      <p>${hasLink ? 'Access shared files, assets, and media resources on Box.' : 'No Box link has been set yet. Admin can add one below.'}</p>
+      ${hasLink
+        ? `<a class="box-link-btn" href="${esc(state.boxLink)}" target="_blank" rel="noopener">Open in Box →</a>`
+        : `<span class="box-link-btn no-link">No link set</span>`
+      }
+      <div class="box-edit-row ${state.adminUnlocked ? 'visible' : ''}">
+        <input class="box-edit-input" type="url" id="boxLinkInline" value="${esc(state.boxLink)}" placeholder="https://app.box.com/...">
+        <button class="btn btn-save" onclick="saveBoxLinkInline()">Save</button>
+      </div>
+    </div>
+  `;
+}
+
+function saveBoxLinkInline() {
+  state.boxLink = document.getElementById('boxLinkInline').value.trim();
+  saveState();
+  renderCurrentTab();
+}
+
+function assignSpot(key, commId) {
+  if (commId) {
+    state.assignments[key] = commId;
+  } else {
+    delete state.assignments[key];
+  }
+  localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
+  showToast('Assignment saved');
+}
+
+/* ── Helpers ── */
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Start ── */
+init();
+</script>
+</body>
+</html>

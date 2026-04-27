@@ -112,3 +112,57 @@ $$;
 create or replace trigger school_audit_trigger
   before update on schools
   for each row execute function log_school_changes();
+
+
+-- ── Commercials Hub ────────────────────────────────────────────────────────
+-- Active/inactive spot inventory managed by admin
+create table if not exists commercials (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  status text default 'active' check (status in ('active', 'inactive')),
+  sort_order int default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Which commercial is assigned to which conference break slot
+create table if not exists format_assignments (
+  sport text not null,
+  break_key text not null,
+  spot_index int not null,
+  commercial_id uuid references commercials(id) on delete set null,
+  updated_at timestamptz default now(),
+  updated_by text,
+  primary key (sport, break_key, spot_index)
+);
+
+-- Shared key/value settings (box link, etc.)
+create table if not exists app_settings (
+  key text primary key,
+  value text,
+  updated_at timestamptz default now(),
+  updated_by text
+);
+
+-- RLS for commercials tables
+alter table commercials enable row level security;
+alter table format_assignments enable row level security;
+alter table app_settings enable row level security;
+
+-- Anyone can read
+create policy "public read commercials" on commercials for select using (true);
+create policy "public read assignments" on format_assignments for select using (true);
+create policy "public read settings" on app_settings for select using (true);
+
+-- Only admin can write
+create policy "admin write commercials" on commercials for all
+  using (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com')
+  with check (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com');
+
+create policy "admin write assignments" on format_assignments for all
+  using (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com')
+  with check (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com');
+
+create policy "admin write settings" on app_settings for all
+  using (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com')
+  with check (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com');

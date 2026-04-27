@@ -833,6 +833,56 @@ function wireCompliance() {
       }
       msgEl.style.display = 'block';
     });
+
+    // Admin access on school edit gate
+    document.getElementById('pw-admin-btn')?.addEventListener('click', () => {
+      document.getElementById('pw-admin-panel').style.display = 'block';
+      document.getElementById('pw-espn-panel').style.display = 'none';
+      document.getElementById('pw-admin-pw')?.focus();
+    });
+    const adminEditSubmit = async () => {
+      const pw = document.getElementById('pw-admin-pw')?.value || '';
+      const err = document.getElementById('pw-admin-err');
+      const ok = await verifyPassword(pw);
+      if (ok) {
+        state.isAdmin = true;
+        state.unlocked = true;
+        localStorage.setItem(UNLOCK_KEY, 'true');
+        state.editingIdx = state.pendingEditIdx;
+        state.pendingEditIdx = null;
+        render();
+      } else {
+        err.textContent = 'Incorrect admin password.';
+        err.style.display = 'block';
+        document.getElementById('pw-admin-pw').value = '';
+      }
+    };
+    document.getElementById('pw-admin-submit')?.addEventListener('click', adminEditSubmit);
+    document.getElementById('pw-admin-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') adminEditSubmit(); });
+
+    // ESPN read-only access on school edit gate
+    document.getElementById('pw-espn-btn')?.addEventListener('click', () => {
+      document.getElementById('pw-espn-panel').style.display = 'block';
+      document.getElementById('pw-admin-panel').style.display = 'none';
+      document.getElementById('pw-espn-pw')?.focus();
+    });
+    const espnEditSubmit = async () => {
+      const pw = document.getElementById('pw-espn-pw')?.value || '';
+      const err = document.getElementById('pw-espn-err');
+      const h = await hashPassword(pw);
+      if (h === ESPN_PW_HASH) {
+        unlockESPN();
+        state.editingIdx = state.pendingEditIdx;
+        state.pendingEditIdx = null;
+        render();
+      } else {
+        err.textContent = 'Incorrect ESPN password.';
+        err.style.display = 'block';
+        document.getElementById('pw-espn-pw').value = '';
+      }
+    };
+    document.getElementById('pw-espn-submit')?.addEventListener('click', espnEditSubmit);
+    document.getElementById('pw-espn-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') espnEditSubmit(); });
   }
 
   // Unlocked footer buttons
@@ -1154,6 +1204,26 @@ function renderPasswordPrompt() {
             </div>
             <div id="pw-forgot-msg" style="font-size:12px;margin:6px 0;display:none;"></div>
             <button class="btn blue" id="pw-forgot-submit" style="width:100%;margin-top:8px">Send Reset Link</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin:20px 0 12px">
+            <div style="flex:1;height:1px;background:#eee"></div>
+            <span style="font-size:11px;color:#aaa;white-space:nowrap">or access as</span>
+            <div style="flex:1;height:1px;background:#eee"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button id="pw-admin-btn" style="padding:8px;font-size:12px;font-weight:700;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">🔑 Admin</button>
+            <button id="pw-espn-btn" style="padding:8px;font-size:12px;font-weight:700;background:#EF4035;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">📺 ESPN (Read Only)</button>
+          </div>
+          <div id="pw-admin-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #eee;">
+            <div class="field"><label>Admin Password</label><input type="password" id="pw-admin-pw" autocomplete="current-password"></div>
+            <div id="pw-admin-err" style="color:#991b1b;font-size:12px;margin:6px 0;display:none;"></div>
+            <button class="btn" id="pw-admin-submit" style="width:100%;margin-top:6px;background:var(--navy);color:#fff;">Unlock as Admin</button>
+          </div>
+          <div id="pw-espn-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #eee;">
+            <p style="font-size:11px;color:#666;margin:0 0 8px;">View this school's data in read-only mode.</p>
+            <div class="field"><label>ESPN Password</label><input type="password" id="pw-espn-pw" autocomplete="current-password"></div>
+            <div id="pw-espn-err" style="color:#991b1b;font-size:12px;margin:6px 0;display:none;"></div>
+            <button class="btn" id="pw-espn-submit" style="width:100%;margin-top:6px;background:#EF4035;color:#fff;">View (Read Only)</button>
           </div>
         ` : `<button class="btn gray" id="pw-reset" style="width:100%;margin-top:8px;font-size:11px">Forgot password? Reset (clears saved password)</button>`}
       </div>

@@ -242,7 +242,8 @@
 <!-- Meta bar -->
 <div id="metaBar" style="display:none;background:var(--white);border-bottom:1px solid #ddd;padding:7px 20px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;font-size:11px;">
   <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Reporting Period:</span>
-  <span id="metaPeriod" style="color:var(--espn-red);font-weight:700;">—</span>
+  <span id="metaPeriodText" style="color:var(--espn-red);font-weight:700;display:none;">—</span>
+  <select id="metaPeriodSelect" style="display:none;border:1px solid var(--gray);border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--espn-red);font-family:inherit;background:#fff;cursor:pointer;" onchange="saveSelectedPeriod(this.value)"></select>
   <span style="color:#ccc;">|</span>
   <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Last Modified:</span>
   <span id="metaModified" style="color:#555;">—</span>
@@ -308,6 +309,7 @@
   let rawData = [];
   const STORAGE_KEY = 'cusa_tracker_data';
   const META_KEY = 'cusa_tracker_meta';
+  const PERIOD_KEY = 'cusa_tracker_period';
   const VW_UNLOCK_KEY = 'cusa_viewer_unlocked';
   const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
   const PROTECTED_TABS = new Set(['dashboard','football','volleyball','soccer','baseball','softball','mbb','wbb','championships','shows','rawdata']);
@@ -337,6 +339,7 @@
       document.getElementById('lockBtn').style.display = 'inline-block';
       closePwModal();
       updateTabLocks();
+      updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
       if (pendingTab) switchTab(pendingTab);
     } else {
       document.getElementById('pwErr').style.display = 'block';
@@ -347,6 +350,7 @@
     localStorage.removeItem(VW_UNLOCK_KEY);
     document.getElementById('lockBtn').style.display = 'none';
     updateTabLocks();
+    updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
     switchTab('schoolsearch');
   }
   function updateTabLocks() {
@@ -482,16 +486,38 @@
   }
 
   function getCurrentPeriod() {
-    const periods = [...new Set(rawData.map(r => r.REPORT_PERIOD).filter(p => p))].sort();
-    return periods.length ? periods[periods.length - 1] : '—';
+    const periods = getAllPeriods();
+    const saved = localStorage.getItem(PERIOD_KEY);
+    return (saved && periods.includes(saved)) ? saved : (periods.length ? periods[periods.length - 1] : '—');
+  }
+
+  function getAllPeriods() {
+    return [...new Set(rawData.map(r => r.REPORT_PERIOD).filter(p => p))].sort();
+  }
+
+  function saveSelectedPeriod(val) {
+    localStorage.setItem(PERIOD_KEY, val);
+    document.getElementById('metaPeriodText').textContent = val || '—';
   }
 
   function updateMetaBar(meta) {
     const bar = document.getElementById('metaBar');
-    if (!meta || !rawData.length) { bar.style.display = 'none'; return; }
+    if (!rawData.length) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
-    document.getElementById('metaPeriod').textContent = meta.period || '—';
-    document.getElementById('metaModified').textContent = meta.modified
+    const periods = getAllPeriods();
+    const selected = getCurrentPeriod();
+    const textEl = document.getElementById('metaPeriodText');
+    const selectEl = document.getElementById('metaPeriodSelect');
+    if (adminUnlocked) {
+      textEl.style.display = 'none';
+      selectEl.style.display = 'inline-block';
+      selectEl.innerHTML = periods.map(p => `<option value="${p}" ${p === selected ? 'selected' : ''}>${p}</option>`).join('');
+    } else {
+      selectEl.style.display = 'none';
+      textEl.style.display = 'inline';
+      textEl.textContent = selected || '—';
+    }
+    document.getElementById('metaModified').textContent = meta?.modified
       ? new Date(meta.modified).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' })
       : '—';
   }

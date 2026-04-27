@@ -244,6 +244,7 @@
   <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Reporting Period:</span>
   <span id="metaPeriodText" style="color:var(--espn-red);font-weight:700;display:none;">—</span>
   <select id="metaPeriodSelect" style="display:none;border:1px solid var(--gray);border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--espn-red);font-family:inherit;background:#fff;cursor:pointer;" onchange="saveSelectedPeriod(this.value)"></select>
+  <button id="removePeriodBtn" onclick="removeSelectedPeriod()" style="display:none;background:none;border:1px solid #fca5a5;border-radius:4px;padding:2px 8px;font-size:11px;color:#991b1b;cursor:pointer;font-family:inherit;font-weight:600;">🗑 Remove</button>
   <span style="color:#ccc;">|</span>
   <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Last Modified:</span>
   <span id="metaModified" style="color:#555;">—</span>
@@ -500,6 +501,20 @@
     document.getElementById('metaPeriodText').textContent = val || '—';
   }
 
+  function removeSelectedPeriod() {
+    const sel = document.getElementById('metaPeriodSelect');
+    const period = sel.value;
+    if (!period) return;
+    const count = rawData.filter(r => r.REPORT_PERIOD === period).length;
+    if (!confirm(`Remove all ${count} events from period "${period}"? This cannot be undone.`)) return;
+    rawData = rawData.filter(r => r.REPORT_PERIOD !== period);
+    localStorage.removeItem(PERIOD_KEY);
+    saveToStorage();
+    renderAllTabs();
+    updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
+    updateStatus(`Removed period "${period}" — ${rawData.length} events remaining`);
+  }
+
   function updateMetaBar(meta) {
     const bar = document.getElementById('metaBar');
     if (!rawData.length) { bar.style.display = 'none'; return; }
@@ -508,12 +523,15 @@
     const selected = getCurrentPeriod();
     const textEl = document.getElementById('metaPeriodText');
     const selectEl = document.getElementById('metaPeriodSelect');
+    const removeBtn = document.getElementById('removePeriodBtn');
     if (adminUnlocked) {
       textEl.style.display = 'none';
       selectEl.style.display = 'inline-block';
       selectEl.innerHTML = periods.map(p => `<option value="${p}" ${p === selected ? 'selected' : ''}>${p}</option>`).join('');
+      removeBtn.style.display = 'inline-block';
     } else {
       selectEl.style.display = 'none';
+      removeBtn.style.display = 'none';
       textEl.style.display = 'inline';
       textEl.textContent = selected || '—';
     }

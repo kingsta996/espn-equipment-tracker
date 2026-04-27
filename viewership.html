@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA ESPN Viewership Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+    --light: #f0f2f5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; background: var(--light); min-height: 100vh; color: #222; }
+
+  /* ── Header ── */
+  .header {
+    background: var(--navy);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; }
+  .header a:hover { color: var(--white); }
+
+  /* ── Controls bar ── */
+  .controls {
+    background: var(--white);
+    border-bottom: 3px solid var(--espn-red);
+    padding: 12px 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .btn {
+    padding: 7px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: filter 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(0.9); }
+  .btn-import { background: var(--espn-red); color: var(--white); }
+  .btn-append { background: var(--blue); color: var(--white); }
+  .btn-export { background: var(--navy); color: var(--white); }
+  .btn-clear { background: #888; color: var(--white); }
+  .file-input-wrapper { position: relative; display: inline-block; }
+  .file-input-wrapper input[type=file] { position: absolute; left: -9999px; }
+  .status {
+    margin-left: auto;
+    padding: 5px 12px;
+    background: var(--light);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--navy);
+    font-weight: 600;
+    border: 1px solid var(--gray);
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    background: var(--white);
+    border-bottom: 3px solid var(--espn-red);
+    display: flex;
+    overflow-x: auto;
+  }
+  .tab-bar button {
+    padding: 11px 18px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--navy);
+    border-bottom: 3px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+    margin-bottom: -3px;
+  }
+  .tab-bar button.active { background: var(--espn-red); color: var(--white); border-bottom-color: var(--navy); }
+  .tab-bar button:hover:not(.active) { background: #f5f5f5; }
+
+  /* ── Content ── */
+  .content { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Stats grid ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--navy);
+    color: var(--white);
+    padding: 18px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,38,58,0.15);
+  }
+  .stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.75;
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--espn-red); }
+
+  /* ── Tables ── */
+  .table-container {
+    overflow-x: auto;
+    background: var(--white);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { background: var(--navy); color: var(--white); position: sticky; top: 0; z-index: 10; }
+  th { padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid #eee; }
+  tbody tr:hover { background: #f8f9fa; }
+  tbody tr:nth-child(even) td { background: rgba(191,206,214,0.08); }
+  .rank { font-weight: 700; color: var(--espn-red); font-size: 14px; }
+  .number { font-family: 'Courier New', monospace; font-weight: 600; }
+
+  /* ── Search bar ── */
+  .search-bar {
+    background: var(--white);
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .search-field { flex: 1; min-width: 180px; }
+  .search-field label { display: block; margin-bottom: 5px; font-weight: 700; font-size: 11px; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; }
+  .search-field input, .search-field select {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--gray);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  .search-field input:focus, .search-field select:focus { outline: none; border-color: var(--blue); }
+
+  /* ── Empty state ── */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--navy); opacity: 0.5; }
+  .empty-state h3 { font-size: 18px; margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; }
+
+  /* ── School search section ── */
+  .section-title { font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
+
+  @media (max-width: 640px) {
+    .controls { flex-direction: column; align-items: stretch; }
+    .btn { justify-content: center; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
+       onerror="this.style.display='none'">
+  <h1>ESPN+ Viewership Tracker</h1>
+  <a href="index.html">← Hub</a>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="file-input-wrapper">
+    <label for="fileInput" class="btn btn-import">📂 Import Excel</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+  <div class="file-input-wrapper">
+    <label for="appendInput" class="btn btn-append">➕ Add New Period</label>
+    <input type="file" id="appendInput" accept=".xlsx,.xls">
+  </div>
+  <button class="btn btn-export" id="exportBtn">💾 Export Current Tab</button>
+  <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
+  <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
+  <div class="status" id="status">No data loaded</div>
+</div>
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <button class="active" data-tab="dashboard">Dashboard</button>
+  <button data-tab="schoolsearch">🔍 School Search</button>
+  <button data-tab="football">Football</button>
+  <button data-tab="volleyball">Volleyball</button>
+  <button data-tab="soccer">Soccer</button>
+  <button data-tab="baseball">Baseball</button>
+  <button data-tab="softball">Softball</button>
+  <button data-tab="mbb">Men's Basketball</button>
+  <button data-tab="wbb">Women's Basketball</button>
+  <button data-tab="championships">Championships</button>
+  <button data-tab="shows">Shows</button>
+  <button data-tab="rawdata">Raw Data</button>
+</div>
+
+<!-- Tab content -->
+<div class="content">
+
+  <div id="dashboard" class="tab-content active">
+    <div class="stats-grid" id="dashboardStats"></div>
+    <h3 style="margin-bottom:12px;color:var(--navy);font-size:15px;">Viewership by Sport</h3>
+    <div class="table-container" id="dashboardTable"></div>
+  </div>
+
+  <div id="schoolsearch" class="tab-content" style="display:none">
+    <div class="section-title">🔍 Search by School</div>
+    <div class="search-bar">
+      <div class="search-field" style="min-width:260px">
+        <label>Select School</label>
+        <select id="schoolSelect">
+          <option value="">-- Select a School --</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button class="btn btn-import" id="schoolSearchBtn">Search</button>
+        <button class="btn btn-export" id="exportSchoolBtn">💾 Export School Data</button>
+      </div>
+    </div>
+    <div id="schoolResults"></div>
+  </div>
+
+  <div id="football"      class="tab-content" style="display:none"></div>
+  <div id="volleyball"    class="tab-content" style="display:none"></div>
+  <div id="soccer"        class="tab-content" style="display:none"></div>
+  <div id="baseball"      class="tab-content" style="display:none"></div>
+  <div id="softball"      class="tab-content" style="display:none"></div>
+  <div id="mbb"           class="tab-content" style="display:none"></div>
+  <div id="wbb"           class="tab-content" style="display:none"></div>
+  <div id="championships" class="tab-content" style="display:none"></div>
+  <div id="shows"         class="tab-content" style="display:none"></div>
+  <div id="rawdata"       class="tab-content" style="display:none"></div>
+
+</div>
+
+<script>
+  // Global state
+  let rawData = [];
+  const STORAGE_KEY = 'cusa_tracker_data';
+
+  const CUSA_SCHOOLS = [
+    'Delaware','Florida International','Jacksonville State','Kennesaw State',
+    'Liberty','Middle Tennessee','Missouri State','New Mexico State','Sam Houston','Western Kentucky'
+  ];
+
+  const SPORT_MAP = {
+    'football':   "NCAA Football",
+    'volleyball': "NCAA Women's Volleyball",
+    'soccer':     "NCAA Women's Soccer",
+    'baseball':   "NCAA Baseball",
+    'softball':   "NCAA Softball",
+    'mbb':        "NCAA Men's Basketball",
+    'wbb':        "NCAA Women's Basketball"
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadFromStorage();
+    setupEventListeners();
+    if (rawData.length > 0) renderAllTabs();
+  });
+
+  function setupEventListeners() {
+    document.getElementById('fileInput').addEventListener('change', e => handleFileImport(e, false));
+    document.getElementById('appendInput').addEventListener('change', e => handleFileImport(e, true));
+    document.querySelectorAll('.tab-bar button').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+    document.getElementById('exportBtn').addEventListener('click', exportCurrentTab);
+    document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
+    document.getElementById('schoolSearchBtn').addEventListener('click', performSchoolSearch);
+    document.getElementById('exportSchoolBtn').addEventListener('click', exportSchoolData);
+    document.getElementById('clearBtn').addEventListener('click', clearAllData);
+  }
+
+  function handleFileImport(event, appendMode = false) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+        let headerRow = -1;
+        for (let i = 0; i < jsonData.length; i++) {
+          if (jsonData[i][0] === 'SPORT') { headerRow = i; break; }
+        }
+        if (headerRow === -1) { alert('Could not find header row with "SPORT" column'); return; }
+
+        const headers = jsonData[headerRow];
+        const newData = jsonData.slice(headerRow + 1).filter(row => row[0]).map(row => {
+          const obj = {};
+          headers.forEach((h, i) => { obj[h] = row[i]; });
+          return obj;
+        });
+
+        if (appendMode) {
+          const result = mergeData(rawData, newData);
+          rawData = result.data;
+          saveToStorage();
+          renderAllTabs();
+          updateStatus(`Added ${result.added} new events, ${result.duplicates} duplicates skipped. Total: ${rawData.length}`);
+        } else {
+          rawData = newData;
+          saveToStorage();
+          renderAllTabs();
+          updateStatus(`Loaded ${rawData.length} events`);
+        }
+        event.target.value = '';
+      } catch (err) { alert('Error reading file: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function mergeData(existing, newData) {
+    const getKey = r => `${r.SPORT}|${r.AIRING_TITLE}|${r.DATE}`;
+    const keys = new Set(existing.map(getKey));
+    let added = 0, duplicates = 0;
+    newData.forEach(r => {
+      const k = getKey(r);
+      if (!keys.has(k)) { existing.push(r); keys.add(k); added++; }
+      else duplicates++;
+    });
+    return { data: existing, added, duplicates };
+  }
+
+  function saveToStorage() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rawData)); } catch(e) {}
+  }
+
+  function loadFromStorage() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) { rawData = JSON.parse(stored); updateStatus(`Loaded ${rawData.length} events from storage`); }
+    } catch(e) {}
+  }
+
+  function clearAllData() {
+    if (!confirm('Clear all data? This cannot be undone.')) return;
+    rawData = [];
+    localStorage.removeItem(STORAGE_KEY);
+    renderAllTabs();
+    updateStatus('All data cleared');
+  }
+
+  function updateStatus(msg) { document.getElementById('status').textContent = msg; }
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = c.id === name ? 'block' : 'none');
+  }
+
+  function renderAllTabs() {
+    renderDashboard();
+    renderSportTabs();
+    renderChampionships();
+    renderShows();
+    renderRawData();
+    populateSchoolDropdown();
+  }
+
+  function populateSchoolDropdown() {
+    const sel = document.getElementById('schoolSelect');
+    sel.innerHTML = '<option value="">-- Select a School --</option>';
+    CUSA_SCHOOLS.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    });
+  }
+
+  function performSchoolSearch() {
+    const school = document.getElementById('schoolSelect').value;
+    if (!school) { alert('Please select a school'); return; }
+    const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+
+    if (!schoolData.length) {
+      document.getElementById('schoolResults').innerHTML = `<div class="empty-state"><h3>No events found for ${school}</h3></div>`;
+      return;
+    }
+
+    const totalViewers = schoolData.reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
+    const avgViewers = Math.round(totalViewers / schoolData.length);
+    const avgMin = (schoolData.reduce((s,r) => s + (r.MIN_PER_VIEWER||0), 0) / schoolData.length).toFixed(1);
+    const sportBreakdown = {};
+    schoolData.forEach(r => {
+      const sp = r.SPORT || 'Unknown';
+      if (!sportBreakdown[sp]) sportBreakdown[sp] = { count:0, viewers:0 };
+      sportBreakdown[sp].count++;
+      sportBreakdown[sp].viewers += r.UNIQUE_VIEWERS || 0;
+    });
+
+    document.getElementById('schoolResults').innerHTML = `
+      <h3 style="color:var(--navy);margin-bottom:16px;">${school}</h3>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value">${schoolData.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalViewers.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Viewers/Event</div><div class="stat-value">${avgViewers.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
+      </div>
+      <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">By Sport</h4>
+      <div class="table-container" style="margin-bottom:20px;">
+        <table><thead><tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers</th></tr></thead>
+        <tbody>${Object.entries(sportBreakdown).map(([sp, st]) => `
+          <tr><td><strong>${sp}</strong></td><td class="number">${st.count}</td>
+          <td class="number">${st.viewers.toLocaleString()}</td>
+          <td class="number">${Math.round(st.viewers/st.count).toLocaleString()}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+      <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">All Events</h4>
+      <div class="table-container">
+        <table><thead><tr><th>#</th><th>Sport</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
+        <tbody>${schoolData.map((ev, i) => `
+          <tr><td class="rank">${i+1}</td><td>${ev.SPORT||'-'}</td><td>${ev.AIRING_TITLE||'-'}</td>
+          <td>${formatDate(ev.DATE)}</td>
+          <td class="number">${(ev.UNIQUE_VIEWERS||0).toLocaleString()}</td>
+          <td class="number">${(ev.TOTAL_MINUTES||0).toLocaleString()}</td>
+          <td class="number">${(ev.MIN_PER_VIEWER||0).toFixed(1)}</td>
+          <td>${ev.REPORT_PERIOD||'-'}</td></tr>`).join('')}
+        </tbody></table>
+      </div>`;
+  }
+
+  function exportSchoolData() {
+    const school = document.getElementById('schoolSelect').value;
+    if (!school) { alert('Please select a school and search first'); return; }
+    const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+    if (!schoolData.length) { alert('No data to export'); return; }
+    const ws = XLSX.utils.json_to_sheet(schoolData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, school.substring(0,30));
+    XLSX.writeFile(wb, `CUSA_${school.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    updateStatus(`Exported ${schoolData.length} events for ${school}`);
+  }
+
+  function filterBySport(sportName) {
+    return rawData.filter(r => r.SPORT === sportName)
+      .filter(r => {
+        const t = (r.AIRING_TITLE||'').toLowerCase();
+        return !t.includes('kickoff') && !t.includes('tip off') && !t.includes('willie simmons');
+      })
+      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+  }
+
+  function renderDashboard() {
+    const total = rawData.length;
+    const totalV = rawData.reduce((s,r) => s+(r.UNIQUE_VIEWERS||0), 0);
+    const avgV = total ? Math.round(totalV/total) : 0;
+    const avgMin = total ? (rawData.reduce((s,r) => s+(r.MIN_PER_VIEWER||0),0)/total).toFixed(1) : 0;
+
+    document.getElementById('dashboardStats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value">${total.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Viewers/Event</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>`;
+
+    const sportStats = {};
+    rawData.forEach(r => {
+      const sp = r.SPORT;
+      if (!sportStats[sp]) sportStats[sp] = { events:0, viewers:0 };
+      sportStats[sp].events++;
+      sportStats[sp].viewers += r.UNIQUE_VIEWERS||0;
+    });
+    const rows = Object.entries(sportStats)
+      .map(([sp, st]) => ({ sp, events:st.events, viewers:st.viewers, avg:Math.round(st.viewers/st.events) }))
+      .sort((a,b) => b.viewers - a.viewers);
+
+    document.getElementById('dashboardTable').innerHTML = total ? `
+      <table><thead><tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers/Event</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td><strong>${r.sp}</strong></td>
+        <td class="number">${r.events.toLocaleString()}</td>
+        <td class="number">${r.viewers.toLocaleString()}</td>
+        <td class="number">${r.avg.toLocaleString()}</td></tr>`).join('')}
+      </tbody></table>` :
+      `<div class="empty-state"><h3>No data loaded</h3><p>Import an Excel file to get started</p></div>`;
+  }
+
+  function renderSportTabs() {
+    Object.entries(SPORT_MAP).forEach(([tabId, sportName]) => {
+      const games = filterBySport(sportName);
+      const container = document.getElementById(tabId);
+      if (!games.length) {
+        container.innerHTML = `<div class="empty-state"><h3>No games found</h3><p>Import data to see ${sportName} games</p></div>`;
+        return;
+      }
+      const totalV = games.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+      const avgV = Math.round(totalV/games.length);
+      const avgMin = (games.reduce((s,g) => s+(g.MIN_PER_VIEWER||0),0)/games.length).toFixed(1);
+
+      container.innerHTML = `
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Total Games</div><div class="stat-value">${games.length}</div></div>
+          <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
+          <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
+          <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
+        </div>
+        <div class="search-bar">
+          <div class="search-field"><label>Search Matchup</label><input type="text" id="${tabId}-search-matchup" placeholder="Team or matchup name…"></div>
+          <div class="search-field"><label>Filter by Date</label><input type="date" id="${tabId}-search-date"></div>
+          <div class="search-field"><label>Report Period</label><select id="${tabId}-search-period"><option value="">All Periods</option></select></div>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <button class="btn btn-import" onclick="filterSportTab('${tabId}','${sportName}')">🔍 Search</button>
+            <button class="btn btn-clear" onclick="clearSportFilter('${tabId}','${sportName}')">Clear</button>
+          </div>
+        </div>
+        <div class="table-container" id="${tabId}-table">
+          <table><thead><tr><th>#</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
+          <tbody>${games.map((g,i) => `<tr>
+            <td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${formatDate(g.DATE)}</td>
+            <td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
+            <td class="number">${(g.TOTAL_MINUTES||0).toLocaleString()}</td>
+            <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td>
+            <td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
+          </tbody></table>
+        </div>`;
+      populatePeriodDropdown(tabId, games);
+    });
+  }
+
+  function populatePeriodDropdown(tabId, games) {
+    const periods = [...new Set(games.map(g => g.REPORT_PERIOD).filter(p => p))].sort();
+    const sel = document.getElementById(`${tabId}-search-period`);
+    if (sel) sel.innerHTML = '<option value="">All Periods</option>' + periods.map(p => `<option value="${p}">${p}</option>`).join('');
+  }
+
+  function filterSportTab(tabId, sportName) {
+    const matchup = document.getElementById(`${tabId}-search-matchup`).value.toLowerCase().trim();
+    const date = document.getElementById(`${tabId}-search-date`).value;
+    const period = document.getElementById(`${tabId}-search-period`).value;
+    let games = filterBySport(sportName);
+    if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup) || (g.AWAY_TEAM||'').toLowerCase().includes(matchup) || (g.HOME_TEAM||'').toLowerCase().includes(matchup));
+    if (date) games = games.filter(g => formatDateForFilter(g.DATE) === date);
+    if (period) games = games.filter(g => g.REPORT_PERIOD === period);
+    const container = document.getElementById(`${tabId}-table`);
+    if (!games.length) { container.innerHTML = `<div class="empty-state"><h3>No games match your search</h3></div>`; return; }
+    container.innerHTML = `
+      <table><thead><tr><th>#</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
+      <tbody>${games.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${formatDate(g.DATE)}</td>
+        <td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td><td class="number">${(g.TOTAL_MINUTES||0).toLocaleString()}</td>
+        <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
+      </tbody></table>
+      <p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${games.length} of ${filterBySport(sportName).length} games</p>`;
+  }
+
+  function clearSportFilter(tabId, sportName) {
+    document.getElementById(`${tabId}-search-matchup`).value = '';
+    document.getElementById(`${tabId}-search-date`).value = '';
+    document.getElementById(`${tabId}-search-period`).value = '';
+    filterSportTab(tabId, sportName);
+  }
+
+  function renderChampionships() {
+    const games = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
+      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+    const container = document.getElementById('championships');
+    if (!games.length) { container.innerHTML = `<div class="empty-state"><h3>No championship events found</h3><p>Import data to see championship games</p></div>`; return; }
+    const totalV = games.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Championships</div><div class="stat-value">${games.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
+      </div>
+      <div class="table-container">
+        <table><thead><tr><th>#</th><th>Matchup</th><th>Sport</th><th>Date</th><th>Unique Viewers</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
+        <tbody>${games.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${g.SPORT||'-'}</td>
+          <td>${formatDate(g.DATE)}</td><td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
+          <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
+        </tbody></table>
+      </div>`;
+  }
+
+  function renderShows() {
+    const shows = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
+      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+    const container = document.getElementById('shows');
+    if (!shows.length) { container.innerHTML = `<div class="empty-state"><h3>No shows found</h3><p>Import data to see Kickoff/Tip Off shows</p></div>`; return; }
+    const totalV = shows.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Shows</div><div class="stat-value">${shows.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
+      </div>
+      <div class="table-container">
+        <table><thead><tr><th>#</th><th>Show</th><th>Sport</th><th>Date</th><th>Unique Viewers</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
+        <tbody>${shows.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${g.SPORT||'-'}</td>
+          <td>${formatDate(g.DATE)}</td><td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
+          <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
+        </tbody></table>
+      </div>`;
+  }
+
+  function renderRawData() {
+    const container = document.getElementById('rawdata');
+    if (!rawData.length) { container.innerHTML = `<div class="empty-state"><h3>No data loaded</h3><p>Import an Excel file to get started</p></div>`; return; }
+    const headers = Object.keys(rawData[0]);
+    container.innerHTML = `
+      <div class="table-container">
+        <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${rawData.map(r=>`<tr>${headers.map(h=>`<td>${r[h]||'-'}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function exportCurrentTab() {
+    const activeBtn = document.querySelector('.tab-bar button.active');
+    const tabName = activeBtn.dataset.tab;
+    const label = activeBtn.textContent.trim();
+    let data = [];
+    if (tabName === 'dashboard') { alert('Export a specific sport tab instead.'); return; }
+    else if (tabName === 'rawdata') data = rawData;
+    else if (tabName === 'championships') data = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'));
+    else if (tabName === 'shows') data = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); });
+    else if (SPORT_MAP[tabName]) data = filterBySport(SPORT_MAP[tabName]);
+    if (!data.length) { alert('No data to export'); return; }
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, label.substring(0,30));
+    XLSX.writeFile(wb, `CUSA_${label.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    updateStatus(`Exported ${data.length} rows`);
+  }
+
+  function exportAllData() {
+    if (!rawData.length) { alert('No data to export'); return; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawData), 'Raw Data');
+    Object.entries(SPORT_MAP).forEach(([tabId, sportName]) => {
+      const d = filterBySport(sportName);
+      if (d.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), sportName.replace('NCAA ','').substring(0,30));
+    });
+    const champ = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'));
+    if (champ.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(champ), 'Championships');
+    const shows = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); });
+    if (shows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shows), 'Shows');
+    XLSX.writeFile(wb, `CUSA_Complete_Tracker_${new Date().toISOString().split('T')[0]}.xlsx`);
+    updateStatus(`Exported complete tracker with ${wb.SheetNames.length} sheets`);
+  }
+
+  function formatDate(v) {
+    if (!v) return '-';
+    try {
+      if (typeof v === 'string' && v.includes('/')) return v;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-US');
+    } catch { return String(v); }
+  }
+
+  function formatDateForFilter(v) {
+    if (!v) return '';
+    try {
+      if (typeof v === 'string' && v.includes('/')) {
+        const [m,d,y] = v.split('/');
+        return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+      }
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+    } catch { return ''; }
+  }
+</script>
+</body>
+</html>

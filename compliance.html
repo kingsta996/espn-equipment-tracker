@@ -664,7 +664,7 @@ function wireCompliance() {
     const pw = document.getElementById('gate-admin-pw')?.value || '';
     const err = document.getElementById('gate-admin-err');
     const ok = await verifyPassword(pw);
-    if (ok) { unlockCompliance(); render(); }
+    if (ok) { unlockCompliance(); state.isAdmin = true; render(); }
     else { err.textContent = 'Incorrect admin password.'; err.style.display = 'block'; document.getElementById('gate-admin-pw').value = ''; }
   };
   document.getElementById('gate-admin-submit')?.addEventListener('click', adminGateSubmit);

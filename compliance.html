@@ -680,7 +680,7 @@ function wireCompliance() {
       if (isEditorGate && _db) {
         // Supabase Auth for school editing
         const email = document.getElementById('pw-email')?.value?.trim() || '';
-        if (!email) { err.textContent = 'Enter your email address.'; err.style.display = 'block'; return; }
+        if (!email) { err.textContent = 'Enter your school email address.'; err.style.display = 'block'; return; }
         if (!pw) { err.textContent = 'Enter your password.'; err.style.display = 'block'; return; }
         const { data, error } = await _db.auth.signInWithPassword({ email, password: pw });
         if (error) { err.textContent = error.message || 'Sign-in failed.'; err.style.display = 'block'; return; }
@@ -702,15 +702,36 @@ function wireCompliance() {
         state.editingIdx = state.pendingEditIdx;
         state.pendingEditIdx = null;
         render();
+      } else if (isEditorGate) {
+        // No Supabase — validate email matches school record, then check admin password
+        const email = document.getElementById('pw-email')?.value?.trim().toLowerCase() || '';
+        const schoolToEdit = state.schools[state.pendingEditIdx];
+        const schoolEmail = (schoolToEdit?.auth_email || '').toLowerCase();
+        const isAdmin = email === ADMIN_EMAIL.toLowerCase();
+        if (!email) { err.textContent = 'Enter your school email address.'; err.style.display = 'block'; return; }
+        if (!pw) { err.textContent = 'Enter your password.'; err.style.display = 'block'; return; }
+        if (!isAdmin && email !== schoolEmail) {
+          err.textContent = `${email} is not authorized to edit ${schoolToEdit?.name || 'this school'}.`;
+          err.style.display = 'block'; return;
+        }
+        const ok = await verifyPassword(pw);
+        if (ok) {
+          state.isAdmin = isAdmin;
+          state.unlocked = true;
+          localStorage.setItem(UNLOCK_KEY, 'true');
+          state.editingIdx = state.pendingEditIdx;
+          state.pendingEditIdx = null;
+          render();
+        } else {
+          err.textContent = 'Incorrect password.';
+          err.style.display = 'block';
+          document.getElementById('pw-enter').value = '';
+        }
       } else {
-        // SHA-256 gate for compliance/sports or no-Supabase fallback
+        // SHA-256 gate for compliance/sports tabs
         const ok = await verifyPassword(pw);
         if (ok) {
           unlockCompliance();
-          if (state.pendingEditIdx !== null) {
-            state.editingIdx = state.pendingEditIdx;
-            state.pendingEditIdx = null;
-          }
           render();
         } else {
           err.textContent = 'Incorrect password.';
@@ -987,10 +1008,9 @@ function renderPasswordPrompt() {
   const isEditorGate = state.pendingEditIdx !== null;
   const school = isEditorGate ? state.schools[state.pendingEditIdx] : null;
   const schoolName = school?.name || 'this school';
-  const useSupabase = isEditorGate && !!_db;
-  const title = isEditorGate ? `🔒 Edit: ${escapeHtml(schoolName)}` : '🔒 Protected Data Access';
+  const title = isEditorGate ? `🔒 Sign In to Edit: ${escapeHtml(schoolName)}` : '🔒 Protected Data Access';
   const desc = isEditorGate
-    ? `Sign in to edit ${escapeHtml(schoolName)}'s equipment data.`
+    ? `Enter your school email and password to edit ${escapeHtml(schoolName)}'s equipment data.`
     : `Enter the password to view the Equipment Compliance and Sport Minimums dashboards.`;
   const topMargin = isEditorGate ? '40px' : '60px';
   return `
@@ -1001,7 +1021,7 @@ function renderPasswordPrompt() {
       </div>
       <div style="padding:24px">
         <p style="margin:0 0 16px;font-size:13px;color:#444">${desc}</p>
-        ${useSupabase ? `<div class="field">
+        ${isEditorGate ? `<div class="field">
           <label>Email</label>
           <input type="email" id="pw-email" value="${escapeHtml(school?.auth_email || '')}" autocomplete="email" placeholder="your@email.edu">
         </div>` : ''}

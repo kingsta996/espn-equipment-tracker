@@ -28,6 +28,8 @@ create table if not exists schools (
   tx_digital text default 'Haivision IP Encoder', tx_approved boolean default true, backup_power boolean default false,
   -- Multiviewer
   mv_sources int default 0, mv_software text,
+  -- School login
+  pw_hash text,
   -- Audit
   updated_at timestamptz default now(),
   updated_by text

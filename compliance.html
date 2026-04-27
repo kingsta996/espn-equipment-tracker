@@ -479,14 +479,18 @@ const DEFAULT_SCHOOLS = [
 const STORAGE_KEY = "cusa-campus-surveys-v1";
 const PW_HASH_KEY = "cusa-compliance-pw-hash";
 const UNLOCK_KEY = "cusa-compliance-unlocked";
-// SHA-256 of the default admin password — seeded on first load so no setup screen appears
+const ESPNACCESS_KEY = "cusa-espn-access";
+// SHA-256 of the default admin password
 const DEFAULT_PW_HASH = "9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2";
+// SHA-256 of ESPN read-only password
+const ESPN_PW_HASH = "5926960b4386c5fca35ce6ea41c0035806ee4945ea61b2ed331e0ca695987829";
 let state = {
   schools: loadSchools(),
   activeTab: 'editor',
   editingIdx: null,
   pendingEditIdx: null,
   unlocked: localStorage.getItem(UNLOCK_KEY) === 'true',
+  espnAccess: localStorage.getItem(ESPNACCESS_KEY) === 'true',
   session: null,
   isAdmin: false,
   authorizedSchoolEmail: null,
@@ -540,7 +544,9 @@ async function verifyPassword(pw) {
 
 function lockCompliance() {
   state.unlocked = false;
+  state.espnAccess = false;
   localStorage.removeItem(UNLOCK_KEY);
+  localStorage.removeItem(ESPNACCESS_KEY);
   if (_db && state.session) { _db.auth.signOut(); }
   state.session = null;
   state.isAdmin = false;
@@ -551,6 +557,11 @@ function lockCompliance() {
 function unlockCompliance() {
   state.unlocked = true;
   localStorage.setItem(UNLOCK_KEY, 'true');
+}
+
+function unlockESPN() {
+  state.espnAccess = true;
+  localStorage.setItem(ESPNACCESS_KEY, 'true');
 }
 
 function clearPassword() {
@@ -647,6 +658,36 @@ function render() {
 }
 
 function wireCompliance() {
+  // Protected tab gate — Admin and ESPN toggle panels
+  document.getElementById('gate-admin-btn')?.addEventListener('click', () => {
+    document.getElementById('gate-admin-form').style.display = 'block';
+    document.getElementById('gate-espn-form').style.display = 'none';
+    document.getElementById('gate-admin-pw')?.focus();
+  });
+  document.getElementById('gate-espn-btn')?.addEventListener('click', () => {
+    document.getElementById('gate-espn-form').style.display = 'block';
+    document.getElementById('gate-admin-form').style.display = 'none';
+    document.getElementById('gate-espn-pw')?.focus();
+  });
+  const adminGateSubmit = async () => {
+    const pw = document.getElementById('gate-admin-pw')?.value || '';
+    const err = document.getElementById('gate-admin-err');
+    const ok = await verifyPassword(pw);
+    if (ok) { unlockCompliance(); render(); }
+    else { err.textContent = 'Incorrect admin password.'; err.style.display = 'block'; document.getElementById('gate-admin-pw').value = ''; }
+  };
+  document.getElementById('gate-admin-submit')?.addEventListener('click', adminGateSubmit);
+  document.getElementById('gate-admin-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') adminGateSubmit(); });
+  const espnGateSubmit = async () => {
+    const pw = document.getElementById('gate-espn-pw')?.value || '';
+    const err = document.getElementById('gate-espn-err');
+    const h = await hashPassword(pw);
+    if (h === ESPN_PW_HASH) { unlockESPN(); render(); }
+    else { err.textContent = 'Incorrect ESPN password.'; err.style.display = 'block'; document.getElementById('gate-espn-pw').value = ''; }
+  };
+  document.getElementById('gate-espn-submit')?.addEventListener('click', espnGateSubmit);
+  document.getElementById('gate-espn-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') espnGateSubmit(); });
+
   // Setup password flow
   const setupBtn = document.getElementById('pw-setup-submit');
   if (setupBtn) {
@@ -961,9 +1002,37 @@ function exportCompliance() {
   XLSX.writeFile(wb, filename);
 }
 
+function renderProtectedTabGate() {
+  return `
+    <div style="max-width:460px;margin:60px auto;background:var(--white);border-radius:8px;border:2px solid var(--navy);overflow:hidden">
+      <div style="background:var(--navy);color:var(--white);padding:14px 20px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
+        <img src="${ESPN_LOGO}" alt="ESPN" style="height:16px;filter:brightness(0) invert(1)">
+        <span>🔒 Protected Content</span>
+      </div>
+      <div style="padding:24px">
+        <p style="margin:0 0 20px;font-size:13px;color:#444;line-height:1.5">This section contains equipment compliance data for all CUSA member schools. Sign in to access.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+          <button id="gate-admin-btn" class="btn red" style="padding:12px;font-size:13px;">🔑 Admin Login</button>
+          <button id="gate-espn-btn" style="padding:12px;font-size:13px;font-weight:700;background:#EF4035;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">📺 ESPN Access</button>
+        </div>
+        <div id="gate-admin-form" style="display:none;padding-top:16px;border-top:1px solid #eee">
+          <div class="field"><label>Admin Password</label><input type="password" id="gate-admin-pw" autocomplete="current-password"></div>
+          <div id="gate-admin-err" style="color:#991b1b;font-size:12px;margin:6px 0;display:none"></div>
+          <button class="btn red" id="gate-admin-submit" style="width:100%;margin-top:6px">Unlock</button>
+        </div>
+        <div id="gate-espn-form" style="display:none;padding-top:16px;border-top:1px solid #eee">
+          <p style="margin:0 0 10px;font-size:12px;color:#555">ESPN read-only access — view all data, no editing.</p>
+          <div class="field"><label>ESPN Password</label><input type="password" id="gate-espn-pw" autocomplete="current-password"></div>
+          <div id="gate-espn-err" style="color:#991b1b;font-size:12px;margin:6px 0;display:none"></div>
+          <button class="btn" id="gate-espn-submit" style="width:100%;margin-top:6px;background:#EF4035;color:#fff">View (Read Only)</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderCompliance() {
   if (!state.session && !hasPasswordSet()) return renderSetupPassword();
-  if (!state.session && !state.unlocked) return renderPasswordPrompt();
+  if (!state.session && !state.unlocked && !state.espnAccess) return renderProtectedTabGate();
 
   const schools = state.schools;
   let rows = '';
@@ -1001,9 +1070,9 @@ function renderCompliance() {
         <h2>2025-26 Equipment Compliance Matrix</h2>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn" id="export-xlsx" style="background:var(--green);color:var(--navy);font-size:11px;padding:6px 12px">⬇ Export to Excel</button>
-        <button class="btn gray" id="lock-now" style="font-size:11px;padding:6px 12px">🔒 Lock Again</button>
-        <button class="btn blue" id="change-pw" style="font-size:11px;padding:6px 12px">Change Password</button>
+        ${state.espnAccess ? '<span style="font-size:11px;font-weight:700;color:#EF4035;background:#fff3f3;border:1px solid #EF4035;border-radius:4px;padding:4px 10px;">ESPN Read-Only</span>' : `<button class="btn" id="export-xlsx" style="background:var(--green);color:var(--navy);font-size:11px;padding:6px 12px">⬇ Export to Excel</button>`}
+        <button class="btn gray" id="lock-now" style="font-size:11px;padding:6px 12px">🔒 Lock</button>
+        ${state.espnAccess ? '' : `<button class="btn blue" id="change-pw" style="font-size:11px;padding:6px 12px">Change Password</button>`}
       </div>
     </div>
     <p class="muted">Each school's equipment checked against ESPN 2025-26 minimum production standards. Updates to the School Editor tab recalculate instantly.</p>
@@ -1104,7 +1173,7 @@ function checkReplayDetail(s, mins) {
 
 function renderSports() {
   if (!state.session && !hasPasswordSet()) return renderSetupPassword();
-  if (!state.session && !state.unlocked) return renderPasswordPrompt();
+  if (!state.session && !state.unlocked && !state.espnAccess) return renderProtectedTabGate();
 
   let out = `
     <div class="section-title" style="justify-content:space-between;width:100%">
@@ -1113,8 +1182,9 @@ function renderSports() {
         <h2>Per-Sport Minimum Standards</h2>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn gray" id="lock-now" style="font-size:11px;padding:6px 12px">🔒 Lock Again</button>
-        <button class="btn blue" id="change-pw" style="font-size:11px;padding:6px 12px">Change Password</button>
+        ${state.espnAccess ? '<span style="font-size:11px;font-weight:700;color:#EF4035;background:#fff3f3;border:1px solid #EF4035;border-radius:4px;padding:4px 10px;">ESPN Read-Only</span>' : ''}
+        <button class="btn gray" id="lock-now" style="font-size:11px;padding:6px 12px">🔒 Lock</button>
+        ${state.espnAccess ? '' : `<button class="btn blue" id="change-pw" style="font-size:11px;padding:6px 12px">Change Password</button>`}
       </div>
     </div>
     <p class="muted">Each CUSA-sponsored sport the school produces is checked against two requirements: camera count (sport-specific) and replay capability (ESPN general minimum). Sports outside the CUSA-sponsored set are not shown here.</p>
@@ -1287,29 +1357,30 @@ function renderEditor() {
   }).join('');
 
   let form = '';
-  if (state.pendingEditIdx !== null && !state.unlocked) {
+  if (state.pendingEditIdx !== null && !state.unlocked && !state.espnAccess) {
     form = renderPasswordPrompt();
   } else if (state.editingIdx !== null && state.schools[state.editingIdx]) {
     const s = state.schools[state.editingIdx];
+    const ro = state.espnAccess && !state.unlocked && !state.session;
     const fld = (label, key, type='text', min) => {
       const val = s[key] == null ? '' : s[key];
       const below = type === 'number' && min !== undefined && Number(val) < min;
       return `<div class="field">
         <label>${escapeHtml(label)}</label>
-        <input type="${type}" data-key="${key}" value="${escapeHtml(val)}" ${min !== undefined ? `data-min="${min}"` : ''} class="${below ? 'below-min' : ''}" ${type === 'number' ? 'step="any"' : ''}>
+        <input type="${type}" data-key="${key}" value="${escapeHtml(val)}" ${min !== undefined ? `data-min="${min}"` : ''} class="${below ? 'below-min' : ''}" ${type === 'number' ? 'step="any"' : ''} ${ro ? 'disabled' : ''}>
       </div>`;
     };
     const tgl = (label, key) => `<div class="toggle-row">
-      <div class="toggle ${s[key] ? 'on' : ''}" data-toggle="${key}"><div class="knob"></div></div>
+      <div class="toggle ${s[key] ? 'on' : ''} ${ro ? '' : ''}" data-toggle="${key}" style="${ro ? 'pointer-events:none;opacity:0.6' : ''}"><div class="knob"></div></div>
       <span class="toggle-label">${escapeHtml(label)}</span>
     </div>`;
-    const chips = ALL_SPORTS.map(sp => `<button class="sport-chip ${s.sports.includes(sp) ? 'on' : ''}" data-sport="${escapeHtml(sp)}">${escapeHtml(sp)}</button>`).join('');
+    const chips = ALL_SPORTS.map(sp => `<button class="sport-chip ${s.sports.includes(sp) ? 'on' : ''}" data-sport="${escapeHtml(sp)}" ${ro ? 'disabled style="pointer-events:none"' : ''}>${escapeHtml(sp)}</button>`).join('');
 
     form = `<div class="editor-wrap">
       <div class="editor-header">
-        <span>Editing: ${escapeHtml(s.name)}</span>
+        <span>${ro ? '👁 Viewing: ' : 'Editing: '}${escapeHtml(s.name)}${ro ? ' <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:10px;margin-left:6px">Read Only</span>' : ''}</span>
         <div style="display:flex;gap:8px">
-          <button class="btn" id="save-school" style="background:var(--green);color:var(--navy)">Save</button>
+          ${ro ? '' : `<button class="btn" id="save-school" style="background:var(--green);color:var(--navy)">Save</button>`}
           ${state.unlocked ? `<button class="btn" id="remove-school" style="background:#fff;color:var(--espn-red)">Remove</button>` : ''}
         </div>
       </div>
@@ -1413,7 +1484,7 @@ async function loadAuditLog() {
 
 function renderAuditLog() {
   if (!state.session && !hasPasswordSet()) return renderSetupPassword();
-  if (!state.session && !state.unlocked) return renderPasswordPrompt();
+  if (!state.session && !state.unlocked && !state.espnAccess) return renderProtectedTabGate();
 
   if (state.auditLog === null) {
     loadAuditLog();
@@ -1459,7 +1530,7 @@ function wireAuditLog() {
 
 /* ── Wiring ── */
 function wireEditor() {
-  if (state.pendingEditIdx !== null && !state.unlocked) {
+  if (state.pendingEditIdx !== null && !state.unlocked && !state.espnAccess) {
     wireCompliance();
     document.querySelectorAll('.school-card').forEach(card => {
       card.addEventListener('click', () => {
@@ -1472,7 +1543,7 @@ function wireEditor() {
 
   document.querySelectorAll('.school-card').forEach(card => {
     card.addEventListener('click', () => {
-      if (!state.unlocked) {
+      if (!state.unlocked && !state.espnAccess) {
         state.pendingEditIdx = Number(card.dataset.idx);
         render();
         return;

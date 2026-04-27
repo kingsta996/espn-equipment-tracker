@@ -176,6 +176,20 @@
   /* ── School search section ── */
   .section-title { font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
 
+  /* ── Lock icon on protected tabs ── */
+  .tab-bar button.locked::after { content: ' 🔒'; font-size: 10px; }
+
+  /* ── Password modal ── */
+  .pw-overlay { display:none; position:fixed; inset:0; background:rgba(0,38,58,0.7); z-index:200; align-items:center; justify-content:center; padding:20px; }
+  .pw-overlay.open { display:flex; }
+  .pw-box { background:#fff; border-radius:12px; padding:32px; max-width:360px; width:100%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+  .pw-box h2 { font-size:18px; color:var(--navy); margin-bottom:6px; }
+  .pw-box p { font-size:12px; color:#666; margin-bottom:20px; }
+  .pw-input { width:100%; padding:10px 14px; border:2px solid #ddd; border-radius:8px; font-size:14px; text-align:center; letter-spacing:2px; font-family:inherit; margin-bottom:12px; }
+  .pw-input:focus { outline:none; border-color:var(--blue); }
+  .pw-err { color:var(--espn-red); font-size:12px; margin-bottom:10px; display:none; }
+  .pw-actions { display:flex; gap:8px; justify-content:center; }
+
   @media (max-width: 640px) {
     .controls { flex-direction: column; align-items: stretch; }
     .btn { justify-content: center; }
@@ -190,7 +204,22 @@
   <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
        onerror="this.style.display='none'">
   <h1>ESPN+ Viewership Tracker</h1>
+  <button id="lockBtn" onclick="lockViewer()" style="display:none;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Lock</button>
   <a href="index.html">← Hub</a>
+</div>
+
+<!-- Password modal -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>🔒 Admin Access</h2>
+    <p>Enter the admin password to view this section</p>
+    <input class="pw-input" id="pwInput" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr">Incorrect password. Try again.</div>
+    <div class="pw-actions">
+      <button onclick="closePwModal()" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="submitPw()" style="background:var(--espn-red);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Unlock</button>
+    </div>
+  </div>
 </div>
 
 <!-- Controls -->
@@ -279,6 +308,66 @@
   let rawData = [];
   const STORAGE_KEY = 'cusa_tracker_data';
   const META_KEY = 'cusa_tracker_meta';
+  const VW_UNLOCK_KEY = 'cusa_viewer_unlocked';
+  const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  const PROTECTED_TABS = new Set(['dashboard','football','volleyball','soccer','baseball','softball','mbb','wbb','championships','shows','rawdata']);
+  let adminUnlocked = localStorage.getItem(VW_UNLOCK_KEY) === 'true';
+  let pendingTab = null;
+
+  async function hashPw(pw) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  function openPwModal(tab) {
+    pendingTab = tab;
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwErr').style.display = 'none';
+    document.getElementById('pwOverlay').classList.add('open');
+    setTimeout(() => document.getElementById('pwInput').focus(), 80);
+  }
+  function closePwModal() {
+    document.getElementById('pwOverlay').classList.remove('open');
+    pendingTab = null;
+  }
+  async function submitPw() {
+    const h = await hashPw(document.getElementById('pwInput').value);
+    if (h === VW_PW_HASH) {
+      adminUnlocked = true;
+      localStorage.setItem(VW_UNLOCK_KEY, 'true');
+      document.getElementById('lockBtn').style.display = 'inline-block';
+      closePwModal();
+      updateTabLocks();
+      if (pendingTab) switchTab(pendingTab);
+    } else {
+      document.getElementById('pwErr').style.display = 'block';
+    }
+  }
+  function lockViewer() {
+    adminUnlocked = false;
+    localStorage.removeItem(VW_UNLOCK_KEY);
+    document.getElementById('lockBtn').style.display = 'none';
+    updateTabLocks();
+    switchTab('schoolsearch');
+  }
+  function updateTabLocks() {
+    document.querySelectorAll('.tab-bar button').forEach(b => {
+      b.classList.toggle('locked', PROTECTED_TABS.has(b.dataset.tab) && !adminUnlocked);
+    });
+    if (adminUnlocked) document.getElementById('lockBtn').style.display = 'inline-block';
+  }
+
+  function getSchoolRankBySport(school, sportName) {
+    const sportRows = rawData.filter(r => r.SPORT === sportName);
+    const totals = {};
+    sportRows.forEach(r => {
+      [r.AWAY_TEAM, r.HOME_TEAM].filter(t => t).forEach(t => {
+        totals[t] = (totals[t] || 0) + (r.UNIQUE_VIEWERS || 0);
+      });
+    });
+    const sorted = Object.entries(totals).sort((a,b) => b[1]-a[1]);
+    const rank = sorted.findIndex(([t]) => t === school) + 1;
+    return rank > 0 ? `#${rank} of ${sorted.length}` : '—';
+  }
 
   const CUSA_SCHOOLS = [
     'Delaware','Florida International','Jacksonville State','Kennesaw State',
@@ -298,7 +387,12 @@
   document.addEventListener('DOMContentLoaded', () => {
     loadFromStorage();
     setupEventListeners();
-    if (rawData.length > 0) renderAllTabs();
+    updateTabLocks();
+    if (adminUnlocked) document.getElementById('lockBtn').style.display = 'inline-block';
+    if (rawData.length > 0) {
+      renderAllTabs();
+      if (!adminUnlocked) switchTab('schoolsearch');
+    }
   });
 
   function setupEventListeners() {
@@ -425,6 +519,7 @@
   function updateStatus(msg) { document.getElementById('status').textContent = msg; }
 
   function switchTab(name) {
+    if (PROTECTED_TABS.has(name) && !adminUnlocked) { openPwModal(name); return; }
     document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = c.id === name ? 'block' : 'none');
   }
@@ -480,11 +575,12 @@
       </div>
       <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">By Sport</h4>
       <div class="table-container" style="margin-bottom:20px;">
-        <table><thead><tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers</th></tr></thead>
+        <table><thead><tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers</th><th>Overall Rank</th></tr></thead>
         <tbody>${Object.entries(sportBreakdown).map(([sp, st]) => `
           <tr><td><strong>${sp}</strong></td><td class="number">${st.count}</td>
           <td class="number">${st.viewers.toLocaleString()}</td>
-          <td class="number">${Math.round(st.viewers/st.count).toLocaleString()}</td></tr>`).join('')}
+          <td class="number">${Math.round(st.viewers/st.count).toLocaleString()}</td>
+          <td class="rank">${getSchoolRankBySport(school, sp)}</td></tr>`).join('')}
         </tbody></table>
       </div>
       <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">All Events</h4>
@@ -579,6 +675,9 @@
           <div class="search-field"><label>Search Matchup</label><input type="text" id="${tabId}-search-matchup" placeholder="Team or matchup name…"></div>
           <div class="search-field"><label>Filter by Date</label><input type="date" id="${tabId}-search-date"></div>
           <div class="search-field"><label>Report Period</label><select id="${tabId}-search-period"><option value="">All Periods</option></select></div>
+          <div class="search-field"><label>Min Viewers</label><input type="number" id="${tabId}-search-viewers" placeholder="e.g. 500" min="0"></div>
+          <div class="search-field"><label>Min Total Min</label><input type="number" id="${tabId}-search-totalmin" placeholder="e.g. 1000" min="0"></div>
+          <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="${tabId}-search-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
           <div style="display:flex;gap:8px;align-items:flex-end">
             <button class="btn btn-import" onclick="filterSportTab('${tabId}','${sportName}')">🔍 Search</button>
             <button class="btn btn-clear" onclick="clearSportFilter('${tabId}','${sportName}')">Clear</button>
@@ -608,10 +707,16 @@
     const matchup = document.getElementById(`${tabId}-search-matchup`).value.toLowerCase().trim();
     const date = document.getElementById(`${tabId}-search-date`).value;
     const period = document.getElementById(`${tabId}-search-period`).value;
+    const minViewers = parseFloat(document.getElementById(`${tabId}-search-viewers`).value) || 0;
+    const minTotalMin = parseFloat(document.getElementById(`${tabId}-search-totalmin`).value) || 0;
+    const minMinViewer = parseFloat(document.getElementById(`${tabId}-search-minviewer`).value) || 0;
     let games = filterBySport(sportName);
     if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup) || (g.AWAY_TEAM||'').toLowerCase().includes(matchup) || (g.HOME_TEAM||'').toLowerCase().includes(matchup));
     if (date) games = games.filter(g => formatDateForFilter(g.DATE) === date);
     if (period) games = games.filter(g => g.REPORT_PERIOD === period);
+    if (minViewers) games = games.filter(g => (g.UNIQUE_VIEWERS||0) >= minViewers);
+    if (minTotalMin) games = games.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
+    if (minMinViewer) games = games.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
     const container = document.getElementById(`${tabId}-table`);
     if (!games.length) { container.innerHTML = `<div class="empty-state"><h3>No games match your search</h3></div>`; return; }
     container.innerHTML = `
@@ -627,6 +732,9 @@
     document.getElementById(`${tabId}-search-matchup`).value = '';
     document.getElementById(`${tabId}-search-date`).value = '';
     document.getElementById(`${tabId}-search-period`).value = '';
+    document.getElementById(`${tabId}-search-viewers`).value = '';
+    document.getElementById(`${tabId}-search-totalmin`).value = '';
+    document.getElementById(`${tabId}-search-minviewer`).value = '';
     filterSportTab(tabId, sportName);
   }
 

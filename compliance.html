@@ -414,6 +414,14 @@ let _db = null;
 function initSupabase() {
   if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
     _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    _db.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        showSetPasswordOverlay(false);
+      } else if (event === 'SIGNED_IN' && window._pendingAuthType === 'invite' && session) {
+        window._pendingAuthType = null;
+        showSetPasswordOverlay(true);
+      }
+    });
   }
 }
 
@@ -750,6 +758,40 @@ function wireCompliance() {
       clearPassword();
       render();
     });
+
+    // Forgot password flow (school editor gate)
+    document.getElementById('pw-forgot-link')?.addEventListener('click', () => {
+      document.getElementById('pw-forgot-panel').style.display = 'block';
+      document.getElementById('pw-forgot-link').style.display = 'none';
+      document.getElementById('pw-forgot-email')?.focus();
+    });
+
+    document.getElementById('pw-forgot-submit')?.addEventListener('click', async () => {
+      const email = document.getElementById('pw-forgot-email').value.trim();
+      const msgEl = document.getElementById('pw-forgot-msg');
+      if (!email) {
+        msgEl.textContent = 'Enter your email address.';
+        msgEl.style.color = '#991b1b';
+        msgEl.style.display = 'block';
+        return;
+      }
+      if (!_db) {
+        msgEl.textContent = 'Password reset requires Supabase. Contact kking@conferenceusa.com for assistance.';
+        msgEl.style.color = '#555';
+        msgEl.style.display = 'block';
+        return;
+      }
+      const { error } = await _db.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      if (error) {
+        msgEl.textContent = error.message || 'Failed to send reset email.';
+        msgEl.style.color = '#991b1b';
+      } else {
+        msgEl.textContent = '✓ Reset link sent — check your email inbox.';
+        msgEl.style.color = '#15803d';
+        document.getElementById('pw-forgot-submit').disabled = true;
+      }
+      msgEl.style.display = 'block';
+    });
   }
 
   // Unlocked footer buttons
@@ -1031,7 +1073,20 @@ function renderPasswordPrompt() {
         </div>
         <div id="pw-error" style="color:var(--fail-fg);font-size:12px;margin:8px 0;display:none"></div>
         <button class="btn red" id="pw-submit" style="width:100%;margin-top:8px">${isEditorGate ? 'Sign In to Edit' : 'Unlock'}</button>
-        ${isEditorGate ? '' : `<button class="btn gray" id="pw-reset" style="width:100%;margin-top:8px;font-size:11px">Forgot password? Reset (clears saved password)</button>`}
+        ${isEditorGate ? `
+          <div style="text-align:center;margin-top:14px;">
+            <button id="pw-forgot-link" style="background:none;border:none;color:var(--blue);font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;padding:0;">Forgot your password?</button>
+          </div>
+          <div id="pw-forgot-panel" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid #eee;">
+            <p style="font-size:12px;color:#555;margin:0 0 10px;line-height:1.5;">Enter your email and we'll send a reset link.</p>
+            <div class="field">
+              <label>Email</label>
+              <input type="email" id="pw-forgot-email" value="${escapeHtml(school?.auth_email || '')}" placeholder="your@email.edu" autocomplete="email">
+            </div>
+            <div id="pw-forgot-msg" style="font-size:12px;margin:6px 0;display:none;"></div>
+            <button class="btn blue" id="pw-forgot-submit" style="width:100%;margin-top:8px">Send Reset Link</button>
+          </div>
+        ` : `<button class="btn gray" id="pw-reset" style="width:100%;margin-top:8px;font-size:11px">Forgot password? Reset (clears saved password)</button>`}
       </div>
     </div>
   `;
@@ -1499,9 +1554,64 @@ document.querySelectorAll('.tab-btn').forEach(b => {
   });
 });
 
+/* ── Set-password overlay (invite links & password reset) ── */
+function showSetPasswordOverlay(isFirstLogin = false) {
+  const title = isFirstLogin ? 'Welcome — Set Your Password' : 'Set New Password';
+  const desc = isFirstLogin
+    ? 'Welcome to the CUSA ESPN Compliance Dashboard. Choose a password for your account — you\'ll use it to sign in and edit your school\'s equipment data.'
+    : 'Enter a new password for your account. You\'ll use it to sign in going forward.';
+  let overlay = document.getElementById('set-pw-overlay');
+  if (!overlay) { overlay = document.createElement('div'); overlay.id = 'set-pw-overlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,38,58,0.97);z-index:500;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:32px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <img src="${ESPN_LOGO}" style="height:18px;">
+        <h2 style="margin:0;font-size:18px;color:var(--navy);">${title}</h2>
+      </div>
+      <p style="font-size:13px;color:#555;margin:0 0 20px;line-height:1.5;">${desc}</p>
+      <div class="field"><label>New Password</label><input type="password" id="spw-new" placeholder="Minimum 8 characters" autocomplete="new-password"></div>
+      <div class="field"><label>Confirm Password</label><input type="password" id="spw-confirm" autocomplete="new-password"></div>
+      <div id="spw-error" style="color:#991b1b;font-size:12px;margin:8px 0;display:none;"></div>
+      <div id="spw-success" style="color:#15803d;font-size:13px;font-weight:600;margin:8px 0;display:none;">✓ Password saved! Signing you in...</div>
+      <button id="spw-submit" class="btn red" style="width:100%;margin-top:8px;">Save Password</button>
+    </div>`;
+  document.getElementById('spw-submit').addEventListener('click', saveNewPassword);
+  ['spw-new','spw-confirm'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') saveNewPassword(); })
+  );
+  document.getElementById('spw-new').focus();
+}
+
+async function saveNewPassword() {
+  const pw = document.getElementById('spw-new').value;
+  const pw2 = document.getElementById('spw-confirm').value;
+  const errEl = document.getElementById('spw-error');
+  const sucEl = document.getElementById('spw-success');
+  errEl.style.display = 'none';
+  sucEl.style.display = 'none';
+  if (!pw || pw.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; errEl.style.display = 'block'; return; }
+  if (pw !== pw2) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
+  if (!_db) { errEl.textContent = 'Cannot save — Supabase is not connected. Contact kking@conferenceusa.com.'; errEl.style.display = 'block'; return; }
+  const { error } = await _db.auth.updateUser({ password: pw });
+  if (error) { errEl.textContent = error.message || 'Failed to save password.'; errEl.style.display = 'block'; return; }
+  sucEl.style.display = 'block';
+  document.getElementById('spw-submit').disabled = true;
+  setTimeout(() => { document.getElementById('set-pw-overlay').style.display = 'none'; render(); }, 2000);
+}
+
 /* ── Boot ── */
 async function boot() {
   seedDefaultPassword();
+
+  // Capture invite/recovery type from URL before Supabase clears the hash
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const pendingType = hashParams.get('type');
+  if (hashParams.get('access_token') && (pendingType === 'invite' || pendingType === 'recovery')) {
+    window._pendingAuthType = pendingType;
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+
   initSupabase();
 
   if (_db) {

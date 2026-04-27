@@ -1627,11 +1627,15 @@ function wireEditor() {
       msg.style.color = '#991b1b'; msg.style.display = 'block'; return;
     }
     const h = await hashPassword(pw);
-    state.schools[state.editingIdx].pw_hash = h;
-    const ok = await saveSchoolPassword(state.schools[state.editingIdx]);
-    showToast(ok
-      ? '✓ Password saved to Supabase — share it with the school contact.'
-      : '⚠ Password saved locally only — check error above.', !ok);
+    const school = state.schools[state.editingIdx];
+    school.pw_hash = h;
+    // Debug info shown in toast regardless of outcome
+    const debugInfo = `id=${school.id || 'NONE'}, db=${!!_db}`;
+    const ok = await saveSchoolPassword(school);
+    if (ok) {
+      showToast('✓ Password saved to Supabase — share it with the school contact.');
+    }
+    // If !ok, saveSchoolPassword already showed the specific error — don't overwrite it
     document.getElementById('school-pw-new').value = '';
     render();
   });

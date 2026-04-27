@@ -71,7 +71,7 @@ insert into schools (
   16,'Ross'
 ),
 (
-  'Missouri State','MVC','rkindhart@missouristate.edu',
+  'Missouri State','MVC','brandon@hite-media.com',
   ARRAY['Baseball','Basketball','Football','Soccer','Softball','Swimming','Volleyball'],
   'Ross Carbonite Multi Media',16,4,2,
   4,'4 HXC FB80',

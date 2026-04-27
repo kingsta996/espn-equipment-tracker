@@ -485,7 +485,7 @@ let state = {
   pendingEditIdx: null,
   unlocked: localStorage.getItem(UNLOCK_KEY) === 'true',
   espnAccess: localStorage.getItem(ESPNACCESS_KEY) === 'true',
-  isAdmin: false,
+  isAdmin: localStorage.getItem(UNLOCK_KEY) === 'true',
   authorizedSchoolEmail: null,
   auditLog: null
 };

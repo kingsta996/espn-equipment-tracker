@@ -576,11 +576,35 @@ async function saveSchool(school) {
       result = await _db.from('schools').insert(toDbRow(school)).select('id').single();
       if (result.data?.id) school.id = result.data.id;
     }
-    if (!result.error) showSaved();
+    if (result.error) {
+      console.error('Supabase save error:', result.error);
+      showToast('⚠ Supabase save failed: ' + (result.error.message || result.error.code), true);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {}
+      return false;
+    }
+    showSaved();
+    return true;
   } else {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {}
     showSaved();
+    return true;
   }
+}
+
+function showToast(msg, isError = false) {
+  let toast = document.getElementById('db-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'db-toast';
+    toast.style.cssText = 'position:fixed;bottom:60px;right:20px;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:400;max-width:380px;word-break:break-word;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.background = isError ? '#991b1b' : 'var(--navy)';
+  toast.style.color = '#fff';
+  toast.style.display = 'block';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { toast.style.display = 'none'; }, isError ? 6000 : 2000);
 }
 
 function setupRealtime() {
@@ -1578,9 +1602,11 @@ function wireEditor() {
     }
     const h = await hashPassword(pw);
     state.schools[state.editingIdx].pw_hash = h;
-    await saveSchool(state.schools[state.editingIdx]);
-    msg.textContent = '✓ Password saved — share it with the school contact.';
-    msg.style.color = '#15803d'; msg.style.display = 'block';
+    const ok = await saveSchool(state.schools[state.editingIdx]);
+    msg.textContent = ok
+      ? '✓ Password saved to Supabase — share it with the school contact.'
+      : '⚠ Saved locally only — Supabase update failed. Check the error message.';
+    msg.style.color = ok ? '#15803d' : '#991b1b'; msg.style.display = 'block';
     document.getElementById('school-pw-new').value = '';
     render();
   });

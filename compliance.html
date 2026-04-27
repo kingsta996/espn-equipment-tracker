@@ -570,10 +570,13 @@ async function saveSchool(school) {
   school.updatedBy = state.isAdmin ? ADMIN_EMAIL : (state.authorizedSchoolEmail || null);
   if (_db) {
     let result;
+    const row = toDbRow(school);
+    // Never let a general save overwrite an existing pw_hash with null
+    if (!row.pw_hash) delete row.pw_hash;
     if (school.id) {
-      result = await _db.from('schools').update(toDbRow(school)).eq('id', school.id);
+      result = await _db.from('schools').update(row).eq('id', school.id);
     } else {
-      result = await _db.from('schools').insert(toDbRow(school)).select('id').single();
+      result = await _db.from('schools').insert(row).select('id').single();
       if (result.data?.id) school.id = result.data.id;
     }
     if (result.error) {
@@ -589,6 +592,29 @@ async function saveSchool(school) {
     showSaved();
     return true;
   }
+}
+
+async function saveSchoolPassword(school) {
+  if (!school.pw_hash) return false;
+  // Save pw_hash as a targeted single-field update — never part of a bulk save
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {}
+  if (!_db || !school.id) {
+    showToast('⚠ School has no Supabase ID — save the school first then set the password.', true);
+    return false;
+  }
+  const result = await _db.from('schools')
+    .update({ pw_hash: school.pw_hash })
+    .eq('id', school.id)
+    .select('id, pw_hash');
+  if (result.error) {
+    showToast('⚠ Password save failed: ' + (result.error.message || result.error.code), true);
+    return false;
+  }
+  if (!result.data?.length) {
+    showToast('⚠ Password save failed: school ID not found in Supabase database.', true);
+    return false;
+  }
+  return true;
 }
 
 function showToast(msg, isError = false) {
@@ -1602,10 +1628,10 @@ function wireEditor() {
     }
     const h = await hashPassword(pw);
     state.schools[state.editingIdx].pw_hash = h;
-    const ok = await saveSchool(state.schools[state.editingIdx]);
+    const ok = await saveSchoolPassword(state.schools[state.editingIdx]);
     showToast(ok
       ? '✓ Password saved to Supabase — share it with the school contact.'
-      : '⚠ Saved locally only — Supabase update failed. See red error above.', !ok);
+      : '⚠ Password saved locally only — check error above.', !ok);
     document.getElementById('school-pw-new').value = '';
     render();
   });

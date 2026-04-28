@@ -551,12 +551,26 @@
     const dbLoaded = await loadFromSupabase();
     if (dbLoaded) {
       updateStatus(`Loaded ${rawData.length} events from database`);
-      updateMetaBar({ modified: null, period: getCurrentPeriod() });
+      const lastMod = await loadLastModified();
+      updateMetaBar({ modified: lastMod, period: getCurrentPeriod() });
     } else {
       loadFromStorage();
     }
     setupEventListeners();
     if (rawData.length > 0) renderAllTabs();
+  }
+
+  async function loadLastModified() {
+    if (!_db) return null;
+    try {
+      const { data, error } = await _db.from('viewership_events')
+        .select('created_at').order('created_at', { ascending: false }).limit(1);
+      if (error) throw error;
+      return data && data[0] ? data[0].created_at : null;
+    } catch(e) {
+      console.error('last modified load error:', e);
+      return null;
+    }
   }
 
   function setupEventListeners() {

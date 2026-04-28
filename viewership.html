@@ -37,6 +37,31 @@
   .header a.admin-link { color: #fff; background: rgba(239,64,53,0.85); padding: 5px 12px; border-radius: 6px; font-weight: 700; font-size: 11px; }
   .header a.admin-link:hover { background: var(--espn-red); }
 
+  .meta-bar {
+    background: var(--white);
+    border-bottom: 1px solid #ddd;
+    padding: 10px 20px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 11px;
+  }
+  .meta-bar .label { font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; }
+  .meta-bar .value { color: #555; }
+  .meta-bar select {
+    border: 1px solid var(--gray);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--espn-red);
+    font-family: inherit;
+    background: #fff;
+    cursor: pointer;
+  }
+  .meta-bar .divider { color: #ccc; }
+
   .content { padding: 24px 20px; max-width: 1400px; margin: 0 auto; }
   .section-title { font-size: 18px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
 
@@ -151,6 +176,14 @@
   <a href="index.html">← Hub</a>
 </div>
 
+<div id="metaBar" class="meta-bar" style="display:none;">
+  <span class="label">Reporting Period:</span>
+  <select id="metaPeriodSelect" onchange="saveSelectedPeriod(this.value)"></select>
+  <span class="divider">|</span>
+  <span class="label">Last Modified:</span>
+  <span id="metaModified" class="value">—</span>
+</div>
+
 <div class="content">
   <div class="section-title">🔍 Search by School</div>
 
@@ -179,6 +212,7 @@
     'Liberty','Middle Tennessee','Missouri State','New Mexico State','Sam Houston','Western Kentucky'
   ];
   const STORAGE_KEY = 'cusa_tracker_data';
+  const PERIOD_KEY = 'cusa_tracker_period';
 
   /* ── State ── */
   let rawData = [];
@@ -274,6 +308,46 @@
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) rawData = JSON.parse(stored);
     } catch(e) {}
+  }
+
+  async function loadLastModified() {
+    if (!_db) return null;
+    try {
+      const { data, error } = await _db.from('viewership_events')
+        .select('created_at').order('created_at', { ascending: false }).limit(1);
+      if (error) throw error;
+      return data && data[0] ? data[0].created_at : null;
+    } catch(e) {
+      console.error('last modified load error:', e);
+      return null;
+    }
+  }
+
+  /* ── Meta bar (period + last modified) ── */
+  function getAllPeriods() {
+    return [...new Set(rawData.map(r => r.REPORT_PERIOD).filter(p => p))].sort();
+  }
+  function getCurrentPeriod() {
+    const periods = getAllPeriods();
+    const saved = localStorage.getItem(PERIOD_KEY);
+    return (saved && periods.includes(saved)) ? saved : (periods.length ? periods[periods.length - 1] : '');
+  }
+  function saveSelectedPeriod(val) {
+    localStorage.setItem(PERIOD_KEY, val);
+  }
+  function updateMetaBar(modifiedIso) {
+    const bar = document.getElementById('metaBar');
+    if (!rawData.length) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    const periods = getAllPeriods();
+    const selected = getCurrentPeriod();
+    const sel = document.getElementById('metaPeriodSelect');
+    sel.innerHTML = periods.length
+      ? periods.map(p => `<option value="${p}" ${p === selected ? 'selected' : ''}>${p}</option>`).join('')
+      : '<option value="">—</option>';
+    document.getElementById('metaModified').textContent = modifiedIso
+      ? new Date(modifiedIso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' })
+      : '—';
   }
 
   /* ── School search ── */
@@ -501,8 +575,11 @@
     if (!ok) loadFromLocalStorage();
     if (rawData.length) {
       updateStatus(`${rawData.length.toLocaleString()} events available — select a school to begin`);
+      const lastMod = await loadLastModified();
+      updateMetaBar(lastMod);
     } else {
       updateStatus('No data available yet. Please ask the admin to import the latest report.');
+      updateMetaBar(null);
     }
   });
 </script>

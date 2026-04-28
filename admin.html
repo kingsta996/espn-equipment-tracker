@@ -1753,7 +1753,11 @@
       const games = filterBySport(sportName);
       const container = document.getElementById(tabId);
       if (!games.length) {
-        container.innerHTML = `<div class="empty-state"><h3>No games found</h3><p>Import data to see ${sportName} games</p></div>`;
+        container.innerHTML = `
+          <div class="empty-state"><h3>No games found</h3><p>Import data to see ${sportName} games, or add one manually:</p></div>
+          <div style="display:flex;justify-content:center;margin-top:8px">
+            <button class="row-edit-btn add" data-add-sport="${escapeReconText(sportName)}" style="padding:10px 20px;font-size:13px">+ Add New Event</button>
+          </div>`;
         return;
       }
       const realGames = games.filter(g => !g._placeholder);
@@ -1768,8 +1772,9 @@
           <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-          <button class="row-edit-btn add" data-add-sport="${escapeReconText(sportName)}" style="padding:8px 16px;font-size:12px">+ Add New Event</button>
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:12px;gap:8px">
+          <span style="font-size:11px;color:#666">Need to add an event that's not in the list?</span>
+          <button class="row-edit-btn add" data-add-sport="${escapeReconText(sportName)}" style="padding:10px 20px;font-size:13px">+ Add New Event</button>
         </div>
         ${renderReconciliation(sportName)}
         <div class="table-container">

@@ -705,7 +705,7 @@
         }
       } catch(e) { console.warn('Static produced_events.json not available:', e); }
     }
-    _producedEvents = events || [];
+    _producedEvents = applyRemovedFilter(events || []);
     _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
     const btn = document.getElementById('producedToggle');
     if (btn) btn.disabled = !_producedEvents.length;
@@ -971,26 +971,54 @@
     return found;
   }
 
-  async function removeProducedEvent(prodKey) {
-    if (!_db) {
-      alert('Supabase not connected — cannot remove from database');
-      return false;
-    }
+  /* Local blocklist of produced events the admin removed.
+     Used as a fallback when the Supabase produced_events table doesn't
+     exist yet (schema migration not run) and as a safety net for the
+     bundled produced_events.json fallback. */
+  const REMOVED_PROD_KEY = 'cusa_removed_produced_events';
+  function prodKeyString(p) {
+    return `${p.sport || ''}|${p.school || ''}|${p.event_date || ''}|${p.home_team || ''}|${p.away_team || ''}`;
+  }
+  function getRemovedProdSet() {
     try {
-      let q = _db.from('produced_events').delete()
-        .eq('sport', prodKey.sport || '')
-        .eq('school', prodKey.school || '')
-        .eq('event_date', prodKey.event_date || '');
-      if (prodKey.home_team) q = q.eq('home_team', prodKey.home_team);
-      if (prodKey.away_team) q = q.eq('away_team', prodKey.away_team);
-      const { error } = await q;
-      if (error) throw error;
-    } catch(err) {
-      console.error('Remove produced event failed:', err);
-      alert('Failed to remove: ' + (err.message || err));
-      return false;
+      const raw = localStorage.getItem(REMOVED_PROD_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
+  }
+  function addToRemovedProdSet(prodKey) {
+    const set = getRemovedProdSet();
+    set.add(prodKeyString(prodKey));
+    try { localStorage.setItem(REMOVED_PROD_KEY, JSON.stringify([...set])); } catch {}
+  }
+  function applyRemovedFilter(events) {
+    const removed = getRemovedProdSet();
+    if (!removed.size) return events;
+    return events.filter(e => !removed.has(prodKeyString(e)));
+  }
+
+  async function removeProducedEvent(prodKey) {
+    let supabaseOk = false;
+    let supabaseErr = null;
+    if (_db) {
+      try {
+        let q = _db.from('produced_events').delete()
+          .eq('sport', prodKey.sport || '')
+          .eq('school', prodKey.school || '')
+          .eq('event_date', prodKey.event_date || '');
+        if (prodKey.home_team) q = q.eq('home_team', prodKey.home_team);
+        if (prodKey.away_team) q = q.eq('away_team', prodKey.away_team);
+        const { error } = await q;
+        if (error) throw error;
+        supabaseOk = true;
+      } catch(err) {
+        console.warn('Supabase remove failed — falling back to local blocklist:', err);
+        supabaseErr = err;
+      }
     }
-    // Strip from local state
+
+    // Always persist locally so the placeholder doesn't reappear on reload
+    addToRemovedProdSet(prodKey);
+
     _producedEvents = _producedEvents.filter(p =>
       !(p.sport === prodKey.sport
         && p.school === prodKey.school
@@ -1001,7 +1029,18 @@
     _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
     rawData = mergeProducedPlaceholders(rawData.filter(r => !r._placeholder));
     renderAllTabs();
-    updateStatus('✓ Produced event removed', 'saved-cloud');
+
+    if (supabaseOk) {
+      updateStatus('☁️ Produced event removed (database)', 'saved-cloud');
+    } else {
+      const tableMissing = supabaseErr && /produced_events|schema cache/i.test(supabaseErr.message || '');
+      updateStatus(
+        tableMissing
+          ? '💻 Removed locally — run the produced_events SQL migration in Supabase to sync across browsers'
+          : '💻 Removed locally — Supabase delete failed',
+        'saved-local'
+      );
+    }
     return true;
   }
 

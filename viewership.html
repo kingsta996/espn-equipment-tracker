@@ -65,6 +65,9 @@
   .btn-export { background: var(--navy); color: var(--white); }
   .btn-clear { background: #888; color: var(--white); }
   .btn-save { background: var(--green); color: var(--navy); }
+  .btn-toggle { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+  .btn-toggle.active { background: var(--green); color: var(--navy); border-color: var(--green); }
+  .btn-toggle[disabled] { opacity: 0.5; cursor: not-allowed; }
   .file-input-wrapper { position: relative; display: inline-block; }
   .file-input-wrapper input[type=file] { position: absolute; left: -9999px; }
   .status {
@@ -272,6 +275,7 @@
     <label for="appendInput" class="btn btn-append">➕ Add New Period</label>
     <input type="file" id="appendInput" accept=".xlsx,.xls">
   </div>
+  <button class="btn btn-toggle" id="producedToggle" onclick="toggleProducedFilter()" title="Show only events produced by CUSA schools" disabled>○ CUSA Produced Only</button>
   <button class="btn btn-export" id="exportBtn">📤 Export Current Tab</button>
   <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
   <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
@@ -356,6 +360,8 @@
   let adminUnlocked = localStorage.getItem(VW_UNLOCK_KEY) === 'true';
   let pendingTab = null;
   let _db = null;
+  let _producedOnly = localStorage.getItem('cusa_produced_only') === 'true';
+  let _producedSet = new Set();
 
   async function hashPw(pw) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
@@ -488,9 +494,51 @@
     _db.from('viewership_events').delete().not('id', 'is', null);
   }
 
+  /* ── CUSA-Produced filter ── */
+  async function loadProducedEvents() {
+    try {
+      const r = await fetch('produced_events.json', { cache: 'no-cache' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const events = await r.json();
+      _producedSet = new Set(events.map(e => `${e.date}|${e.school}`));
+      const btn = document.getElementById('producedToggle');
+      if (btn) btn.disabled = false;
+    } catch(e) {
+      console.warn('Produced events list not available:', e);
+    }
+  }
+
+  function isProduced(r) {
+    if (!_producedSet.size) return false;
+    const d = formatDateForFilter(r.DATE);
+    if (!d) return false;
+    if (r.HOME_TEAM && _producedSet.has(`${d}|${r.HOME_TEAM}`)) return true;
+    if (r.AWAY_TEAM && _producedSet.has(`${d}|${r.AWAY_TEAM}`)) return true;
+    return false;
+  }
+
+  function activeData() {
+    return _producedOnly ? rawData.filter(isProduced) : rawData;
+  }
+
+  function toggleProducedFilter() {
+    if (!_producedSet.size) return;
+    _producedOnly = !_producedOnly;
+    localStorage.setItem('cusa_produced_only', _producedOnly);
+    updateProducedToggleUI();
+    if (rawData.length > 0) renderAllTabs();
+  }
+
+  function updateProducedToggleUI() {
+    const btn = document.getElementById('producedToggle');
+    if (!btn) return;
+    btn.classList.toggle('active', _producedOnly);
+    btn.textContent = (_producedOnly ? '✓' : '○') + ' CUSA Produced Only';
+  }
+
   function getSchoolRankBySport(school, sportName) {
     const cusaSet = new Set(CUSA_SCHOOLS);
-    const sportRows = rawData.filter(r => r.SPORT === sportName);
+    const sportRows = activeData().filter(r => r.SPORT === sportName);
     const totals = {};
     sportRows.forEach(r => {
       [r.AWAY_TEAM, r.HOME_TEAM].filter(t => t && cusaSet.has(t)).forEach(t => {
@@ -519,6 +567,8 @@
 
   document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
+    loadProducedEvents();
+    updateProducedToggleUI();
     const dbLoaded = await loadFromSupabase();
     if (dbLoaded) {
       updateStatus(`Loaded ${rawData.length} events from database`);
@@ -751,7 +801,7 @@
   function performSchoolSearch() {
     const school = document.getElementById('schoolSelect').value;
     if (!school) { alert('Please select a school'); return; }
-    const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+    const schoolData = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
 
     if (!schoolData.length) {
@@ -820,7 +870,7 @@
     const minV = parseFloat(document.getElementById('school-filter-viewers').value) || 0;
     const minTotalMin = parseFloat(document.getElementById('school-filter-totalmin').value) || 0;
     const minMinViewer = parseFloat(document.getElementById('school-filter-minviewer').value) || 0;
-    let data = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+    let data = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (matchup) data = data.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes(matchup) || (r.AWAY_TEAM||'').toLowerCase().includes(matchup) || (r.HOME_TEAM||'').toLowerCase().includes(matchup));
     if (sport) data = data.filter(r => r.SPORT === sport);
@@ -829,7 +879,7 @@
     if (minV) data = data.filter(r => (r.UNIQUE_VIEWERS||0) >= minV);
     if (minTotalMin) data = data.filter(r => (r.TOTAL_MINUTES||0) >= minTotalMin);
     if (minMinViewer) data = data.filter(r => (r.MIN_PER_VIEWER||0) >= minMinViewer);
-    const total = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school).length;
+    const total = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school).length;
     const el = document.getElementById('schoolEventTable');
     if (!data.length) { el.innerHTML = `<div class="empty-state"><h3>No events match your filter</h3></div>`; return; }
     el.innerHTML = `
@@ -861,7 +911,7 @@
   function exportSchoolData() {
     const school = document.getElementById('schoolSelect').value;
     if (!school) { alert('Please select a school and search first'); return; }
-    const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+    const schoolData = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (!schoolData.length) { alert('No data to export'); return; }
     const ws = XLSX.utils.json_to_sheet(schoolData);
@@ -872,7 +922,7 @@
   }
 
   function filterBySport(sportName) {
-    return rawData.filter(r => r.SPORT === sportName)
+    return activeData().filter(r => r.SPORT === sportName)
       .filter(r => {
         const t = (r.AIRING_TITLE||'').toLowerCase();
         return !t.includes('kickoff') && !t.includes('tip off') && !t.includes('willie simmons');
@@ -883,10 +933,11 @@
   let _dashboardRows = [];
 
   function renderDashboard() {
-    const total = rawData.length;
-    const totalV = rawData.reduce((s,r) => s+(r.UNIQUE_VIEWERS||0), 0);
+    const data = activeData();
+    const total = data.length;
+    const totalV = data.reduce((s,r) => s+(r.UNIQUE_VIEWERS||0), 0);
     const avgV = total ? Math.round(totalV/total) : 0;
-    const avgMin = total ? (rawData.reduce((s,r) => s+(r.MIN_PER_VIEWER||0),0)/total).toFixed(1) : 0;
+    const avgMin = total ? (data.reduce((s,r) => s+(r.MIN_PER_VIEWER||0),0)/total).toFixed(1) : 0;
 
     document.getElementById('dashboardStats').innerHTML = `
       <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value">${total.toLocaleString()}</div></div>
@@ -895,7 +946,7 @@
       <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>`;
 
     const sportStats = {};
-    rawData.forEach(r => {
+    data.forEach(r => {
       const sp = r.SPORT;
       if (!sportStats[sp]) sportStats[sp] = { events:0, viewers:0 };
       sportStats[sp].events++;
@@ -1020,7 +1071,7 @@
   }
 
   function renderChampionships() {
-    const allGames = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
+    const allGames = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     const container = document.getElementById('championships');
     if (!allGames.length) { container.innerHTML = `<div class="empty-state"><h3>No championship events found</h3><p>Import data to see championship games</p></div>`; return; }
@@ -1061,7 +1112,7 @@
     const minV = parseFloat(document.getElementById('champ-filter-viewers').value) || 0;
     const minTotalMin = parseFloat(document.getElementById('champ-filter-totalmin').value) || 0;
     const minMinViewer = parseFloat(document.getElementById('champ-filter-minviewer').value) || 0;
-    let games = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
+    let games = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup));
     if (sport) games = games.filter(g => g.SPORT === sport);
@@ -1070,7 +1121,7 @@
     if (minV) games = games.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
     if (minTotalMin) games = games.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
     if (minMinViewer) games = games.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
-    const total = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).length;
+    const total = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).length;
     const el = document.getElementById('champ-table');
     if (!games.length) { el.innerHTML = `<div class="empty-state"><h3>No championships match your filter</h3></div>`; return; }
     el.innerHTML = `
@@ -1097,7 +1148,7 @@
 
   function renderShows() {
     const isShow = r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); };
-    const allShows = rawData.filter(isShow)
+    const allShows = activeData().filter(isShow)
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     const container = document.getElementById('shows');
     if (!allShows.length) { container.innerHTML = `<div class="empty-state"><h3>No shows found</h3><p>Import data to see Kickoff/Tip Off shows</p></div>`; return; }
@@ -1139,7 +1190,7 @@
     const minV = parseFloat(document.getElementById('shows-filter-viewers').value) || 0;
     const minTotalMin = parseFloat(document.getElementById('shows-filter-totalmin').value) || 0;
     const minMinViewer = parseFloat(document.getElementById('shows-filter-minviewer').value) || 0;
-    let shows = rawData.filter(isShow).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    let shows = activeData().filter(isShow).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (name) shows = shows.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(name));
     if (sport) shows = shows.filter(g => g.SPORT === sport);
     if (date) shows = shows.filter(g => formatDateForFilter(g.DATE) === date);
@@ -1147,7 +1198,7 @@
     if (minV) shows = shows.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
     if (minTotalMin) shows = shows.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
     if (minMinViewer) shows = shows.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
-    const total = rawData.filter(isShow).length;
+    const total = activeData().filter(isShow).length;
     const el = document.getElementById('shows-table');
     if (!shows.length) { el.innerHTML = `<div class="empty-state"><h3>No shows match your filter</h3></div>`; return; }
     el.innerHTML = `
@@ -1174,8 +1225,9 @@
 
   function renderRawData() {
     const container = document.getElementById('rawdata');
-    if (!rawData.length) { container.innerHTML = `<div class="empty-state"><h3>No data loaded</h3><p>Import an Excel file to get started</p></div>`; return; }
-    const sorted = [...rawData].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    const data = activeData();
+    if (!data.length) { container.innerHTML = `<div class="empty-state"><h3>No data loaded</h3><p>${rawData.length ? 'No events match the current filter' : 'Import an Excel file to get started'}</p></div>`; return; }
+    const sorted = [...data].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     const headers = Object.keys(sorted[0]);
     container.innerHTML = `
       <div class="table-container">
@@ -1191,9 +1243,9 @@
     const label = activeBtn.textContent.trim();
     let data = [];
     if (tabName === 'dashboard') { alert('Export a specific sport tab instead.'); return; }
-    else if (tabName === 'rawdata') data = [...rawData].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    else if (tabName === 'championships') data = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    else if (tabName === 'shows') data = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); }).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    else if (tabName === 'rawdata') data = [...activeData()].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    else if (tabName === 'championships') data = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    else if (tabName === 'shows') data = activeData().filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); }).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     else if (SPORT_MAP[tabName]) data = filterBySport(SPORT_MAP[tabName]);
     if (!data.length) { alert('No data to export'); return; }
     const ws = XLSX.utils.json_to_sheet(data);
@@ -1206,16 +1258,16 @@
   function exportAllData() {
     if (!rawData.length) { alert('No data to export'); return; }
     const wb = XLSX.utils.book_new();
-    const sortedRaw = [...rawData].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    const sortedRaw = [...activeData()].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sortedRaw), 'Raw Data');
     Object.entries(SPORT_MAP).forEach(([tabId, sportName]) => {
       const d = filterBySport(sportName);
       if (d.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), sportName.replace('NCAA ','').substring(0,30));
     });
-    const champ = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
+    const champ = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (champ.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(champ), 'Championships');
-    const shows = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
+    const shows = activeData().filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (shows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shows), 'Shows');
     XLSX.writeFile(wb, `CUSA_Complete_Tracker_${new Date().toISOString().split('T')[0]}.xlsx`);

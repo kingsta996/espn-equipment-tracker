@@ -1,0 +1,7205 @@
+[
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-08-14",
+    "home": "Delaware",
+    "away": "Mount St. Mary's"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-08-17",
+    "home": "Delaware",
+    "away": "Bucknell"
+  },
+  {
+    "sport": "Football",
+    "school": "Delaware",
+    "date": "2025-08-28",
+    "home": "Delaware",
+    "away": "Delaware State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-09-04",
+    "home": "Delaware",
+    "away": "Cornell"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-09-05",
+    "home": "Delaware",
+    "away": "Virginia Tech"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-09-06",
+    "home": "Delaware",
+    "away": "Hampton"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-09-07",
+    "home": "Delaware",
+    "away": "Drexel"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-09-07",
+    "home": "Delaware",
+    "away": "Le Moyne"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-09-12",
+    "home": "Delaware",
+    "away": "William & Mary"
+  },
+  {
+    "sport": "Football",
+    "school": "Delaware",
+    "date": "2025-09-13",
+    "home": "Delaware",
+    "away": "Uconn"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-09-19",
+    "home": "Delaware",
+    "away": "Penn"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-09-20",
+    "home": "Delaware",
+    "away": "Saint Peter's"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-09-21",
+    "home": "Delaware",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-09-26",
+    "home": "Delaware",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-09-27",
+    "home": "Delaware",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-10-09",
+    "home": "Delaware",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-10-10",
+    "home": "Delaware",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-10-11",
+    "home": "Delaware",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-10-12",
+    "home": "Delaware",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Delaware",
+    "date": "2025-10-19",
+    "home": "Delaware",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-10-31",
+    "home": "Delaware",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-11-01",
+    "home": "Delaware",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Football",
+    "school": "Delaware",
+    "date": "2025-11-08",
+    "home": "Delaware",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-11-14",
+    "home": "Delaware",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Delaware",
+    "date": "2025-11-15",
+    "home": "Delaware",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Football",
+    "school": "Delaware",
+    "date": "2025-11-29",
+    "home": "Delaware",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Florida International",
+    "date": "2025-08-24",
+    "home": "Florida International",
+    "away": "FAU"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Florida International",
+    "date": "2025-08-28",
+    "home": "Florida International",
+    "away": "Stetson"
+  },
+  {
+    "sport": "Football",
+    "school": "Florida International",
+    "date": "2025-08-29",
+    "home": "Florida International",
+    "away": "Bethune Cookman"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Florida International",
+    "date": "2025-08-31",
+    "home": "Florida International",
+    "away": "FGCU"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "",
+    "date": "2025-09-05",
+    "home": "UCF",
+    "away": "Stetson"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-05",
+    "home": "Florida International",
+    "away": "Stetson"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "",
+    "date": "2025-09-06",
+    "home": "North Texas",
+    "away": "Stetson"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-06",
+    "home": "Florida International",
+    "away": "Drake"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "",
+    "date": "2025-09-06",
+    "home": "Miami",
+    "away": "UCF"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-07",
+    "home": "Florida International",
+    "away": "UCF"
+  },
+  {
+    "sport": "Football",
+    "school": "Florida International",
+    "date": "2025-09-13",
+    "home": "Florida International",
+    "away": "Florida Atlantic"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-18",
+    "home": "Florida International",
+    "away": "FGCU"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-19",
+    "home": "Florida International",
+    "away": "Coastal Carolina"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-20",
+    "home": "Florida International",
+    "away": "Miami"
+  },
+  {
+    "sport": "Football",
+    "school": "Florida International",
+    "date": "2025-09-20",
+    "home": "Florida International",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-26",
+    "home": "Florida International",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-09-27",
+    "home": "Florida International",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Florida International",
+    "date": "2025-10-05",
+    "home": "Florida International",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Florida International",
+    "date": "2025-10-16",
+    "home": "Florida International",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-10-17",
+    "home": "Florida International",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-10-18",
+    "home": "Florida International",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Florida International",
+    "date": "2025-10-19",
+    "home": "Florida International",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Florida International",
+    "date": "2025-10-26",
+    "home": "Florida International",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-10-31",
+    "home": "Florida International",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-11-01",
+    "home": "Florida International",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-11-07",
+    "home": "Florida International",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Florida International",
+    "date": "2025-11-08",
+    "home": "Florida International",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Football",
+    "school": "Florida International",
+    "date": "2025-11-15",
+    "home": "Florida International",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-08-24",
+    "home": "Jax State",
+    "away": "UNC Asheville"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-08-28",
+    "home": "Jax State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-09-05",
+    "home": "Jax State",
+    "away": "Alcorn State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-09-07",
+    "home": "Jax State",
+    "away": "Jackson State"
+  },
+  {
+    "sport": "Football",
+    "school": "Jacksonville State",
+    "date": "2025-09-20",
+    "home": "Jax State",
+    "away": "Murray State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-09-25",
+    "home": "Jax State",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-09-28",
+    "home": "Jax State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-10-03",
+    "home": "Jax State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-10-04",
+    "home": "Jax State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-10-04",
+    "home": "Jax State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-10-10",
+    "home": "Jax State",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-10-11",
+    "home": "Jax State",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-10-24",
+    "home": "Jax State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-10-25",
+    "home": "Jax State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Jacksonville State",
+    "date": "2025-10-26",
+    "home": "Jax State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-11-06",
+    "home": "Jax State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Jacksonville State",
+    "date": "2025-11-07",
+    "home": "Jax State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Football",
+    "school": "Jacksonville State",
+    "date": "2025-11-15",
+    "home": "Jax State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Football",
+    "school": "Jacksonville State",
+    "date": "2025-11-29",
+    "home": "Jax State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-08-21",
+    "home": "Kennesaw State",
+    "away": "Memphis"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-08-31",
+    "home": "Kennesaw State",
+    "away": "North Florida"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-09-06",
+    "home": "Kennesaw State",
+    "away": "SC State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-09-07",
+    "home": "Kennesaw State",
+    "away": "SC State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-09-07",
+    "home": "Kennesaw State",
+    "away": "Tennessee Tech"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-09-10",
+    "home": "Kennesaw State",
+    "away": "Georgia Southern"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-09-11",
+    "home": "Kennesaw State",
+    "away": "Michigan State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-09-13",
+    "home": "Kennesaw State",
+    "away": "Appalachain State"
+  },
+  {
+    "sport": "Football",
+    "school": "Kennesaw State",
+    "date": "2025-09-13",
+    "home": "Kennesaw State",
+    "away": "Merrimack College"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-09-14",
+    "home": "Kennesaw State",
+    "away": "Bellarmine"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-09-14",
+    "home": "Kennesaw State",
+    "away": "Troy"
+  },
+  {
+    "sport": "Football",
+    "school": "Kennesaw State",
+    "date": "2025-09-20",
+    "home": "Kennesaw State",
+    "away": "Arkansas State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-09-25",
+    "home": "Kennesaw State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Football",
+    "school": "Kennesaw State",
+    "date": "2025-09-27",
+    "home": "Kennesaw State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-09-28",
+    "home": "Kennesaw State",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-10-03",
+    "home": "Kennesaw State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-10-04",
+    "home": "Kennesaw State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-10-17",
+    "home": "Kennesaw State",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-10-18",
+    "home": "Kennesaw State",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-10-18",
+    "home": "Kennesaw State",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-10-24",
+    "home": "Kennesaw State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-10-25",
+    "home": "Kennesaw State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Kennesaw State",
+    "date": "2025-10-25",
+    "home": "Kennesaw State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-11-07",
+    "home": "Kennesaw State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Kennesaw State",
+    "date": "2025-11-08",
+    "home": "Kennesaw State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Football",
+    "school": "Kennesaw State",
+    "date": "2025-11-22",
+    "home": "Kennesaw State",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Missouri State",
+    "date": "2025-08-21",
+    "home": "Missouri State",
+    "away": "Kansas City"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Missouri State",
+    "date": "2025-08-31",
+    "home": "Missouri State",
+    "away": "Missouri"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-09-04",
+    "home": "Missouri State",
+    "away": "Lindenwood"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-09-05",
+    "home": "Missouri State",
+    "away": "UTSA"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-09-06",
+    "home": "Missouri State",
+    "away": "DePaul"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Missouri State",
+    "date": "2025-09-07",
+    "home": "Missouri State",
+    "away": "Iowa"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-09-11",
+    "home": "Missouri State",
+    "away": "Purdue Ft. Wayne"
+  },
+  {
+    "sport": "Football",
+    "school": "Missouri State",
+    "date": "2025-09-20",
+    "home": "Missouri State",
+    "away": "UT Martin"
+  },
+  {
+    "sport": "Football",
+    "school": "Missouri State",
+    "date": "2025-09-27",
+    "home": "Missouri State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-10-04",
+    "home": "Missouri State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Missouri State",
+    "date": "2025-10-05",
+    "home": "Missouri State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Missouri State",
+    "date": "2025-10-12",
+    "home": "Missouri State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Missouri State",
+    "date": "2025-10-16",
+    "home": "Missouri State",
+    "away": "LA Tech"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-10-17",
+    "home": "Missouri State",
+    "away": "New Mexico St."
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-10-18",
+    "home": "Missouri State",
+    "away": "New Mexico St."
+  },
+  {
+    "sport": "Soccer",
+    "school": "Missouri State",
+    "date": "2025-10-19",
+    "home": "Missouri State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-10-24",
+    "home": "Missouri State",
+    "away": "LA Tech"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-11-07",
+    "home": "Missouri State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Missouri State",
+    "date": "2025-11-08",
+    "home": "Missouri State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Football",
+    "school": "Missouri State",
+    "date": "2025-11-15",
+    "home": "Missouri State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Football",
+    "school": "Missouri State",
+    "date": "2025-11-29",
+    "home": "Missouri State",
+    "away": "LA Tech"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-07-18",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-07-25",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-08-01",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-08-07",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-08-14",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-08-21",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Soccer",
+    "school": "Liberty",
+    "date": "2025-08-24",
+    "home": "Liberty",
+    "away": "UVA"
+  },
+  {
+    "sport": "Men's Soccer",
+    "school": "Liberty",
+    "date": "2025-08-24",
+    "home": "Liberty",
+    "away": "USC-Upstate"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-08-28",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Soccer",
+    "school": "Liberty",
+    "date": "2025-08-28",
+    "home": "Liberty",
+    "away": "Virginia Tech"
+  },
+  {
+    "sport": "Football",
+    "school": "Liberty",
+    "date": "2025-08-30",
+    "home": "Liberty",
+    "away": "Maine"
+  },
+  {
+    "sport": "Field Hockey",
+    "school": "Liberty",
+    "date": "2025-09-03",
+    "home": "Liberty",
+    "away": "JMU"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-09-04",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-09-05",
+    "home": "Liberty",
+    "away": "West Chester Wolves"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Liberty",
+    "date": "2025-09-07",
+    "home": "Liberty",
+    "away": "Penn State"
+  },
+  {
+    "sport": "Field Hockey",
+    "school": "Liberty",
+    "date": "2025-09-07",
+    "home": "Liberty",
+    "away": "Richmond"
+  },
+  {
+    "sport": "Men's Soccer",
+    "school": "Liberty",
+    "date": "2025-09-09",
+    "home": "Liberty",
+    "away": "Longwood"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-09-11",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-09-13",
+    "home": "Liberty",
+    "away": "NC State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Liberty",
+    "date": "2025-09-14",
+    "home": "Liberty",
+    "away": "Kansas"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-09-18",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-09-19",
+    "home": "Liberty",
+    "away": "UNC"
+  },
+  {
+    "sport": "Football",
+    "school": "Liberty",
+    "date": "2025-09-20",
+    "home": "Liberty",
+    "away": "JMU"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-09-25",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-09-26",
+    "home": "Liberty",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Field Hockey",
+    "school": "Liberty",
+    "date": "2025-09-26",
+    "home": "Liberty",
+    "away": "UCONN"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-09-26",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-09-27",
+    "home": "Liberty",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Soccer",
+    "school": "Liberty",
+    "date": "2025-09-27",
+    "home": "Liberty",
+    "away": "USI"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-09-27",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-10-02",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Field Hockey",
+    "school": "Liberty",
+    "date": "2025-10-03",
+    "home": "Liberty",
+    "away": "Old Dominion"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-10-03",
+    "home": "Liberty",
+    "away": "Utah"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-10-04",
+    "home": "Liberty",
+    "away": "Utah"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-10-09",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Soccer",
+    "school": "Liberty",
+    "date": "2025-10-09",
+    "home": "Liberty",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-10-10",
+    "home": "Liberty",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-10-11",
+    "home": "Liberty",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Soccer",
+    "school": "Liberty",
+    "date": "2025-10-12",
+    "home": "Liberty",
+    "away": "Lindenwood"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Liberty",
+    "date": "2025-10-12",
+    "home": "Liberty",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-10-16",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Field Hockey",
+    "school": "Liberty",
+    "date": "2025-10-17",
+    "home": "Liberty",
+    "away": "Providence"
+  },
+  {
+    "sport": "Field Hockey",
+    "school": "Liberty",
+    "date": "2025-10-19",
+    "home": "Liberty",
+    "away": "Saint Joseph's"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-10-23",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-10-24",
+    "home": "Liberty",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-10-24",
+    "home": "Liberty",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-10-25",
+    "home": "Liberty",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Soccer",
+    "school": "Liberty",
+    "date": "2025-10-25",
+    "home": "Liberty",
+    "away": "SIUE"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-10-25",
+    "home": "Liberty",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Liberty",
+    "date": "2025-10-26",
+    "home": "Liberty",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-10-30",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Field Hockey",
+    "school": "Liberty",
+    "date": "2025-10-31",
+    "home": "Liberty",
+    "away": "Villanova"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-11-06",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-11-06",
+    "home": "Liberty",
+    "away": "Jamestown"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-11-07",
+    "home": "Liberty",
+    "away": "Jamestown"
+  },
+  {
+    "sport": "Football",
+    "school": "Liberty",
+    "date": "2025-11-08",
+    "home": "Liberty",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-11-13",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-11-14",
+    "home": "Liberty",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Liberty",
+    "date": "2025-11-15",
+    "home": "Liberty",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-08-14",
+    "home": "LOUISIANA TECH",
+    "away": "ALABAMA"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-08-17",
+    "home": "LOUISIANA TECH",
+    "away": "MISSISSIPPI VALLEY STATE"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-08-21",
+    "home": "LOUISIANA TECH",
+    "away": "UL-LAFAYETTE"
+  },
+  {
+    "sport": "Football",
+    "school": "LA Tech",
+    "date": "2025-08-30",
+    "home": "LOUISIANA TECH",
+    "away": "SOUTHEASTERN"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-09-11",
+    "home": "LOUISIANA TECH",
+    "away": "JACKSON STATE"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-09-11",
+    "home": "LOUISIANA TECH",
+    "away": "STEPHEN F. AUSTIN"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-09-12",
+    "home": "LOUISIANA TECH",
+    "away": "ULM"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-09-13",
+    "home": "LOUISIANA TECH",
+    "away": "HOUSTON CHRISTIAN"
+  },
+  {
+    "sport": "Football",
+    "school": "LA Tech",
+    "date": "2025-09-13",
+    "home": "LOUISIANA TECH",
+    "away": "NEW MEXICO STATE"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-09-14",
+    "home": "LOUISIANA TECH",
+    "away": "HOUSTON CHRISTIAN"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-09-19",
+    "home": "LOUISIANA TECH",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Football",
+    "school": "LA Tech",
+    "date": "2025-09-20",
+    "home": "LOUISIANA TECH",
+    "away": "SOUTHERN MISS"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-10-02",
+    "home": "LOUISIANA TECH",
+    "away": "WESTERN KENTUCKY"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-10-03",
+    "home": "LOUISIANA TECH",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-10-04",
+    "home": "LOUISIANA TECH",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-10-05",
+    "home": "LOUISIANA TECH",
+    "away": "MIDDLE TENNESSEE"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-10-10",
+    "home": "LOUISIANA TECH",
+    "away": "WESTERN KENTUCKY"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-10-11",
+    "home": "LOUISIANA TECH",
+    "away": "WESTERN KENTUCKY"
+  },
+  {
+    "sport": "Soccer",
+    "school": "LA Tech",
+    "date": "2025-10-26",
+    "home": "LOUISIANA TECH",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-10-31",
+    "home": "LOUISIANA TECH",
+    "away": "NEW MEXICO STATE"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-11-01",
+    "home": "LOUISIANA TECH",
+    "away": "NEW MEXICO STATE"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-11-12",
+    "home": "LOUISIANA TECH",
+    "away": "JACKSONVILLE STATE"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "LA Tech",
+    "date": "2025-11-13",
+    "home": "LOUISIANA TECH",
+    "away": "JACKSONVILLE STATE"
+  },
+  {
+    "sport": "Football",
+    "school": "LA Tech",
+    "date": "2025-11-22",
+    "home": "LOUISIANA TECH",
+    "away": "LIBERTY"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-08-17",
+    "home": "Middle Tennessee",
+    "away": "Jackson State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-08-21",
+    "home": "Middle Tennessee",
+    "away": "Alabama A&M"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-08-24",
+    "home": "Middle Tennessee",
+    "away": "Indiana State"
+  },
+  {
+    "sport": "Football",
+    "school": "Middle Tennessee",
+    "date": "2025-08-30",
+    "home": "Middle Tennessee",
+    "away": "Austin Peay"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-08-31",
+    "home": "Middle Tennessee",
+    "away": "West Georgia"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-09-05",
+    "home": "Middle Tennessee",
+    "away": "Marist"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-09-06",
+    "home": "Middle Tennessee",
+    "away": "Mississippi State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-09-07",
+    "home": "Middle Tennessee",
+    "away": "UT Martin"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-09-07",
+    "home": "Middle Tennessee",
+    "away": "Vanderbilt"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-09-11",
+    "home": "Middle Tennessee",
+    "away": "Tennessee Tech"
+  },
+  {
+    "sport": "Football",
+    "school": "Middle Tennessee",
+    "date": "2025-09-20",
+    "home": "Middle Tennessee",
+    "away": "Marshall"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-09-21",
+    "home": "Middle Tennessee",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-09-26",
+    "home": "Middle Tennessee",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-09-27",
+    "home": "Middle Tennessee",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-10-07",
+    "home": "Middle Tennessee",
+    "away": "Tennessee State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-10-12",
+    "home": "Middle Tennessee",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-10-16",
+    "home": "Middle Tennessee",
+    "away": "NM State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-10-17",
+    "home": "Middle Tennessee",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-10-18",
+    "home": "Middle Tennessee",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Middle Tennessee",
+    "date": "2025-10-19",
+    "home": "Middle Tennessee",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Football",
+    "school": "Middle Tennessee",
+    "date": "2025-11-08",
+    "home": "Middle Tennessee",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-11-14",
+    "home": "Middle Tennessee",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Middle Tennessee",
+    "date": "2025-11-15",
+    "home": "Middle Tennessee",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Football",
+    "school": "Middle Tennessee",
+    "date": "2025-11-22",
+    "home": "Middle Tennessee",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Soccer",
+    "school": "New Mexico State",
+    "date": "2025-08-14",
+    "home": "New Mexico State",
+    "away": "Colorado College"
+  },
+  {
+    "sport": "Soccer",
+    "school": "New Mexico State",
+    "date": "2025-08-17",
+    "home": "New Mexico State",
+    "away": "Abilene Christian"
+  },
+  {
+    "sport": "Soccer",
+    "school": "New Mexico State",
+    "date": "2025-08-21",
+    "home": "New Mexico State",
+    "away": "Arizona"
+  },
+  {
+    "sport": "Football",
+    "school": "New Mexico State",
+    "date": "2025-08-30",
+    "home": "New Mexico State",
+    "away": "Bryant"
+  },
+  {
+    "sport": "Soccer",
+    "school": "New Mexico State",
+    "date": "2025-09-04",
+    "home": "New Mexico State",
+    "away": "Texas Tech"
+  },
+  {
+    "sport": "Football",
+    "school": "New Mexico State",
+    "date": "2025-09-06",
+    "home": "New Mexico State",
+    "away": "Tulsa"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-09-12",
+    "home": "New Mexico State",
+    "away": "New Haven"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-09-13",
+    "home": "New Mexico State",
+    "away": "New Haven"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-09-17",
+    "home": "New Mexico State",
+    "away": "New Mexico"
+  },
+  {
+    "sport": "Soccer",
+    "school": "New Mexico State",
+    "date": "2025-09-20",
+    "home": "New Mexico State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Soccer",
+    "school": "New Mexico State",
+    "date": "2025-09-25",
+    "home": "New Mexico State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Soccer",
+    "school": "New Mexico State",
+    "date": "2025-09-28",
+    "home": "New Mexico State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-10-03",
+    "home": "New Mexico State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-10-04",
+    "home": "New Mexico State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-10-10",
+    "home": "New Mexico State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-10-11",
+    "home": "New Mexico State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-10-24",
+    "home": "New Mexico State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-10-25",
+    "home": "New Mexico State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Football",
+    "school": "New Mexico State",
+    "date": "2025-11-08",
+    "home": "New Mexico State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-11-14",
+    "home": "New Mexico State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "New Mexico State",
+    "date": "2025-11-15",
+    "home": "New Mexico State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Football",
+    "school": "New Mexico State",
+    "date": "2025-11-29",
+    "home": "New Mexico State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Sam Houston",
+    "date": "2025-08-21",
+    "home": "Sam Houston",
+    "away": "Houston"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Sam Houston",
+    "date": "2025-08-28",
+    "home": "Sam Houston",
+    "away": "Texas A&M-Corpus Christi"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Sam Houston",
+    "date": "2025-08-31",
+    "home": "Sam Houston",
+    "away": "Lamar"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-09-09",
+    "home": "Sam Houston",
+    "away": "Lamar"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-09-18",
+    "home": "Sam Houston",
+    "away": "Houston Christian"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-09-26",
+    "home": "Sam Houston",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-09-27",
+    "home": "Sam Houston",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Sam Houston",
+    "date": "2025-09-28",
+    "home": "Sam Houston",
+    "away": "La Tech"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Sam Houston",
+    "date": "2025-10-02",
+    "home": "Sam Houston",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Sam Houston",
+    "date": "2025-10-05",
+    "home": "Sam Houston",
+    "away": "Wesstern Kentucky"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-10-10",
+    "home": "Sam Houston",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-10-11",
+    "home": "Sam Houston",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-10-31",
+    "home": "Sam Houston",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-11-01",
+    "home": "Sam Houston",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-11-07",
+    "home": "Sam Houston",
+    "away": "La Tech"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Sam Houston",
+    "date": "2025-11-08",
+    "home": "Sam Houston",
+    "away": "La Tech"
+  },
+  {
+    "sport": "Football",
+    "school": "Sam Houston",
+    "date": "2025-11-15",
+    "home": "Sam Houston",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Football",
+    "school": "Sam Houston",
+    "date": "2025-11-29",
+    "home": "Sam Houston",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-08-14",
+    "home": "UTEP",
+    "away": "Abeline Christian"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-08-17",
+    "home": "UTEP",
+    "away": "Texas Southern"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-08-28",
+    "home": "UTEP",
+    "away": "Tarleton State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-08-31",
+    "home": "UTEP",
+    "away": "Stephen F. Austin"
+  },
+  {
+    "sport": "Football",
+    "school": "UTEP",
+    "date": "2025-09-06",
+    "home": "UTEP",
+    "away": "UT Martin"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-09-11",
+    "home": "UTEP",
+    "away": "UCLA"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-09-12",
+    "home": "UTEP",
+    "away": "Texas Southern"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-09-13",
+    "home": "UTEP",
+    "away": "Oral Roberts"
+  },
+  {
+    "sport": "Football",
+    "school": "UTEP",
+    "date": "2025-09-20",
+    "home": "UTEP",
+    "away": "ULM"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-09-25",
+    "home": "UTEP",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Football",
+    "school": "UTEP",
+    "date": "2025-09-27",
+    "home": "UTEP",
+    "away": "LA Tech"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-09-28",
+    "home": "UTEP",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-10-03",
+    "home": "UTEP",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-10-04",
+    "home": "UTEP",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-10-04",
+    "home": "UTEP",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-10-17",
+    "home": "UTEP",
+    "away": "Louisianna Tech"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-10-18",
+    "home": "UTEP",
+    "away": "Louisianna Tech"
+  },
+  {
+    "sport": "Soccer",
+    "school": "UTEP",
+    "date": "2025-10-25",
+    "home": "UTEP",
+    "away": "NM State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-10-31",
+    "home": "UTEP",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-11-01",
+    "home": "UTEP",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Football",
+    "school": "UTEP",
+    "date": "2025-11-08",
+    "home": "UTEP",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-11-14",
+    "home": "UTEP",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "UTEP",
+    "date": "2025-11-15",
+    "home": "UTEP",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Football",
+    "school": "UTEP",
+    "date": "2025-11-22",
+    "home": "UTEP",
+    "away": "NM State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Western Kentucky",
+    "date": "2025-08-21",
+    "home": "WKU",
+    "away": "Jackson State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Western Kentucky",
+    "date": "2025-08-28",
+    "home": "WKU",
+    "away": "Dayton"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-08-29",
+    "home": "WKU",
+    "away": "Wright State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-08-29",
+    "home": "WKU",
+    "away": "Loyola Chicago"
+  },
+  {
+    "sport": "Football",
+    "school": "Western Kentucky",
+    "date": "2025-08-30",
+    "home": "WKU",
+    "away": "North Alabama"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Western Kentucky",
+    "date": "2025-09-11",
+    "home": "WKU",
+    "away": "Austin Peay"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-09-16",
+    "home": "WKU",
+    "away": "Vanderbilt"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-09-19",
+    "home": "WKU",
+    "away": "Bradley"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-09-19",
+    "home": "WKU",
+    "away": "Indiana"
+  },
+  {
+    "sport": "Football",
+    "school": "Western Kentucky",
+    "date": "2025-09-20",
+    "home": "WKU",
+    "away": "Nevada"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Western Kentucky",
+    "date": "2025-09-21",
+    "home": "WKU",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-09-26",
+    "home": "WKU",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Western Kentucky",
+    "date": "2025-09-27",
+    "home": "WKU",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-10-17",
+    "home": "WKU",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-10-18",
+    "home": "WKU",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Soccer",
+    "school": "Western Kentucky",
+    "date": "2025-10-19",
+    "home": "WKU",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-10-24",
+    "home": "WKU",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-10-25",
+    "home": "WKU",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Football",
+    "school": "Western Kentucky",
+    "date": "2025-11-01",
+    "home": "WKU",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-11-07",
+    "home": "WKU",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Volleyball",
+    "school": "Western Kentucky",
+    "date": "2025-11-08",
+    "home": "WKU",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Football",
+    "school": "Western Kentucky",
+    "date": "2025-11-15",
+    "home": "WKU",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-11-03",
+    "home": "Jax State",
+    "away": "Oakwood"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-11-03",
+    "home": "Western Kentucky",
+    "away": "Tennessee Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-03",
+    "home": "UTEP",
+    "away": "University of Texas Permian Basin"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-11-03",
+    "home": "Sam Houston",
+    "away": "LeTourneau"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2025-11-03",
+    "home": "Liberty",
+    "away": "Kentucky Christian"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-11-03",
+    "home": "Florida International",
+    "away": "Florida National"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-11-03",
+    "home": "Kennesaw State",
+    "away": "Paine College"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-03",
+    "home": "Missouri State",
+    "away": "Saint Louis"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2025-11-03",
+    "home": "Delaware",
+    "away": "Bloomsburg"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-03",
+    "home": "UTEP",
+    "away": "Prarie View A&M"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-11-03",
+    "home": "Jax State",
+    "away": "LaGrange College"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-11-03",
+    "home": "Sam Houston",
+    "away": "Southwestern Oklahoma"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-11-03",
+    "home": "Middle Tennessee",
+    "away": "Tennessee State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-04",
+    "home": "Missouri State",
+    "away": "Missouri Southern"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-11-04",
+    "home": "New Mexico State",
+    "away": "Adams State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-11-04",
+    "home": "Kennesaw State",
+    "away": "Shorter University"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2025-11-04",
+    "home": "Liberty",
+    "away": "Frostburg State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-11-05",
+    "home": "Middle Tennessee",
+    "away": "Milligan"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-11-05",
+    "home": "Western Kentucky",
+    "away": "Kentucky State"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-11-06",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2025-11-07",
+    "home": "Delaware",
+    "away": "Wilmington (Del.)"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-07",
+    "home": "UTEP",
+    "away": "WNMU"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2025-11-07",
+    "home": "Delaware",
+    "away": "Navy"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2025-11-07",
+    "home": "Liberty",
+    "away": "East Carolina"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-08",
+    "home": "Missouri State",
+    "away": "Northwestern Okla."
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-11-08",
+    "home": "Middle Tennessee",
+    "away": "Webster"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-08",
+    "home": "UTEP",
+    "away": "Nicholls State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-11-08",
+    "home": "Kennesaw State",
+    "away": "Flordia Atlantic"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-11-09",
+    "home": "Louisiana Tech",
+    "away": "Lyon College"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-11-10",
+    "home": "Jax State",
+    "away": "Reinhardt"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-11",
+    "home": "Missouri State",
+    "away": "Arkansas State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-11",
+    "home": "UTEP",
+    "away": "Loyola Marymount"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-11-11",
+    "home": "New Mexico State",
+    "away": "New Mexico Highlands"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-11-11",
+    "home": "New Mexico State",
+    "away": "New Mexico Highlands"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-11-11",
+    "home": "Western Kentucky",
+    "away": "Wichita State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-11",
+    "home": "UTEP",
+    "away": "WNMU"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-11-11",
+    "home": "New Mexico State",
+    "away": "New Mexico Highlands"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2025-11-11",
+    "home": "Louisiana Tech",
+    "away": "Louisiana Christian"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-11-12",
+    "home": "Kennesaw State",
+    "away": "Point University"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-11-13",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-11-13",
+    "home": "Jax State",
+    "away": "Southern Miss"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-11-14",
+    "home": "Jax State",
+    "away": "Costal Carolina"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-11-14",
+    "home": "Western Kentucky",
+    "away": "Indiana State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-11-15",
+    "home": "Louisiana Tech",
+    "away": "Jackson State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-11-15",
+    "home": "New Mexico State",
+    "away": "New Mexico"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-11-15",
+    "home": "Kennesaw State",
+    "away": "Tennessee Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2025-11-15",
+    "home": "Florida International",
+    "away": "Bethune Cookman"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-11-16",
+    "home": "Western Kentucky",
+    "away": "Tennessee State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-11-16",
+    "home": "Kennesaw State",
+    "away": "University of South Florida"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-11-16",
+    "home": "New Mexico State",
+    "away": "New Mexico"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2025-11-16",
+    "home": "Liberty",
+    "away": "Duke"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2025-11-17",
+    "home": "Liberty",
+    "away": "Carolina University"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-11-17",
+    "home": "Sam Houston",
+    "away": "Prairie View A&M"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2025-11-18",
+    "home": "Delaware",
+    "away": "Saint Peter's"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-11-18",
+    "home": "Western Kentucky",
+    "away": "Bethel (Tenn.)"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-11-18",
+    "home": "Florida International",
+    "away": "Ft. Lauderdale"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-18",
+    "home": "Missouri State",
+    "away": "Georgia Southern"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2025-11-18",
+    "home": "Louisiana Tech",
+    "away": "Arkansas-Pine Bluff"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-11-19",
+    "home": "Jax State",
+    "away": "South Alabama"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-19",
+    "home": "UTEP",
+    "away": "St. Thomas (Texas)"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-11-19",
+    "home": "Sam Houston",
+    "away": "Wyoming"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-11-19",
+    "home": "Western Kentucky",
+    "away": "Vanderbilt"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-11-20",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-11-20",
+    "home": "Sam Houston",
+    "away": "Louisiana-Monroe"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-11-20",
+    "home": "Middle Tennessee",
+    "away": "Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-11-21",
+    "home": "New Mexico State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-22",
+    "home": "Missouri State",
+    "away": "UTRGV"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-11-22",
+    "home": "Sam Houston",
+    "away": "Schreiner"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-22",
+    "home": "UTEP",
+    "away": "UT Martin"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2025-11-23",
+    "home": "Louisiana Tech",
+    "away": "Stephen F. Austin"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-24",
+    "home": "Missouri State",
+    "away": "Long Island"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-11-24",
+    "home": "Florida International",
+    "away": "James Madison"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-11-25",
+    "home": "Sam Houston",
+    "away": "North American"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-11-26",
+    "home": "Louisiana Tech",
+    "away": "Indiana State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-11-26",
+    "home": "Florida International",
+    "away": "Omaha"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2025-11-26",
+    "home": "Liberty",
+    "away": "UVA Wise"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-11-28",
+    "home": "Kennesaw State",
+    "away": "USC Upstate"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2025-11-28",
+    "home": "Florida International",
+    "away": "UMBC"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "",
+    "date": "2025-11-28",
+    "home": "Presbyterian",
+    "away": "Seattle"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-11-29",
+    "home": "Louisiana Tech",
+    "away": "Alcorn State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-11-29",
+    "home": "UTEP",
+    "away": "Denver"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-11-30",
+    "home": "Missouri State",
+    "away": "Northeastern State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2025-11-30",
+    "home": "Delaware",
+    "away": "Towson"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "",
+    "date": "2025-11-30",
+    "home": "UMBC",
+    "away": "TBD"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2025-11-30",
+    "home": "Florida International",
+    "away": "TBD"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2025-12-01",
+    "home": "Delaware",
+    "away": "Iona"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-12-01",
+    "home": "Jax State",
+    "away": "North Alabama"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-12-01",
+    "home": "Middle Tennessee",
+    "away": "UAB"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-12-02",
+    "home": "Kennesaw State",
+    "away": "Jackson State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-03",
+    "home": "Florida International",
+    "away": "FGCU"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-12-03",
+    "home": "Western Kentucky",
+    "away": "Florida Atlantic"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-12-03",
+    "home": "UTEP",
+    "away": "Texas A&M Corpus Christi"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-12-03",
+    "home": "Middle Tennessee",
+    "away": "Belmont"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-12-04",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-04",
+    "home": "Louisiana Tech",
+    "away": "South Alabama"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-12-05",
+    "home": "Kennesaw State",
+    "away": "Georgia State"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-12-05",
+    "home": "Liberty",
+    "away": "Minot State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-05",
+    "home": "Florida International",
+    "away": "Georgia State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-12-06",
+    "home": "Western Kentucky",
+    "away": "Evansville"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2025-12-06",
+    "home": "Liberty",
+    "away": "Coppin State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-06",
+    "home": "Florida International",
+    "away": "Jacksonville"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2025-12-06",
+    "home": "Liberty",
+    "away": "Minot State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-12-06",
+    "home": "Jax State",
+    "away": "Mercer"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-12-06",
+    "home": "Kennesaw State",
+    "away": "Thomas (Ga.)"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-07",
+    "home": "Louisiana Tech",
+    "away": "Ecclesia College"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-12-07",
+    "home": "Jax State",
+    "away": "Auburn Montgomery"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-12-07",
+    "home": "Middle Tennessee",
+    "away": "Belmont"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2025-12-07",
+    "home": "Missouri State",
+    "away": "Kansas"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-12-07",
+    "home": "Middle Tennessee",
+    "away": "Memphis"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-12-08",
+    "home": "Kennesaw State",
+    "away": "Southern Wesleyan"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-12-09",
+    "home": "Jax State",
+    "away": "Brewton-Parker"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-09",
+    "home": "Louisiana Tech",
+    "away": "Grambling"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2025-12-10",
+    "home": "Delaware",
+    "away": "George Washington"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-12-11",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2025-12-13",
+    "home": "Delaware",
+    "away": "California State- Northridge"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-13",
+    "home": "Louisiana Tech",
+    "away": "UL-Lafayette"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2025-12-13",
+    "home": "Missouri State",
+    "away": "Arkansas"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-12-13",
+    "home": "Jax State",
+    "away": "Point"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2025-12-13",
+    "home": "Liberty",
+    "away": "Richmond"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-12-14",
+    "home": "New Mexico State",
+    "away": "Western New Mexico"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-12-15",
+    "home": "Western Kentucky",
+    "away": "Campbellsville"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2025-12-16",
+    "home": "Delaware",
+    "away": "Rider"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-12-16",
+    "home": "Missouri State",
+    "away": "Oral Roberts"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2025-12-16",
+    "home": "Liberty",
+    "away": "Midway"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-12-16",
+    "home": "New Mexico State",
+    "away": "UC Irvine"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-12-16",
+    "home": "Middle Tennessee",
+    "away": "Auburn"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-12-17",
+    "home": "Jax State",
+    "away": "Eastern Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-12-17",
+    "home": "Middle Tennessee",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2025-12-17",
+    "home": "Delaware",
+    "away": "La Salle"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-17",
+    "home": "Louisiana Tech",
+    "away": "Central Arkansas"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2025-12-18",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-12-18",
+    "home": "UTEP",
+    "away": "UC Irvine"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2025-12-19",
+    "home": "Western Kentucky",
+    "away": "Tulsa"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2025-12-19",
+    "home": "Missouri State",
+    "away": "Gonzaga"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-12-19",
+    "home": "Sam Houston",
+    "away": "SMU"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-19",
+    "home": "Florida International",
+    "away": "Youngstown State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "",
+    "date": "2025-12-19",
+    "home": "Fla Atlantic",
+    "away": "UMass"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-20",
+    "home": "Florida International",
+    "away": "LIU"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-20",
+    "home": "Florida International",
+    "away": "FAU"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "",
+    "date": "2025-12-20",
+    "home": "Youngstown State",
+    "away": "UMass"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-20",
+    "home": "Louisiana Tech",
+    "away": "Central Baptist"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2025-12-21",
+    "home": "UTEP",
+    "away": "Norfolk State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-12-21",
+    "home": "New Mexico State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2025-12-21",
+    "home": "Middle Tennessee",
+    "away": "Cumberland"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-22",
+    "home": "Louisiana Tech",
+    "away": "Dallas Christian College"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-22",
+    "home": "Florida International",
+    "away": "Trinity College"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2025-12-22",
+    "home": "Missouri State",
+    "away": "Central Arkansas"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-12-22",
+    "home": "Sam Houston",
+    "away": "Northern Colorado"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2025-12-23",
+    "home": "Missouri State",
+    "away": "Lindenwood"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-12-28",
+    "home": "New Mexico State",
+    "away": "Southwest"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-28",
+    "home": "Florida International",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2025-12-28",
+    "home": "Sam Houston",
+    "away": "Dallas"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2025-12-29",
+    "home": "Delaware",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2025-12-29",
+    "home": "Louisiana Tech",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2025-12-29",
+    "home": "Jax State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2025-12-29",
+    "home": "UTEP",
+    "away": "USW"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2025-12-29",
+    "home": "New Mexico State",
+    "away": "Eastern New Mexico"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2025-12-29",
+    "home": "Kennesaw State",
+    "away": "Life University"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2025-12-30",
+    "home": "Florida International",
+    "away": "Florida National"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-02",
+    "home": "Missouri State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-02",
+    "home": "Delaware",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-02",
+    "home": "Western Kentucky",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-02",
+    "home": "Florida International",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-02",
+    "home": "Middle Tennessee",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-02",
+    "home": "Jax State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-02",
+    "home": "UTEP",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-01-02",
+    "home": "New Mexico State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-02",
+    "home": "Kennesaw State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-02",
+    "home": "Louisiana Tech",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-04",
+    "home": "Missouri State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-04",
+    "home": "Delaware",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-04",
+    "home": "Western Kentucky",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2026-01-04",
+    "home": "Liberty",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-04",
+    "home": "Florida International",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-04",
+    "home": "Middle Tennessee",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-04",
+    "home": "UTEP",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-04",
+    "home": "Jax State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-04",
+    "home": "Kennesaw State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-01-04",
+    "home": "New Mexico State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-04",
+    "home": "Florida International",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-07",
+    "home": "Jax State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-07",
+    "home": "Kennesaw State",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-01-08",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-01-08",
+    "home": "New Mexico State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-08",
+    "home": "Sam Houston",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-08",
+    "home": "Delaware",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-08",
+    "home": "Missouri State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-08",
+    "home": "Western Kentucky",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-01-08",
+    "home": "Liberty",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-08",
+    "home": "Florida International",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-08",
+    "home": "Middle Tennessee",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-10",
+    "home": "Louisiana Tech",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-10",
+    "home": "Missouri State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-10",
+    "home": "UTEP",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-10",
+    "home": "Kennesaw State",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-10",
+    "home": "Sam Houston",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-10",
+    "home": "Missouri State",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-10",
+    "home": "Delaware",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-10",
+    "home": "Western Kentucky",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-10",
+    "home": "Florida International",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-10",
+    "home": "Middle Tennessee",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-14",
+    "home": "Louisiana Tech",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-14",
+    "home": "Jax State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-14",
+    "home": "Western Kentucky",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-14",
+    "home": "Kennesaw State",
+    "away": "Flordia International"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-01-15",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-15",
+    "home": "Delaware",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-15",
+    "home": "UTEP",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-01-15",
+    "home": "New Mexico State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-15",
+    "home": "Louisiana Tech",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-15",
+    "home": "Sam Houston",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-17",
+    "home": "Delaware",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-17",
+    "home": "Western Kentucky",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-17",
+    "home": "Jax State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2026-01-17",
+    "home": "Liberty",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-17",
+    "home": "Florida International",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-17",
+    "home": "Middle Tennessee",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-17",
+    "home": "Delaware",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-17",
+    "home": "UTEP",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-01-17",
+    "home": "New Mexico State",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-17",
+    "home": "Kennesaw State",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-17",
+    "home": "Louisiana Tech",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-17",
+    "home": "Sam Houston",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-21",
+    "home": "Western Kentucky",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-21",
+    "home": "Sam Houston",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-01-22",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-22",
+    "home": "UTEP",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-22",
+    "home": "Jax State",
+    "away": "New Nexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-22",
+    "home": "Western Kentucky",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-22",
+    "home": "Missouri State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-22",
+    "home": "Kennesaw State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-22",
+    "home": "Florida International",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-22",
+    "home": "Middle Tennessee",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-23",
+    "home": "Louisiana Tech",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-23",
+    "home": "Jax State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-01-23",
+    "home": "Liberty",
+    "away": "Niagara"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-23",
+    "home": "Middle Tennessee",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-01-23",
+    "home": "Western Kentucky",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-24",
+    "home": "UTEP",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2026-01-24",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-01-24",
+    "home": "New Mexico State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-24",
+    "home": "Sam Houston",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-01-24",
+    "home": "Liberty",
+    "away": "Niagara"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-24",
+    "home": "Missouri State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-01-24",
+    "home": "Jax State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-24",
+    "home": "Kennesaw State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-24",
+    "home": "Florida International",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Swim & Dive",
+    "school": "Liberty",
+    "date": "2026-01-24",
+    "home": "Liberty",
+    "away": "Campbell"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-28",
+    "home": "Missouri State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-28",
+    "home": "UTEP",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-01-28",
+    "home": "New Mexico State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-28",
+    "home": "Kennesaw State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-01-28",
+    "home": "Florida International",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-01-29",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-29",
+    "home": "Delaware",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-01-29",
+    "home": "Liberty",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-29",
+    "home": "Sam Houston",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-29",
+    "home": "Louisiana Tech",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-01-30",
+    "home": "Liberty",
+    "away": "Adrian"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-01-31",
+    "home": "Missouri State",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-31",
+    "home": "UTEP",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-01-31",
+    "home": "Kennesaw State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-01-31",
+    "home": "Liberty",
+    "away": "Adrian"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-01-31",
+    "home": "Delaware",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-01-31",
+    "home": "UTEP",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-01-31",
+    "home": "Liberty",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-01-31",
+    "home": "Louisiana Tech",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-01-31",
+    "home": "Sam Houston",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-01-31",
+    "home": "Middle Tennessee",
+    "away": "WKU"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-02-04",
+    "home": "Delaware",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-02-04",
+    "home": "Louisiana Tech",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-04",
+    "home": "Middle Tennessee",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-02-04",
+    "home": "Sam Houston",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-02-05",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-05",
+    "home": "Missouri State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-02-05",
+    "home": "Jax State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-02-05",
+    "home": "UTEP",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-05",
+    "home": "New Mexico State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-05",
+    "home": "Kennesaw State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-02-05",
+    "home": "Florida International",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-02-06",
+    "home": "Liberty",
+    "away": "Maryville"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-02-07",
+    "home": "Delaware",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-02-07",
+    "home": "Louisiana Tech",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-02-07",
+    "home": "Jax State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-02-07",
+    "home": "Western Kentucky",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2026-02-07",
+    "home": "UTEP",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-02-07",
+    "home": "Liberty",
+    "away": "Maryville"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-07",
+    "home": "Missouri State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-02-07",
+    "home": "UTEP",
+    "away": "Sam Houston State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-02-07",
+    "home": "Jax State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-07",
+    "home": "New Mexico State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-07",
+    "home": "Kennesaw State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-02-07",
+    "home": "Florida International",
+    "away": "Middle Tennessee State (Middle Tennessee)"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-02-11",
+    "home": "Jax State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-11",
+    "home": "New Mexico State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-02-12",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-12",
+    "home": "Missouri State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-02-12",
+    "home": "Florida International",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-02-12",
+    "home": "Western Kentucky",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-02-12",
+    "home": "Delaware",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-02-12",
+    "home": "Liberty",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-02-12",
+    "home": "Louisiana Tech",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-02-12",
+    "home": "Sam Houston",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-12",
+    "home": "Middle Tennessee",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-02-14",
+    "home": "Western Kentucky",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-14",
+    "home": "Missouri State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-02-14",
+    "home": "Jax State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-14",
+    "home": "Kennesaw State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-02-14",
+    "home": "Florida International",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-02-14",
+    "home": "Delaware",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-02-14",
+    "home": "Western Kentucky",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-02-14",
+    "home": "Liberty",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-02-14",
+    "home": "Louisiana Tech",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-02-14",
+    "home": "Sam Houston",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-14",
+    "home": "Middle Tennessee",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-18",
+    "home": "Missouri State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-02-18",
+    "home": "Delaware",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-02-18",
+    "home": "Louisiana Tech",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-02-18",
+    "home": "Sam Houston",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-02-19",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-19",
+    "home": "Missouri State",
+    "away": "Liberty*"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-02-19",
+    "home": "Jax State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-19",
+    "home": "Kennesaw State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-02-19",
+    "home": "Florida International",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-02-20",
+    "home": "Liberty",
+    "away": "Ohio"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2026-02-21",
+    "home": "Liberty",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-21",
+    "home": "New Mexico State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-21",
+    "home": "New Mexico State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-21",
+    "home": "Kennesaw State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-02-21",
+    "home": "Sam Houston",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-02-21",
+    "home": "Florida International",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-21",
+    "home": "Middle Tennessee",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Ice Hockey",
+    "school": "Liberty",
+    "date": "2026-02-21",
+    "home": "Liberty",
+    "away": "Ohio"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-21",
+    "home": "Missouri State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-02-21",
+    "home": "Western Kentucky",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-02-21",
+    "home": "Jax State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-21",
+    "home": "New Mexico State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-21",
+    "home": "Kennesaw State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Florida International",
+    "date": "2026-02-21",
+    "home": "Florida International",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-02-26",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-02-26",
+    "home": "Louisiana Tech",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-02-26",
+    "home": "Western Kentucky",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-26",
+    "home": "Kennesaw State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-26",
+    "home": "Middle Tennessee",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-02-26",
+    "home": "UTEP",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-26",
+    "home": "New Mexico State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-02-26",
+    "home": "Liberty",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "LA Tech",
+    "date": "2026-02-28",
+    "home": "Louisiana Tech",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-02-28",
+    "home": "Western Kentucky",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Kennesaw State",
+    "date": "2026-02-28",
+    "home": "Kennesaw State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-02-28",
+    "home": "Sam Houston",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-28",
+    "home": "Middle Tennessee",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Delaware",
+    "date": "2026-02-28",
+    "home": "Delaware",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "UTEP",
+    "date": "2026-02-28",
+    "home": "UTEP",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Missouri State",
+    "date": "2026-02-28",
+    "home": "Missouri State",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-02-28",
+    "home": "New Mexico State",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-02-28",
+    "home": "Liberty",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-02-28",
+    "home": "Sam Houston",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-03-05",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-03-05",
+    "home": "Missouri State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-03-05",
+    "home": "New Mexico State",
+    "away": "Jax State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2026-03-05",
+    "home": "Liberty",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-03-05",
+    "home": "Florida International",
+    "away": "Middle Tennessee State (Middle Tennessee)"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-03-05",
+    "home": "Western Kentucky",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-03-05",
+    "home": "Sam Houston",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-05",
+    "home": "Middle Tennessee",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-03-05",
+    "home": "Louisiana Tech",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "LA Tech",
+    "date": "2026-03-05",
+    "home": "Louisiana Tech",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Liberty",
+    "date": "2026-03-06",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Missouri State",
+    "date": "2026-03-07",
+    "home": "Missouri State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Delaware",
+    "date": "2026-03-07",
+    "home": "Delaware",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "UTEP",
+    "date": "2026-03-07",
+    "home": "UTEP",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Liberty",
+    "date": "2026-03-07",
+    "home": "Liberty",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "New Mexico State",
+    "date": "2026-03-07",
+    "home": "New Mexico State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Men's Basketball",
+    "school": "Florida International",
+    "date": "2026-03-07",
+    "home": "Florida International",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Jacksonville State",
+    "date": "2026-03-07",
+    "home": "Jax State",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Western Kentucky",
+    "date": "2026-03-07",
+    "home": "Western Kentucky",
+    "away": "Florida International"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Sam Houston",
+    "date": "2026-03-07",
+    "home": "Sam Houston",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Women's Basketball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-07",
+    "home": "Middle Tennessee",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-02-13",
+    "home": "Dallas Baptist",
+    "away": "Binghamton"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-02-14",
+    "home": "Dallas Baptist",
+    "away": "Binghamton"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-02-15",
+    "home": "Dallas Baptist",
+    "away": "Binghamton"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-02-17",
+    "home": "Dallas Baptist",
+    "away": "Abilene Christian"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-02-26",
+    "home": "Dallas Baptist",
+    "away": "Oral Roberts"
+  },
+  {
+    "sport": "Baseball",
+    "school": "",
+    "date": "2026-02-27",
+    "home": "Oral Roberts",
+    "away": "Air Force"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-02-27",
+    "home": "Dallas Baptist",
+    "away": "Air Force"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-02-28",
+    "home": "Dallas Baptist",
+    "away": "Oral Roberts"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-01",
+    "home": "Dallas Baptist",
+    "away": "Air Force"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-06",
+    "home": "Dallas Baptist",
+    "away": "Louisiana"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-07",
+    "home": "Dallas Baptist",
+    "away": "Louisiana"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-08",
+    "home": "Dallas Baptist",
+    "away": "Louisiana"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-13",
+    "home": "Dallas Baptist",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-14",
+    "home": "Dallas Baptist",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-15",
+    "home": "Dallas Baptist",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-17",
+    "home": "Dallas Baptist",
+    "away": "Texas Tech"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-24",
+    "home": "Dallas Baptist",
+    "away": "TCU"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-27",
+    "home": "Dallas Baptist",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-28",
+    "home": "Dallas Baptist",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-29",
+    "home": "Dallas Baptist",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Dallas Baptist",
+    "date": "2026-03-31",
+    "home": "Dallas Baptist",
+    "away": "Oklahoma State"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-01-31",
+    "home": "Delaware",
+    "away": "Utah"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-13",
+    "home": "Delaware",
+    "away": "Gerogetown"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-02-13",
+    "home": "Delaware",
+    "away": "Rutgers"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-14",
+    "home": "Delaware",
+    "away": "Georgetown"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-14",
+    "home": "Delaware",
+    "away": "Georgetown"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-15",
+    "home": "Delaware",
+    "away": "St. Joe's"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-15",
+    "home": "Delaware",
+    "away": "St. Joe's"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-02-17",
+    "home": "Delaware",
+    "away": "La Salle"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-02-18",
+    "home": "Delaware",
+    "away": "Navy"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-02-24",
+    "home": "Delaware",
+    "away": "Maryland"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-27",
+    "home": "Delaware",
+    "away": "Le Moyne"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-27",
+    "home": "Delaware",
+    "away": "Quinnipiac"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-02-27",
+    "home": "Delaware",
+    "away": "Rider"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-28",
+    "home": "Delaware",
+    "away": "Quinnipiac"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-02-28",
+    "home": "Delaware",
+    "away": "Villanova"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-02-28",
+    "home": "Delaware",
+    "away": "Rider"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-02-28",
+    "home": "Delaware",
+    "away": "Bryant"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-01",
+    "home": "Delaware",
+    "away": "Rider"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-01",
+    "home": "Delaware",
+    "away": "Le Moyne"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-03-04",
+    "home": "Delaware",
+    "away": "UMBC"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-06",
+    "home": "Delaware",
+    "away": "Canisus"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-06",
+    "home": "Delaware",
+    "away": "FIU"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-03-06",
+    "home": "Delaware",
+    "away": "Maryland"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-07",
+    "home": "Delaware",
+    "away": "Canisus"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-07",
+    "home": "Delaware",
+    "away": "FIU"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-08",
+    "home": "Delaware",
+    "away": "FIU"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-08",
+    "home": "Delaware",
+    "away": "Canisus"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-03-14",
+    "home": "Delaware",
+    "away": "Mount St. Mary's"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-17",
+    "home": "Delaware",
+    "away": "Saint Joe's"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-18",
+    "home": "Delaware",
+    "away": "Delaware State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-20",
+    "home": "Delaware",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-20",
+    "home": "Delaware",
+    "away": "Dallas Baptist"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-03-21",
+    "home": "Delaware",
+    "away": "High Point"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-21",
+    "home": "Delaware",
+    "away": "Dallas Baptist"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-21",
+    "home": "Delaware",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-22",
+    "home": "Delaware",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-22",
+    "home": "Delaware",
+    "away": "Dallas Baptist"
+  },
+  {
+    "sport": "Softball",
+    "school": "Delaware",
+    "date": "2026-03-25",
+    "home": "Delaware",
+    "away": "Villanova"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-03-26",
+    "home": "Delaware",
+    "away": "Jacksonville"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-27",
+    "home": "Delaware",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-28",
+    "home": "Delaware",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-03-28",
+    "home": "Delaware",
+    "away": "Stetson"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-03-28",
+    "home": "Delaware",
+    "away": "Binghamton"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-29",
+    "home": "Delaware",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Delaware",
+    "date": "2026-03-31",
+    "home": "Delaware",
+    "away": "Rider"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Delaware",
+    "date": "2026-04-01",
+    "home": "Delaware",
+    "away": "St. Joe's"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-02-13",
+    "home": "Jacksonville State",
+    "away": "Cincinnati"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-02-15",
+    "home": "Jacksonville State",
+    "away": "Cincinnati"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-02-17",
+    "home": "Jacksonville State",
+    "away": "Georgia State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-02-18",
+    "home": "Jacksonville State",
+    "away": "Chattanooga"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-02-20",
+    "home": "Jacksonville State",
+    "away": "Toledo"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-02-22",
+    "home": "Jacksonville State",
+    "away": "Toledo"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-02-24",
+    "home": "Jacksonville State",
+    "away": "Mississippi Valley State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-02-25",
+    "home": "Jacksonville State",
+    "away": "Mississippi Valley State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-06",
+    "home": "Jacksonville State",
+    "away": "Valparaiso"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-07",
+    "home": "Jacksonville State",
+    "away": "Valparaiso"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-08",
+    "home": "Jacksonville State",
+    "away": "Valparaiso"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-11",
+    "home": "Jacksonville State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-13",
+    "home": "Jacksonville State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-14",
+    "home": "Jacksonville State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-15",
+    "home": "Jacksonville State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-17",
+    "home": "Jacksonville State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-18",
+    "home": "Jacksonville State",
+    "away": "Alabama A&M"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-20",
+    "home": "Jacksonville State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-20",
+    "home": "Jacksonville State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-21",
+    "home": "Jacksonville State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-21",
+    "home": "Jacksonville State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-22",
+    "home": "Jacksonville State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-22",
+    "home": "Jacksonville State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-03-31",
+    "home": "Jacksonville State",
+    "away": "Alabama State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-03-31",
+    "home": "Jacksonville State",
+    "away": "Alabama"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Jacksonville State",
+    "date": "2026-04-02",
+    "home": "Jacksonville State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Softball",
+    "school": "Jacksonville State",
+    "date": "2026-04-02",
+    "home": "Jacksonville State",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-02-13",
+    "home": "Kennesaw State",
+    "away": "Evansville"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-02-14",
+    "home": "Kennesaw State",
+    "away": "Marshall"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-02-15",
+    "home": "Kennesaw State",
+    "away": "Evansville"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-02-15",
+    "home": "Kennesaw State",
+    "away": "Marshall"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-02-17",
+    "home": "Kennesaw State",
+    "away": "West Georgia"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Kennesaw State",
+    "date": "2026-02-19",
+    "home": "Kennesaw State",
+    "away": "Gardner-Webb"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-02-25",
+    "home": "Kennesaw State",
+    "away": "Chattanooga"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-02-27",
+    "home": "Kennesaw State",
+    "away": "West Virginia"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-02-28",
+    "home": "Kennesaw State",
+    "away": "West Virginia"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-01",
+    "home": "Kennesaw State",
+    "away": "West Virginia"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-03",
+    "home": "Kennesaw State",
+    "away": "Georgia"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-06",
+    "home": "Kennesaw State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-06",
+    "home": "Kennesaw State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-07",
+    "home": "Kennesaw State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-07",
+    "home": "Kennesaw State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-07",
+    "home": "Kennesaw State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-08",
+    "home": "Kennesaw State",
+    "away": "Samford"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-08",
+    "home": "Kennesaw State",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Kennesaw State",
+    "date": "2026-03-14",
+    "home": "Kennesaw State",
+    "away": "Florida"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-17",
+    "home": "Kennesaw State",
+    "away": "Georgia Southern"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Kennesaw State",
+    "date": "2026-03-19",
+    "home": "Kennesaw State",
+    "away": "Queens"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-20",
+    "home": "Kennesaw State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-20",
+    "home": "Kennesaw State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-21",
+    "home": "Kennesaw State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-21",
+    "home": "Kennesaw State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-03-22",
+    "home": "Kennesaw State",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-22",
+    "home": "Kennesaw State",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-25",
+    "home": "Kennesaw State",
+    "away": "Troy"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-27",
+    "home": "Kennesaw State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-28",
+    "home": "Kennesaw State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Softball",
+    "school": "Kennesaw State",
+    "date": "2026-03-29",
+    "home": "Kennesaw State",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Kennesaw State",
+    "date": "2026-04-02",
+    "home": "Kennesaw State",
+    "away": "Dallas Baptist"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-13",
+    "home": "Louisiana Tech",
+    "away": "Houston Christian"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-14",
+    "home": "Louisiana Tech",
+    "away": "Houston Christian"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-14",
+    "home": "Louisiana Tech",
+    "away": "Houston Christian"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-15",
+    "home": "Louisiana Tech",
+    "away": "Houston Christian"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-17",
+    "home": "Louisiana Tech",
+    "away": "Northwestern State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-18",
+    "home": "Louisiana Tech",
+    "away": "MCNEESE"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-19",
+    "home": "Louisiana Tech",
+    "away": "University of Louisiana-Monroe"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-20",
+    "home": "Louisiana Tech",
+    "away": "SOUTHERN MISS"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-21",
+    "home": "Louisiana Tech",
+    "away": "SOUTHERN MISS"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-22",
+    "home": "Louisiana Tech",
+    "away": "SOUTHERN MISS"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-24",
+    "home": "Louisiana Tech",
+    "away": "NORTHWESTERN STATE"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-27",
+    "home": "Louisiana Tech",
+    "away": "STEPHEN F AUSTIN"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-27",
+    "home": "Louisiana Tech",
+    "away": "CENTRAL ARKANSAS"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-27",
+    "home": "Louisiana Tech",
+    "away": "SOUTHERN MISS"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-02-28",
+    "home": "Louisiana Tech",
+    "away": "SOUTHERN MISS"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-02-28",
+    "home": "Louisiana Tech",
+    "away": "NORTHERN IOWA"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-01",
+    "home": "Louisiana Tech",
+    "away": "CENTRAL ARKANSAS"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-01",
+    "home": "Louisiana Tech",
+    "away": "SOUTHERN MISS"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-03",
+    "home": "Louisiana Tech",
+    "away": "ARKANSAS STATE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-04",
+    "home": "Louisiana Tech",
+    "away": "ARKANSAS STATE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-10",
+    "home": "Louisiana Tech",
+    "away": "LAMAR"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-10",
+    "home": "Louisiana Tech",
+    "away": "ALCORN"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-11",
+    "home": "Louisiana Tech",
+    "away": "MCNEESE"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-13",
+    "home": "Louisiana Tech",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-13",
+    "home": "Louisiana Tech",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-14",
+    "home": "Louisiana Tech",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-14",
+    "home": "Louisiana Tech",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-15",
+    "home": "Louisiana Tech",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-15",
+    "home": "Louisiana Tech",
+    "away": "DELAWARE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-17",
+    "home": "Louisiana Tech",
+    "away": "CENTRAL ARKANSAS"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-27",
+    "home": "Louisiana Tech",
+    "away": "MISSOURI STATE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-27",
+    "home": "Louisiana Tech",
+    "away": "JACKSONVILLE STATE"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-28",
+    "home": "Louisiana Tech",
+    "away": "MISSOURI STATE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-28",
+    "home": "Louisiana Tech",
+    "away": "JACKSONVILLE STATE"
+  },
+  {
+    "sport": "Softball",
+    "school": "LA Tech",
+    "date": "2026-03-29",
+    "home": "Louisiana Tech",
+    "away": "MISSOURI STATE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-29",
+    "home": "Louisiana Tech",
+    "away": "JACKSONVILLE STATE"
+  },
+  {
+    "sport": "Baseball",
+    "school": "LA Tech",
+    "date": "2026-03-31",
+    "home": "Louisiana Tech",
+    "away": "University of Louisiana-Monroe"
+  },
+  {
+    "sport": "Women's Tennis",
+    "school": "Liberty",
+    "date": "2026-01-23",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Volleyball",
+    "school": "Liberty",
+    "date": "2026-02-03",
+    "home": "Liberty",
+    "away": "Virginia Tech"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-02-07",
+    "home": "Liberty",
+    "away": "Hopkins"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-02-07",
+    "home": "Liberty",
+    "away": "NC State"
+  },
+  {
+    "sport": "Men's Volleyball",
+    "school": "Liberty",
+    "date": "2026-02-10",
+    "home": "Liberty",
+    "away": "VCU"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-02-18",
+    "home": "Liberty",
+    "away": "Virginia"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-02-20",
+    "home": "Liberty",
+    "away": "Toledo"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-02-20",
+    "home": "Liberty",
+    "away": "Syracuse"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-02-20",
+    "home": "Liberty",
+    "away": "West Virginia"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-02-21",
+    "home": "Liberty",
+    "away": "Maryland"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-02-21",
+    "home": "Liberty",
+    "away": "UCONN"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-02-21",
+    "home": "Liberty",
+    "away": "West Virginia"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-02-21",
+    "home": "Liberty",
+    "away": "Syracuse"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-02-22",
+    "home": "Liberty",
+    "away": "West Virginia"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-02-24",
+    "home": "Liberty",
+    "away": "High Point"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-02-27",
+    "home": "Liberty",
+    "away": "Radford"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-02-27",
+    "home": "Liberty",
+    "away": "Hofstra"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-02-27",
+    "home": "Liberty",
+    "away": "Radford"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-02-28",
+    "home": "Liberty",
+    "away": "Hofstra"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-01",
+    "home": "Liberty",
+    "away": "Hofstra"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-03",
+    "home": "Liberty",
+    "away": "Michigan"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-06",
+    "home": "Liberty",
+    "away": "Harvard"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-06",
+    "home": "Liberty",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-07",
+    "home": "Liberty",
+    "away": "Harvard"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-07",
+    "home": "Liberty",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-08",
+    "home": "Liberty",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-08",
+    "home": "Liberty",
+    "away": "Harvard"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-03-12",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-13",
+    "home": "Liberty",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-14",
+    "home": "Liberty",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-15",
+    "home": "Liberty",
+    "away": "Missouri State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-18",
+    "home": "Liberty",
+    "away": "Virginia"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-03-19",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-24",
+    "home": "Liberty",
+    "away": "UNC Greensboro"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-03-26",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-03-26",
+    "home": "Liberty",
+    "away": "Stetson"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-27",
+    "home": "Liberty",
+    "away": "FIU"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-27",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-03-27",
+    "home": "Liberty",
+    "away": "West Virginia"
+  },
+  {
+    "sport": "Women's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-03-28",
+    "home": "Liberty",
+    "away": "Jacksonville"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-28",
+    "home": "Liberty",
+    "away": "FIU"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-28",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-29",
+    "home": "Liberty",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Liberty",
+    "date": "2026-03-29",
+    "home": "Liberty",
+    "away": "FIU"
+  },
+  {
+    "sport": "Men's Lacrosse",
+    "school": "Liberty",
+    "date": "2026-03-29",
+    "home": "Liberty",
+    "away": "Clemson"
+  },
+  {
+    "sport": "Softball",
+    "school": "Liberty",
+    "date": "2026-03-31",
+    "home": "Liberty",
+    "away": "UNC"
+  },
+  {
+    "sport": "Flames Central",
+    "school": "",
+    "date": "2026-04-02",
+    "home": "Flames Central",
+    "away": ""
+  },
+  {
+    "sport": "Men's Tennis",
+    "school": "Liberty",
+    "date": "2026-04-02",
+    "home": "Liberty",
+    "away": "Old Dominion"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-24",
+    "home": "Middle Tennessee",
+    "away": "Tennessee Tech"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-04",
+    "home": "Middle Tennessee",
+    "away": "Belmont"
+  },
+  {
+    "sport": "Softball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-11",
+    "home": "Middle Tennessee",
+    "away": "Eastern Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-13",
+    "home": "Middle Tennessee",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-13",
+    "home": "Middle Tennessee",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-14",
+    "home": "Middle Tennessee",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-14",
+    "home": "Middle Tennessee",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Softball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-15",
+    "home": "Middle Tennessee",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-15",
+    "home": "Middle Tennessee",
+    "away": "Kennesaw State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-27",
+    "home": "Middle Tennessee",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-28",
+    "home": "Middle Tennessee",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Middle Tennessee",
+    "date": "2026-03-29",
+    "home": "Middle Tennessee",
+    "away": "New Mexico State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Middle Tennessee",
+    "date": "2026-04-02",
+    "home": "Middle Tennessee",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-02-13",
+    "home": "New Mexico State",
+    "away": "Oklahoma"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-02-13",
+    "home": "New Mexico State",
+    "away": "Montana"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-02-14",
+    "home": "New Mexico State",
+    "away": "Minnesota"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-02-14",
+    "home": "New Mexico State",
+    "away": "Idaho State"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-03-10",
+    "home": "New Mexico State",
+    "away": "New Mexico"
+  },
+  {
+    "sport": "Baseball",
+    "school": "New Mexico State",
+    "date": "2026-03-20",
+    "home": "New Mexico State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Baseball",
+    "school": "New Mexico State",
+    "date": "2026-03-21",
+    "home": "New Mexico State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Baseball",
+    "school": "New Mexico State",
+    "date": "2026-03-22",
+    "home": "New Mexico State",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-03-27",
+    "home": "New Mexico State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-03-28",
+    "home": "New Mexico State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Softball",
+    "school": "New Mexico State",
+    "date": "2026-03-29",
+    "home": "New Mexico State",
+    "away": "Western Kentucky"
+  },
+  {
+    "sport": "Baseball",
+    "school": "New Mexico State",
+    "date": "2026-04-02",
+    "home": "New Mexico State",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-02-06",
+    "home": "Sam Houston",
+    "away": "South Dakota"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-02-06",
+    "home": "Sam Houston",
+    "away": "Creighton"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-02-17",
+    "home": "Sam Houston",
+    "away": "Lamar"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Sam Houston",
+    "date": "2026-02-20",
+    "home": "Sam Houston",
+    "away": "UIC"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Sam Houston",
+    "date": "2026-02-24",
+    "home": "Sam Houston",
+    "away": "Houston"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-02-25",
+    "home": "Sam Houston",
+    "away": "Baylor"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Sam Houston",
+    "date": "2026-03-06",
+    "home": "Sam Houston",
+    "away": "Prairie View A&M"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-03-18",
+    "home": "Sam Houston",
+    "away": "UTSA"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Sam Houston",
+    "date": "2026-03-24",
+    "home": "Sam Houston",
+    "away": "Texas-Arlington"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-03-27",
+    "home": "Sam Houston",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-03-28",
+    "home": "Sam Houston",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Softball",
+    "school": "Sam Houston",
+    "date": "2026-03-29",
+    "home": "Sam Houston",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Softball",
+    "school": "Middle Tennessee",
+    "date": "2026-02-03",
+    "home": "Middle Tennessee",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Softball",
+    "school": "Western Kentucky",
+    "date": "2026-02-20",
+    "home": "Western Kentucky",
+    "away": "Butler"
+  },
+  {
+    "sport": "Softball",
+    "school": "Western Kentucky",
+    "date": "2026-02-20",
+    "home": "Western Kentucky",
+    "away": "Western Michigan"
+  },
+  {
+    "sport": "Softball",
+    "school": "Western Kentucky",
+    "date": "2026-03-10",
+    "home": "Western Kentucky",
+    "away": "Eastern Kentucky"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Western Kentucky",
+    "date": "2026-03-13",
+    "home": "Western Kentucky",
+    "away": "FIU"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Western Kentucky",
+    "date": "2026-03-14",
+    "home": "Western Kentucky",
+    "away": "FIU"
+  },
+  {
+    "sport": "Softball",
+    "school": "Western Kentucky",
+    "date": "2026-03-18",
+    "home": "Western Kentucky",
+    "away": "Louisville"
+  },
+  {
+    "sport": "Softball",
+    "school": "Western Kentucky",
+    "date": "2026-03-20",
+    "home": "Western Kentucky",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Softball",
+    "school": "Western Kentucky",
+    "date": "2026-03-21",
+    "home": "Western Kentucky",
+    "away": "Middle Tennessee"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Western Kentucky",
+    "date": "2026-03-24",
+    "home": "Western Kentucky",
+    "away": "Louisville"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Western Kentucky",
+    "date": "2026-04-02",
+    "home": "Western Kentucky",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-02-24",
+    "home": "Missouri State",
+    "away": "Oral Roberts"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-02-28",
+    "home": "Missouri State",
+    "away": "Little Rock"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-01",
+    "home": "Missouri State",
+    "away": "Little Rock"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-08",
+    "home": "Missouri State",
+    "away": "Memphis"
+  },
+  {
+    "sport": "Softball",
+    "school": "Missouri State",
+    "date": "2026-03-09",
+    "home": "Missouri State",
+    "away": "Arkansas"
+  },
+  {
+    "sport": "Softball",
+    "school": "Missouri State",
+    "date": "2026-03-13",
+    "home": "Missouri State",
+    "away": "Kennesaw St."
+  },
+  {
+    "sport": "Softball",
+    "school": "Missouri State",
+    "date": "2026-03-14",
+    "home": "Missouri State",
+    "away": "Kennesaw St."
+  },
+  {
+    "sport": "Softball",
+    "school": "Missouri State",
+    "date": "2026-03-15",
+    "home": "Missouri State",
+    "away": "Kennesaw St."
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-17",
+    "home": "Missouri State",
+    "away": "Arkansas State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-20",
+    "home": "Missouri State",
+    "away": "Middle Tenn."
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-21",
+    "home": "Missouri State",
+    "away": "Middle Tenn."
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-22",
+    "home": "Missouri State",
+    "away": "Middle Tenn."
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-24",
+    "home": "Missouri State",
+    "away": "Oklahoma State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Missouri State",
+    "date": "2026-03-31",
+    "home": "Missouri State",
+    "away": "Arkansas"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-06",
+    "home": "UTEP",
+    "away": "Utah Valley"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-06",
+    "home": "UTEP",
+    "away": "St. Thomas"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-08",
+    "home": "UTEP",
+    "away": "Utah Valley"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-08",
+    "home": "UTEP",
+    "away": "University of Massachusetts"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-13",
+    "home": "UTEP",
+    "away": "Minnesota"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-13",
+    "home": "UTEP",
+    "away": "Idaho State"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-14",
+    "home": "UTEP",
+    "away": "Montana"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-14",
+    "home": "UTEP",
+    "away": "Montana"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-15",
+    "home": "UTEP",
+    "away": "Idaho State"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-15",
+    "home": "UTEP",
+    "away": "Oklahoma"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-02-18",
+    "home": "UTEP",
+    "away": "New Mexico"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-03-06",
+    "home": "UTEP",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-03-08",
+    "home": "UTEP",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-03-10",
+    "home": "UTEP",
+    "away": "Arizona State"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-03-19",
+    "home": "UTEP",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-03-20",
+    "home": "UTEP",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-03-21",
+    "home": "UTEP",
+    "away": "Liberty"
+  },
+  {
+    "sport": "Softball",
+    "school": "UTEP",
+    "date": "2026-04-02",
+    "home": "UTEP",
+    "away": "Delaware"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-05",
+    "home": "FIU",
+    "away": "Texas A&M Corpus Christi"
+  },
+  {
+    "sport": "Softball",
+    "school": "",
+    "date": "2026-02-06",
+    "home": "Lehigh",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-06",
+    "home": "FIU",
+    "away": "Texas A&M Corpus Christi"
+  },
+  {
+    "sport": "Softball",
+    "school": "",
+    "date": "2026-02-06",
+    "home": "Louisville",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-06",
+    "home": "FIU",
+    "away": "Louisville"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-07",
+    "home": "FIU",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Softball",
+    "school": "",
+    "date": "2026-02-07",
+    "home": "Lehigh",
+    "away": "Louisville"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-07",
+    "home": "FIU",
+    "away": "Lehigh"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-08",
+    "home": "FIU",
+    "away": "Louisville"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-13",
+    "home": "FIU",
+    "away": "Villanova"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-14",
+    "home": "FIU",
+    "away": "Villanova"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-15",
+    "home": "FIU",
+    "away": "Villanova"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-20",
+    "home": "FIU",
+    "away": "Florida A&M"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-20",
+    "home": "FIU",
+    "away": "Eastern Illinois"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-20",
+    "home": "FIU",
+    "away": "Holy Cross"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-21",
+    "home": "FIU",
+    "away": "Holy Cross"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-21",
+    "home": "FIU",
+    "away": "Holy Cross"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-22",
+    "home": "FIU",
+    "away": "TBD"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-22",
+    "home": "FIU",
+    "away": "Holy Cross"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-27",
+    "home": "FIU",
+    "away": "Harvard"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-27",
+    "home": "FIU",
+    "away": "Fordham"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-27",
+    "home": "FIU",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-02-28",
+    "home": "FIU",
+    "away": "South Dakota"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-02-28",
+    "home": "FIU",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-01",
+    "home": "FIU",
+    "away": "TBD"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-01",
+    "home": "FIU",
+    "away": "Stony Brook"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-03",
+    "home": "FIU",
+    "away": "Florida Golf Coast"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-03",
+    "home": "FIU",
+    "away": "Boston College"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-04",
+    "home": "FIU",
+    "away": "Boston College"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-07",
+    "home": "FIU",
+    "away": "Florida Atlantic"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-10",
+    "home": "FIU",
+    "away": "Florida Golf Coast"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-13",
+    "home": "FIU",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-14",
+    "home": "FIU",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-15",
+    "home": "FIU",
+    "away": "UTEP"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-18",
+    "home": "FIU",
+    "away": "UCF"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-18",
+    "home": "FIU",
+    "away": "Miami"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-20",
+    "home": "FIU",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-21",
+    "home": "FIU",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-22",
+    "home": "FIU",
+    "away": "Sam Houston"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-25",
+    "home": "FIU",
+    "away": "Florida Atlantic"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-27",
+    "home": "FIU",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-28",
+    "home": "FIU",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-03-29",
+    "home": "FIU",
+    "away": "Jacksonville State"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-03-31",
+    "home": "FIU",
+    "away": "Florida Atlantic"
+  },
+  {
+    "sport": "Baseball",
+    "school": "Florida International",
+    "date": "2026-04-02",
+    "home": "FIU",
+    "away": "Louisiana Tech"
+  },
+  {
+    "sport": "Softball",
+    "school": "Florida International",
+    "date": "2026-04-02",
+    "home": "FIU",
+    "away": "Kennesaw State"
+  }
+]

@@ -107,7 +107,21 @@
     background: var(--gray);
     color: var(--navy);
   }
-  th.school-col { background: var(--navy); color: var(--white); text-align: center; min-width: 110px; }
+  th.school-col { background: var(--navy); color: var(--white); text-align: center; min-width: 110px; position: relative; }
+  th.school-col.recently-updated {
+    background: linear-gradient(180deg, var(--navy) 0%, #15405b 100%);
+    box-shadow: inset 0 -4px 0 var(--green);
+  }
+  th.school-col.recently-updated::after {
+    content: '●';
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    color: var(--green);
+    font-size: 12px;
+    line-height: 1;
+    text-shadow: 0 0 4px rgba(167,213,0,0.6);
+  }
   td { padding: 6px 10px; border-bottom: 1px solid #eee; }
   tr:nth-child(even) td { background: #fafafa; }
   td.label { font-weight: 600; color: var(--navy); }
@@ -452,7 +466,8 @@ function fromDbRow(r) {
     gfxModel: r.gfx_model || '', gfxChannels: r.gfx_channels || 0, gfxApproved: r.gfx_approved !== false,
     txDigital: r.tx_digital || 'Haivision IP Encoder', txApproved: r.tx_approved !== false,
     backupPower: r.backup_power || false, mvSources: r.mv_sources || 0, mvSoftware: r.mv_software || '',
-    pw_hash: r.pw_hash || ''
+    pw_hash: r.pw_hash || '',
+    updated_at: r.updated_at || null
   };
 }
 
@@ -478,6 +493,8 @@ const ESPNACCESS_KEY = "cusa-espn-access";
 const DEFAULT_PW_HASH = "9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2";
 // SHA-256 of ESPN read-only password
 const ESPN_PW_HASH = "5926960b4386c5fca35ce6ea41c0035806ee4945ea61b2ed331e0ca695987829";
+const HIGHLIGHT_UPDATED_KEY = 'cusa-highlight-updated';
+const RECENT_UPDATE_DAYS = 30;
 let state = {
   schools: loadSchools(),
   activeTab: 'editor',
@@ -487,8 +504,24 @@ let state = {
   espnAccess: localStorage.getItem(ESPNACCESS_KEY) === 'true',
   isAdmin: localStorage.getItem(UNLOCK_KEY) === 'true',
   authorizedSchoolEmail: null,
-  auditLog: null
+  auditLog: null,
+  highlightUpdated: localStorage.getItem(HIGHLIGHT_UPDATED_KEY) === 'true'
 };
+
+function isRecentlyUpdated(school) {
+  if (!school || !school.updated_at) return false;
+  const t = new Date(school.updated_at).getTime();
+  if (isNaN(t)) return false;
+  const ageDays = (Date.now() - t) / 86400000;
+  return ageDays >= 0 && ageDays <= RECENT_UPDATE_DAYS;
+}
+
+function formatUpdatedDate(school) {
+  if (!school?.updated_at) return 'Never updated';
+  const d = new Date(school.updated_at);
+  if (isNaN(d.getTime())) return 'Never updated';
+  return 'Last updated: ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
 
 function loadSchools() {
   try {
@@ -889,6 +922,11 @@ function wireCompliance() {
     render();
   });
   document.getElementById('export-xlsx')?.addEventListener('click', exportCompliance);
+  document.getElementById('toggle-highlight')?.addEventListener('click', () => {
+    state.highlightUpdated = !state.highlightUpdated;
+    localStorage.setItem(HIGHLIGHT_UPDATED_KEY, state.highlightUpdated);
+    render();
+  });
 }
 
 function exportCompliance() {
@@ -1097,7 +1135,12 @@ function renderCompliance() {
   rows += `<tr>${totalCells}</tr>`;
 
   let headers = `<th>ESPN Minimum</th>`;
-  schools.forEach(s => headers += `<th class="school-col">${escapeHtml(s.name)}</th>`);
+  schools.forEach(s => {
+    const recent = isRecentlyUpdated(s);
+    const cls = 'school-col' + (state.highlightUpdated && recent ? ' recently-updated' : '');
+    const tip = formatUpdatedDate(s) + (recent ? ' (within ' + RECENT_UPDATE_DAYS + ' days)' : '');
+    headers += `<th class="${cls}" title="${escapeHtml(tip)}">${escapeHtml(s.name)}</th>`;
+  });
 
   let lensItems = schools.map(s => `
     <div class="lens-item" style="background:${s.has40xLens ? 'var(--pass-bg)' : 'var(--fail-bg)'}">
@@ -1112,7 +1155,8 @@ function renderCompliance() {
         <img src="${ESPN_LOGO}" alt="ESPN">
         <h2>2025-26 Equipment Compliance Matrix</h2>
       </div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="toggle-highlight" title="Highlight schools that have updated within ${RECENT_UPDATE_DAYS} days" style="background:${state.highlightUpdated ? 'var(--green)' : '#eee'};color:var(--navy);font-size:11px;padding:6px 12px;font-weight:700">${state.highlightUpdated ? '● Highlight: ON' : '○ Highlight Updated'}</button>
         ${state.espnAccess ? '<span style="font-size:11px;font-weight:700;color:#EF4035;background:#fff3f3;border:1px solid #EF4035;border-radius:4px;padding:4px 10px;">ESPN Read-Only</span>' : `<button class="btn" id="export-xlsx" style="background:var(--green);color:var(--navy);font-size:11px;padding:6px 12px">⬇ Export to Excel</button>`}
         <button class="btn gray" id="lock-now" style="font-size:11px;padding:6px 12px">🔒 Lock</button>
         ${state.espnAccess ? '' : `<button class="btn blue" id="change-pw" style="font-size:11px;padding:6px 12px">Change Password</button>`}

@@ -726,7 +726,7 @@
     const school = document.getElementById('schoolSelect').value;
     if (!school) { alert('Please select a school'); return; }
     const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
-      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
 
     if (!schoolData.length) {
       document.getElementById('schoolResults').innerHTML = `<div class="empty-state"><h3>No events found for ${school}</h3></div>`;
@@ -743,6 +743,8 @@
       sportBreakdown[sp].count++;
       sportBreakdown[sp].viewers += r.UNIQUE_VIEWERS || 0;
     });
+    const sports = Object.keys(sportBreakdown).sort();
+    const periods = [...new Set(schoolData.map(r => r.REPORT_PERIOD).filter(Boolean))].sort();
 
     document.getElementById('schoolResults').innerHTML = `
       <h3 style="color:var(--navy);margin-bottom:16px;">${school}</h3>
@@ -763,9 +765,41 @@
         </tbody></table>
       </div>
       <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">All Events</h4>
+      <div class="search-bar">
+        <div class="search-field"><label>Sport</label>
+          <select id="school-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Report Period</label>
+          <select id="school-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Min Viewers</label>
+          <input type="number" id="school-filter-viewers" placeholder="e.g. 500" min="0">
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <button class="btn btn-import" onclick="filterSchoolEvents('${school}')">🔍 Filter</button>
+          <button class="btn btn-clear" onclick="clearSchoolFilter('${school}')">Clear</button>
+        </div>
+      </div>
+      <div id="schoolEventTable"></div>`;
+    filterSchoolEvents(school);
+  }
+
+  function filterSchoolEvents(school) {
+    const sport = document.getElementById('school-filter-sport').value;
+    const period = document.getElementById('school-filter-period').value;
+    const minV = parseFloat(document.getElementById('school-filter-viewers').value) || 0;
+    let data = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    if (sport) data = data.filter(r => r.SPORT === sport);
+    if (period) data = data.filter(r => r.REPORT_PERIOD === period);
+    if (minV) data = data.filter(r => (r.UNIQUE_VIEWERS||0) >= minV);
+    const total = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school).length;
+    const el = document.getElementById('schoolEventTable');
+    if (!data.length) { el.innerHTML = `<div class="empty-state"><h3>No events match your filter</h3></div>`; return; }
+    el.innerHTML = `
       <div class="table-container">
         <table><thead><tr><th>#</th><th>Sport</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
-        <tbody>${schoolData.map((ev, i) => `
+        <tbody>${data.map((ev, i) => `
           <tr><td class="rank">${i+1}</td><td>${ev.SPORT||'-'}</td><td>${ev.AIRING_TITLE||'-'}</td>
           <td>${formatDate(ev.DATE)}</td>
           <td class="number">${(ev.UNIQUE_VIEWERS||0).toLocaleString()}</td>
@@ -773,14 +807,22 @@
           <td class="number">${(ev.MIN_PER_VIEWER||0).toFixed(1)}</td>
           <td>${ev.REPORT_PERIOD||'-'}</td></tr>`).join('')}
         </tbody></table>
+        ${data.length < total ? `<p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${data.length} of ${total} events</p>` : ''}
       </div>`;
+  }
+
+  function clearSchoolFilter(school) {
+    document.getElementById('school-filter-sport').value = '';
+    document.getElementById('school-filter-period').value = '';
+    document.getElementById('school-filter-viewers').value = '';
+    filterSchoolEvents(school);
   }
 
   function exportSchoolData() {
     const school = document.getElementById('schoolSelect').value;
     if (!school) { alert('Please select a school and search first'); return; }
     const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
-      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (!schoolData.length) { alert('No data to export'); return; }
     const ws = XLSX.utils.json_to_sheet(schoolData);
     const wb = XLSX.utils.book_new();
@@ -795,7 +837,7 @@
         const t = (r.AIRING_TITLE||'').toLowerCase();
         return !t.includes('kickoff') && !t.includes('tip off') && !t.includes('willie simmons');
       })
-      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
   }
 
   function renderDashboard() {
@@ -918,53 +960,143 @@
   }
 
   function renderChampionships() {
-    const games = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
-      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+    const allGames = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     const container = document.getElementById('championships');
-    if (!games.length) { container.innerHTML = `<div class="empty-state"><h3>No championship events found</h3><p>Import data to see championship games</p></div>`; return; }
-    const totalV = games.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+    if (!allGames.length) { container.innerHTML = `<div class="empty-state"><h3>No championship events found</h3><p>Import data to see championship games</p></div>`; return; }
+    const totalV = allGames.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+    const sports = [...new Set(allGames.map(g => g.SPORT).filter(Boolean))].sort();
+    const periods = [...new Set(allGames.map(g => g.REPORT_PERIOD).filter(Boolean))].sort();
     container.innerHTML = `
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Championships</div><div class="stat-value">${games.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Championships</div><div class="stat-value">${allGames.length}</div></div>
         <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
       </div>
+      <div class="search-bar">
+        <div class="search-field"><label>Search Matchup</label><input type="text" id="champ-filter-matchup" placeholder="Team or event name…"></div>
+        <div class="search-field"><label>Sport</label>
+          <select id="champ-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Report Period</label>
+          <select id="champ-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Min Viewers</label><input type="number" id="champ-filter-viewers" placeholder="e.g. 500" min="0"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <button class="btn btn-import" onclick="filterChampionships()">🔍 Search</button>
+          <button class="btn btn-clear" onclick="clearChampionshipsFilter()">Clear</button>
+        </div>
+      </div>
+      <div id="champ-table"></div>`;
+    filterChampionships();
+  }
+
+  function filterChampionships() {
+    const matchup = document.getElementById('champ-filter-matchup').value.toLowerCase().trim();
+    const sport = document.getElementById('champ-filter-sport').value;
+    const period = document.getElementById('champ-filter-period').value;
+    const minV = parseFloat(document.getElementById('champ-filter-viewers').value) || 0;
+    let games = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup));
+    if (sport) games = games.filter(g => g.SPORT === sport);
+    if (period) games = games.filter(g => g.REPORT_PERIOD === period);
+    if (minV) games = games.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
+    const total = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).length;
+    const el = document.getElementById('champ-table');
+    if (!games.length) { el.innerHTML = `<div class="empty-state"><h3>No championships match your filter</h3></div>`; return; }
+    el.innerHTML = `
       <div class="table-container">
         <table><thead><tr><th>#</th><th>Matchup</th><th>Sport</th><th>Date</th><th>Unique Viewers</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
         <tbody>${games.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${g.SPORT||'-'}</td>
           <td>${formatDate(g.DATE)}</td><td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
           <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
         </tbody></table>
+        ${games.length < total ? `<p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${games.length} of ${total} events</p>` : ''}
       </div>`;
   }
 
+  function clearChampionshipsFilter() {
+    document.getElementById('champ-filter-matchup').value = '';
+    document.getElementById('champ-filter-sport').value = '';
+    document.getElementById('champ-filter-period').value = '';
+    document.getElementById('champ-filter-viewers').value = '';
+    filterChampionships();
+  }
+
   function renderShows() {
-    const shows = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
-      .sort((a,b) => (b.UNIQUE_VIEWERS||0) - (a.UNIQUE_VIEWERS||0));
+    const isShow = r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); };
+    const allShows = rawData.filter(isShow)
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     const container = document.getElementById('shows');
-    if (!shows.length) { container.innerHTML = `<div class="empty-state"><h3>No shows found</h3><p>Import data to see Kickoff/Tip Off shows</p></div>`; return; }
-    const totalV = shows.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+    if (!allShows.length) { container.innerHTML = `<div class="empty-state"><h3>No shows found</h3><p>Import data to see Kickoff/Tip Off shows</p></div>`; return; }
+    const totalV = allShows.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+    const sports = [...new Set(allShows.map(g => g.SPORT).filter(Boolean))].sort();
+    const periods = [...new Set(allShows.map(g => g.REPORT_PERIOD).filter(Boolean))].sort();
     container.innerHTML = `
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Shows</div><div class="stat-value">${shows.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Shows</div><div class="stat-value">${allShows.length}</div></div>
         <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
       </div>
+      <div class="search-bar">
+        <div class="search-field"><label>Search Show</label><input type="text" id="shows-filter-show" placeholder="Show name…"></div>
+        <div class="search-field"><label>Sport</label>
+          <select id="shows-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Report Period</label>
+          <select id="shows-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Min Viewers</label><input type="number" id="shows-filter-viewers" placeholder="e.g. 500" min="0"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <button class="btn btn-import" onclick="filterShows()">🔍 Search</button>
+          <button class="btn btn-clear" onclick="clearShowsFilter()">Clear</button>
+        </div>
+      </div>
+      <div id="shows-table"></div>`;
+    filterShows();
+  }
+
+  function filterShows() {
+    const isShow = r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); };
+    const name = document.getElementById('shows-filter-show').value.toLowerCase().trim();
+    const sport = document.getElementById('shows-filter-sport').value;
+    const period = document.getElementById('shows-filter-period').value;
+    const minV = parseFloat(document.getElementById('shows-filter-viewers').value) || 0;
+    let shows = rawData.filter(isShow).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    if (name) shows = shows.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(name));
+    if (sport) shows = shows.filter(g => g.SPORT === sport);
+    if (period) shows = shows.filter(g => g.REPORT_PERIOD === period);
+    if (minV) shows = shows.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
+    const total = rawData.filter(isShow).length;
+    const el = document.getElementById('shows-table');
+    if (!shows.length) { el.innerHTML = `<div class="empty-state"><h3>No shows match your filter</h3></div>`; return; }
+    el.innerHTML = `
       <div class="table-container">
         <table><thead><tr><th>#</th><th>Show</th><th>Sport</th><th>Date</th><th>Unique Viewers</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
         <tbody>${shows.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${g.SPORT||'-'}</td>
           <td>${formatDate(g.DATE)}</td><td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
           <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
         </tbody></table>
+        ${shows.length < total ? `<p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${shows.length} of ${total} shows</p>` : ''}
       </div>`;
+  }
+
+  function clearShowsFilter() {
+    document.getElementById('shows-filter-show').value = '';
+    document.getElementById('shows-filter-sport').value = '';
+    document.getElementById('shows-filter-period').value = '';
+    document.getElementById('shows-filter-viewers').value = '';
+    filterShows();
   }
 
   function renderRawData() {
     const container = document.getElementById('rawdata');
     if (!rawData.length) { container.innerHTML = `<div class="empty-state"><h3>No data loaded</h3><p>Import an Excel file to get started</p></div>`; return; }
-    const headers = Object.keys(rawData[0]);
+    const sorted = [...rawData].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    const headers = Object.keys(sorted[0]);
     container.innerHTML = `
       <div class="table-container">
         <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-        <tbody>${rawData.map(r=>`<tr>${headers.map(h=>`<td>${r[h]||'-'}</td>`).join('')}</tr>`).join('')}</tbody>
+        <tbody>${sorted.map(r=>`<tr>${headers.map(h=>`<td>${r[h]||'-'}</td>`).join('')}</tr>`).join('')}</tbody>
         </table>
       </div>`;
   }
@@ -975,9 +1107,9 @@
     const label = activeBtn.textContent.trim();
     let data = [];
     if (tabName === 'dashboard') { alert('Export a specific sport tab instead.'); return; }
-    else if (tabName === 'rawdata') data = rawData;
-    else if (tabName === 'championships') data = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'));
-    else if (tabName === 'shows') data = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); });
+    else if (tabName === 'rawdata') data = [...rawData].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    else if (tabName === 'championships') data = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    else if (tabName === 'shows') data = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); }).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     else if (SPORT_MAP[tabName]) data = filterBySport(SPORT_MAP[tabName]);
     if (!data.length) { alert('No data to export'); return; }
     const ws = XLSX.utils.json_to_sheet(data);
@@ -990,17 +1122,33 @@
   function exportAllData() {
     if (!rawData.length) { alert('No data to export'); return; }
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawData), 'Raw Data');
+    const sortedRaw = [...rawData].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sortedRaw), 'Raw Data');
     Object.entries(SPORT_MAP).forEach(([tabId, sportName]) => {
       const d = filterBySport(sportName);
       if (d.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), sportName.replace('NCAA ','').substring(0,30));
     });
-    const champ = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'));
+    const champ = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (champ.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(champ), 'Championships');
-    const shows = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); });
+    const shows = rawData.filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (shows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shows), 'Shows');
     XLSX.writeFile(wb, `CUSA_Complete_Tracker_${new Date().toISOString().split('T')[0]}.xlsx`);
     updateStatus(`Exported complete tracker with ${wb.SheetNames.length} sheets`);
+  }
+
+  function parseDateForSort(v) {
+    if (!v && v !== 0) return 0;
+    if (typeof v === 'number') return v;
+    try {
+      if (typeof v === 'string' && v.includes('/')) {
+        const [m, d, y] = v.split('/');
+        return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`).getTime();
+      }
+      const t = new Date(v).getTime();
+      return isNaN(t) ? 0 : t;
+    } catch { return 0; }
   }
 
   function formatDate(v) {

@@ -360,7 +360,7 @@
     <label for="fileInput" class="btn btn-import">📂 Import Excel</label>
     <input type="file" id="fileInput" accept=".xlsx,.xls">
   </div>
-  <button class="btn btn-save" id="saveBtn" title="Save current data to Supabase">💾 Save</button>
+  <button class="btn btn-save" id="saveBtn" title="Save all admin portal changes to the database (viewership events + produced events)">💾 Save All</button>
   <div class="file-input-wrapper">
     <label for="appendInput" class="btn btn-append">➕ Add New Period</label>
     <input type="file" id="appendInput" accept=".xlsx,.xls">
@@ -1427,20 +1427,70 @@
     } catch(e) {}
   }
 
+  /* Push the in-memory _producedEvents back to Supabase as the source of truth.
+     Used by the Save button so admins can sync local edits (manual additions,
+     removes recorded in the local blocklist) without re-uploading the xlsx. */
+  async function saveProducedEventsToSupabase() {
+    if (!_db) return { ok: false, reason: 'no-db' };
+    if (!_producedEvents.length) return { ok: true, reason: 'empty' };
+    try {
+      const del = await _db.from('produced_events').delete().not('sport', 'is', null);
+      if (del.error) throw del.error;
+      const rows = _producedEvents.map(e => ({
+        sport: e.sport || '',
+        school: e.school || '',
+        event_date: e.event_date || '',
+        home_team: e.home_team || '',
+        away_team: e.away_team || ''
+      }));
+      for (let i = 0; i < rows.length; i += 500) {
+        const ins = await _db.from('produced_events').insert(rows.slice(i, i + 500));
+        if (ins.error) throw ins.error;
+      }
+      return { ok: true, reason: 'saved' };
+    } catch (err) {
+      console.warn('Produced events sync failed:', err);
+      const tableMissing = /produced_events|schema cache/i.test(err.message || '');
+      return { ok: false, reason: tableMissing ? 'table-missing' : 'error', error: err };
+    }
+  }
+
   async function saveData() {
-    if (!rawData.length) { updateStatus('No data to save'); return; }
+    const real = rawData.filter(r => !r._placeholder);
+    if (!real.length && !_producedEvents.length) { updateStatus('Nothing to save'); return; }
+
     saveToStorage();
     const btn = document.getElementById('saveBtn');
     btn.textContent = '⏳ Saving…';
     btn.disabled = true;
-    const ok = await saveToSupabase();
+
+    // Sync everything in parallel: viewership rows + produced events
+    const [viewOk, prodResult] = await Promise.all([
+      real.length ? saveToSupabase() : Promise.resolve(true),
+      saveProducedEventsToSupabase()
+    ]);
+
+    // Refresh Last Modified timestamp after the writes land
+    let lastMod = null;
+    try { lastMod = await loadLastModified(); } catch(e) {}
+    updateMetaBar({ modified: lastMod, period: getCurrentPeriod() });
+
     btn.disabled = false;
     btn.textContent = '✓ Saved';
+
+    const allOk = viewOk && prodResult.ok;
+    const parts = [];
+    if (real.length) parts.push(viewOk ? `${real.length} viewership events ✓` : `${real.length} viewership events ✗`);
+    if (_producedEvents.length) {
+      if (prodResult.ok) parts.push(`${_producedEvents.length} produced events ✓`);
+      else if (prodResult.reason === 'table-missing') parts.push(`produced events ⚠ run SQL migration`);
+      else parts.push(`produced events ✗`);
+    }
     updateStatus(
-      ok ? `☁️ Saved to database — ${rawData.length} events` : `💻 Saved locally only — no database connection`,
-      ok ? 'saved-cloud' : 'saved-local'
+      (allOk ? '☁️ Saved to database — ' : '⚠ Partial save — ') + parts.join(' • '),
+      allOk ? 'saved-cloud' : 'saved-local'
     );
-    setTimeout(() => { btn.textContent = '💾 Save'; }, 2000);
+    setTimeout(() => { btn.textContent = '💾 Save All'; }, 2500);
   }
 
   function getCurrentPeriod() {

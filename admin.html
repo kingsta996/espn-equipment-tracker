@@ -1225,33 +1225,24 @@
     const activeBtn = document.querySelector('.tab-bar button.active');
     const tabName = activeBtn.dataset.tab;
     const label = activeBtn.textContent.trim();
+    const totalAllSports = activeData().reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
     let ws = null, count = 0;
     if (tabName === 'dashboard') {
-      const stats = {};
-      activeData().forEach(r => {
-        const sp = r.SPORT || 'Unknown';
-        if (!stats[sp]) stats[sp] = { events:0, viewers:0 };
-        stats[sp].events++; stats[sp].viewers += r.UNIQUE_VIEWERS||0;
-      });
-      const rows = Object.entries(stats).map(([sp,st]) => ({
-        sport: sp, events: st.events, viewers: st.viewers,
-        avg: Math.round(st.viewers/st.events)
-      })).sort((a,b) => b.viewers - a.viewers);
-      ws = buildStyledSheet(rows, EX_COLS.dashboard); count = rows.length;
+      ws = buildDashboardSheet(); count = activeData().length;
     } else if (tabName === 'rawdata') {
       const sorted = [...activeData()].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-      ws = buildStyledSheet(rowsForSchool(sorted), EX_COLS.school); count = sorted.length;
+      ws = buildAllEventsSheet(sorted); count = sorted.length;
     } else if (tabName === 'championships') {
       const games = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
         .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-      ws = buildStyledSheet(rowsForChamp(games), EX_COLS.champ); count = games.length;
+      ws = buildChampSheet(games); count = games.length;
     } else if (tabName === 'shows') {
       const sh = activeData().filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
         .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-      ws = buildStyledSheet(rowsForShows(sh), EX_COLS.shows); count = sh.length;
+      ws = buildShowsSheet(sh); count = sh.length;
     } else if (SPORT_MAP[tabName]) {
       const games = filterBySport(SPORT_MAP[tabName]);
-      ws = buildStyledSheet(rowsForSport(games), EX_COLS.sport); count = games.length;
+      ws = buildSportSheet(games, tabName, totalAllSports); count = games.length;
     }
     if (!ws || !count) { alert('No data to export'); return; }
     const wb = XLSX.utils.book_new();
@@ -1263,143 +1254,336 @@
   function exportAllData() {
     if (!rawData.length) { alert('No data to export'); return; }
     const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, buildDashboardSheet(), 'Dashboard');
+    const totalAllSports = activeData().reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
     Object.entries(SPORT_MAP).forEach(([tabId, sportName]) => {
       const d = filterBySport(sportName);
       if (d.length) XLSX.utils.book_append_sheet(wb,
-        buildStyledSheet(rowsForSport(d), EX_COLS.sport),
+        buildSportSheet(d, tabId, totalAllSports),
         sportName.replace('NCAA ','').substring(0,30));
     });
     const champ = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (champ.length) XLSX.utils.book_append_sheet(wb,
-      buildStyledSheet(rowsForChamp(champ), EX_COLS.champ), 'Championships');
+    if (champ.length) XLSX.utils.book_append_sheet(wb, buildChampSheet(champ), 'Championships');
     const shows = activeData().filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (shows.length) XLSX.utils.book_append_sheet(wb,
-      buildStyledSheet(rowsForShows(shows), EX_COLS.shows), 'Shows');
+    if (shows.length) XLSX.utils.book_append_sheet(wb, buildShowsSheet(shows), 'Shows');
     const sortedAll = [...activeData()].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    XLSX.utils.book_append_sheet(wb,
-      buildStyledSheet(rowsForSchool(sortedAll), EX_COLS.school), 'All Events');
+    XLSX.utils.book_append_sheet(wb, buildAllEventsSheet(sortedAll), 'All Events');
     XLSX.writeFile(wb, `CUSA_Complete_Tracker_${new Date().toISOString().split('T')[0]}.xlsx`);
     updateStatus(`Exported complete tracker with ${wb.SheetNames.length} sheets`);
   }
 
-  /* ── Styled Excel export (xlsx-js-style) ── */
-  const EX_HEADER_STYLE = {
-    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11, name: 'Segoe UI' },
-    fill: { patternType: 'solid', fgColor: { rgb: '00263A' } },
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: {
-      top: { style: 'thin', color: { rgb: '00263A' } },
-      bottom: { style: 'thin', color: { rgb: '00263A' } },
-      left: { style: 'thin', color: { rgb: '00263A' } },
-      right: { style: 'thin', color: { rgb: '00263A' } }
-    }
-  };
-  function exCellStyle(rowIndex, isNumber) {
+  /* ── Styled Excel export — mirrors Viewership Tracker Example ── */
+  const EX_NAVY = '062538';
+  const EX_LIGHT = 'E8EFF4';
+  const EX_FONT = 'Arial Narrow';
+  function exBorder() {
     return {
-      font: { sz: 11, name: 'Segoe UI', color: { rgb: rowIndex === 0 ? 'EF4035' : '222222' } },
-      fill: { patternType: 'solid', fgColor: { rgb: rowIndex % 2 === 0 ? 'FFFFFF' : 'F4F7FA' } },
-      alignment: { horizontal: isNumber ? 'right' : 'left', vertical: 'center' },
-      border: { bottom: { style: 'thin', color: { rgb: 'EEEEEE' } } }
+      top:    { style: 'thin', color: { rgb: EX_NAVY } },
+      bottom: { style: 'thin', color: { rgb: EX_NAVY } },
+      left:   { style: 'thin', color: { rgb: EX_NAVY } },
+      right:  { style: 'thin', color: { rgb: EX_NAVY } }
     };
   }
-  function buildStyledSheet(rows, columns) {
-    const aoa = [
-      columns.map(c => c.label),
-      ...rows.map(row => columns.map(c => row[c.key]))
-    ];
+  const EX_STYLE = {
+    title:    { font: { name: EX_FONT, sz: 14, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: EX_NAVY } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    subtitle: { font: { name: EX_FONT, sz: 10, italic: true, color: { rgb: '666666' } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    section:  { font: { name: EX_FONT, sz: 11, bold: true, color: { rgb: EX_NAVY } }, fill: { patternType: 'solid', fgColor: { rgb: EX_LIGHT } }, alignment: { horizontal: 'left',   vertical: 'center' } },
+    statHead: { font: { name: EX_FONT, sz: 11, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: EX_NAVY  } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    statVal:  { font: { name: EX_FONT, sz: 14, bold: true, color: { rgb: EX_NAVY } }, fill: { patternType: 'solid', fgColor: { rgb: EX_LIGHT } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    colHead:  { font: { name: EX_FONT, sz: 11, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: EX_NAVY  } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    cellTxt:  { font: { name: EX_FONT, sz: 11 }, alignment: { horizontal: 'left',   vertical: 'center' } },
+    cellNum:  { font: { name: EX_FONT, sz: 11 }, alignment: { horizontal: 'right',  vertical: 'center' } },
+    cellDate: { font: { name: EX_FONT, sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' } }
+  };
+
+  function toExcelDate(v) {
+    if (!v) return null;
+    let d;
+    if (v instanceof Date) d = v;
+    else if (typeof v === 'number') return v; // already serial
+    else if (typeof v === 'string') {
+      if (v.includes('/')) {
+        const [m, day, y] = v.split('/');
+        d = new Date(+y, +m - 1, +day);
+      } else d = new Date(v);
+    }
+    if (!d || isNaN(d.getTime())) return null;
+    // Excel epoch 1899-12-30, account for tz offset so the date stays the same in Excel
+    const tzMin = d.getTimezoneOffset();
+    return (d.getTime() - tzMin * 60000) / 86400000 + 25569;
+  }
+
+  function buildFormattedSheet(cfg) {
+    const dataCols = cfg.columns.length;
+    const summaryCols = cfg.summary ? cfg.summary.labels.length : 0;
+    const numCols = Math.max(dataCols, summaryCols);
+
+    const blank = (n) => Array(n).fill('');
+    const aoa = [];
+    aoa.push([cfg.title, ...blank(numCols - 1)]);
+    aoa.push([cfg.subtitle || '', ...blank(numCols - 1)]);
+    aoa.push(blank(numCols));
+    if (cfg.summary) {
+      aoa.push(['SUMMARY STATISTICS', ...blank(numCols - 1)]);
+      aoa.push([...cfg.summary.labels, ...blank(numCols - summaryCols)]);
+      aoa.push([...cfg.summary.values, ...blank(numCols - summaryCols)]);
+      aoa.push(blank(numCols));
+    }
+    const headerR = aoa.length;
+    aoa.push([...cfg.columns.map(c => c.label), ...blank(numCols - dataCols)]);
+    cfg.rows.forEach(row => {
+      aoa.push([
+        ...cfg.columns.map(c => {
+          const val = row[c.key];
+          if (c.format === 'date' && val) return toExcelDate(val) ?? val;
+          return val == null ? '' : val;
+        }),
+        ...blank(numCols - dataCols)
+      ]);
+    });
+
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    for (let C = 0; C < columns.length; C++) {
-      const a = XLSX.utils.encode_cell({ r: 0, c: C });
-      if (ws[a]) ws[a].s = EX_HEADER_STYLE;
-    }
-    for (let R = 0; R < rows.length; R++) {
-      for (let C = 0; C < columns.length; C++) {
-        const a = XLSX.utils.encode_cell({ r: R + 1, c: C });
-        const cell = ws[a];
-        if (!cell) continue;
-        const fmt = columns[C].format;
-        const isNum = fmt === 'integer' || fmt === 'decimal1';
-        if (fmt === 'integer') { cell.t = 'n'; cell.z = '#,##0'; }
-        else if (fmt === 'decimal1') { cell.t = 'n'; cell.z = '#,##0.0'; }
-        cell.s = exCellStyle(R, isNum);
+    const setStyle = (r, c, style, extras = {}) => {
+      const a = XLSX.utils.encode_cell({ r, c });
+      if (!ws[a]) ws[a] = { v: '' };
+      ws[a].s = { ...style, border: exBorder() };
+      Object.assign(ws[a], extras);
+    };
+
+    for (let c = 0; c < numCols; c++) setStyle(0, c, EX_STYLE.title);
+    for (let c = 0; c < numCols; c++) setStyle(1, c, EX_STYLE.subtitle);
+
+    let r = 3;
+    if (cfg.summary) {
+      for (let c = 0; c < numCols; c++) setStyle(3, c, EX_STYLE.section);
+      for (let c = 0; c < summaryCols; c++) setStyle(4, c, EX_STYLE.statHead);
+      for (let c = 0; c < summaryCols; c++) {
+        const fmt = cfg.summary.formats?.[c];
+        const extras = fmt ? { t: 'n', z: fmt } : {};
+        setStyle(5, c, EX_STYLE.statVal, extras);
       }
+      r = 7;
     }
-    ws['!cols'] = columns.map(c => ({ wch: c.width || 15 }));
-    ws['!rows'] = [{ hpt: 22 }, ...rows.map(() => ({ hpt: 18 }))];
+
+    for (let c = 0; c < dataCols; c++) setStyle(headerR, c, EX_STYLE.colHead);
+    cfg.rows.forEach((_, i) => {
+      const rowR = headerR + 1 + i;
+      cfg.columns.forEach((col, c) => {
+        const fmt = col.format;
+        let style = EX_STYLE.cellTxt;
+        const extras = {};
+        if (fmt === 'integer')  { style = EX_STYLE.cellNum;  extras.t = 'n'; extras.z = '#,##0'; }
+        else if (fmt === 'decimal1') { style = EX_STYLE.cellNum; extras.t = 'n'; extras.z = '0.0'; }
+        else if (fmt === 'percent')  { style = EX_STYLE.cellNum; extras.t = 'n'; extras.z = '0.0%'; }
+        else if (fmt === 'date')     { style = EX_STYLE.cellDate; extras.t = 'n'; extras.z = 'mm-dd-yy'; }
+        setStyle(rowR, c, style, extras);
+      });
+    });
+
+    const merges = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } }
+    ];
+    if (cfg.summary) merges.push({ s: { r: 3, c: 0 }, e: { r: 3, c: numCols - 1 } });
+    ws['!merges'] = merges;
+
+    const cols = cfg.columns.map(c => ({ wch: c.width || 15 }));
+    while (cols.length < numCols) cols.push({ wch: 15 });
+    ws['!cols'] = cols;
+
+    const rows = [{ hpt: 30 }, { hpt: 16 }, { hpt: 8 }];
+    if (cfg.summary) rows.push({ hpt: 20 }, { hpt: 26 }, { hpt: 28 }, { hpt: 10 });
+    rows.push({ hpt: 24 });
+    cfg.rows.forEach(() => rows.push({ hpt: 16 }));
+    ws['!rows'] = rows;
+
     return ws;
   }
 
-  const EX_COLS = {
-    sport: [
-      { key: 'rank', label: '#', format: 'integer', width: 5 },
-      { key: 'matchup', label: 'Matchup', width: 38 },
-      { key: 'date', label: 'Date', width: 12 },
-      { key: 'viewers', label: 'Unique Viewers', format: 'integer', width: 16 },
-      { key: 'minutes', label: 'Total Minutes', format: 'integer', width: 16 },
-      { key: 'mpv', label: 'Min/Viewer', format: 'decimal1', width: 12 }
-    ],
-    champ: [
-      { key: 'rank', label: '#', format: 'integer', width: 5 },
-      { key: 'matchup', label: 'Matchup', width: 38 },
-      { key: 'sport', label: 'Sport', width: 22 },
-      { key: 'date', label: 'Date', width: 12 },
-      { key: 'viewers', label: 'Unique Viewers', format: 'integer', width: 16 },
-      { key: 'mpv', label: 'Min/Viewer', format: 'decimal1', width: 12 },
-      { key: 'period', label: 'Report Period', width: 16 }
-    ],
-    shows: [
-      { key: 'rank', label: '#', format: 'integer', width: 5 },
-      { key: 'show', label: 'Show', width: 38 },
-      { key: 'sport', label: 'Sport', width: 22 },
-      { key: 'date', label: 'Date', width: 12 },
-      { key: 'viewers', label: 'Unique Viewers', format: 'integer', width: 16 },
-      { key: 'mpv', label: 'Min/Viewer', format: 'decimal1', width: 12 },
-      { key: 'period', label: 'Report Period', width: 16 }
-    ],
-    school: [
-      { key: 'rank', label: '#', format: 'integer', width: 5 },
-      { key: 'sport', label: 'Sport', width: 22 },
-      { key: 'matchup', label: 'Matchup', width: 38 },
-      { key: 'date', label: 'Date', width: 12 },
-      { key: 'viewers', label: 'Unique Viewers', format: 'integer', width: 16 },
-      { key: 'minutes', label: 'Total Minutes', format: 'integer', width: 16 },
-      { key: 'mpv', label: 'Min/Viewer', format: 'decimal1', width: 12 },
-      { key: 'period', label: 'Report Period', width: 16 }
-    ],
-    dashboard: [
-      { key: 'sport', label: 'Sport', width: 24 },
-      { key: 'events', label: 'Events', format: 'integer', width: 12 },
-      { key: 'viewers', label: 'Total Viewers', format: 'integer', width: 16 },
-      { key: 'avg', label: 'Avg Viewers/Event', format: 'integer', width: 18 }
-    ]
+  /* ── Per-tab export builders ── */
+  const SPORT_EMOJI = {
+    football:   '🏈  FOOTBALL — NCAA',
+    volleyball: "🏐  VOLLEYBALL — WOMEN'S",
+    soccer:     "⚽  SOCCER — WOMEN'S",
+    mbb:        "🏀  MEN'S BASKETBALL",
+    wbb:        "🏀  WOMEN'S BASKETBALL",
+    baseball:   '⚾  BASEBALL — NCAA',
+    softball:   '🥎  SOFTBALL — NCAA'
   };
+  const SUBTITLE = 'ESPN+ DTC Viewership Data  |  CUSA';
 
-  function rowsForSport(games) {
-    return games.map((g,i) => ({
-      rank: i+1, matchup: g.AIRING_TITLE||'-', date: formatDate(g.DATE),
-      viewers: g.UNIQUE_VIEWERS||0, minutes: g.TOTAL_MINUTES||0, mpv: +(g.MIN_PER_VIEWER||0).toFixed(1)
-    }));
+  function buildSportSheet(games, tabId, totalAllSportsViewers) {
+    const totalEvents  = games.length;
+    const totalViewers = games.reduce((s,g) => s + (g.UNIQUE_VIEWERS||0), 0);
+    const pctOfAll = totalAllSportsViewers ? totalViewers / totalAllSportsViewers : 0;
+    const avgViewers = totalEvents ? Math.round(totalViewers / totalEvents) : 0;
+    const avgMpv = totalEvents ? +(games.reduce((s,g) => s + (g.MIN_PER_VIEWER||0), 0) / totalEvents).toFixed(1) : 0;
+    return buildFormattedSheet({
+      title:    SPORT_EMOJI[tabId] || tabId,
+      subtitle: SUBTITLE,
+      summary: {
+        labels:  ['TOTAL EVENTS', 'TOTAL VIEWERS', '% OF ALL SPORTS', 'AVG VIEWERS/EVENT', 'AVG MIN/VIEWER'],
+        values:  [totalEvents, totalViewers, pctOfAll, avgViewers, avgMpv],
+        formats: ['#,##0', '#,##0', '0.0%', '#,##0', '0.0']
+      },
+      columns: [
+        { key: 'matchup', label: 'MATCHUP', width: 38 },
+        { key: 'date',    label: 'DATE',    format: 'date',     width: 14 },
+        { key: 'viewers', label: 'UNIQUE VIEWERS', format: 'integer',  width: 18 },
+        { key: 'minutes', label: 'TOTAL MINUTES',  format: 'integer',  width: 16 },
+        { key: 'mpv',     label: 'MIN/VIEWER',     format: 'decimal1', width: 14 }
+      ],
+      rows: games.map(g => ({
+        matchup: g.AIRING_TITLE || '-',
+        date: g.DATE,
+        viewers: g.UNIQUE_VIEWERS || 0,
+        minutes: g.TOTAL_MINUTES || 0,
+        mpv: +(g.MIN_PER_VIEWER || 0).toFixed(1)
+      }))
+    });
   }
-  function rowsForChamp(games) {
-    return games.map((g,i) => ({
-      rank: i+1, matchup: g.AIRING_TITLE||'-', sport: g.SPORT||'-', date: formatDate(g.DATE),
-      viewers: g.UNIQUE_VIEWERS||0, mpv: +(g.MIN_PER_VIEWER||0).toFixed(1), period: g.REPORT_PERIOD||'-'
-    }));
+
+  function buildChampSheet(games) {
+    const total = games.length;
+    const totalViewers = games.reduce((s,g) => s + (g.UNIQUE_VIEWERS||0), 0);
+    const avgViewers = total ? Math.round(totalViewers / total) : 0;
+    const avgMpv = total ? +(games.reduce((s,g) => s + (g.MIN_PER_VIEWER||0), 0) / total).toFixed(1) : 0;
+    return buildFormattedSheet({
+      title:    '🏆  CHAMPIONSHIPS — ALL SPORTS',
+      subtitle: 'Auto-Filtered: events with "Championship" in title',
+      summary: {
+        labels:  ['TOTAL CHAMPIONSHIPS', 'TOTAL VIEWERS', 'AVG VIEWERS/EVENT', 'AVG MIN/VIEWER'],
+        values:  [total, totalViewers, avgViewers, avgMpv],
+        formats: ['#,##0', '#,##0', '#,##0', '0.0']
+      },
+      columns: [
+        { key: 'matchup', label: 'MATCHUP', width: 38 },
+        { key: 'sport',   label: 'SPORT',   width: 22 },
+        { key: 'date',    label: 'DATE',    format: 'date',     width: 14 },
+        { key: 'viewers', label: 'UNIQUE VIEWERS', format: 'integer',  width: 18 },
+        { key: 'minutes', label: 'TOTAL MINUTES',  format: 'integer',  width: 16 },
+        { key: 'mpv',     label: 'MIN/VIEWER',     format: 'decimal1', width: 14 }
+      ],
+      rows: games.map(g => ({
+        matchup: g.AIRING_TITLE || '-',
+        sport:   g.SPORT || '-',
+        date: g.DATE,
+        viewers: g.UNIQUE_VIEWERS || 0,
+        minutes: g.TOTAL_MINUTES || 0,
+        mpv: +(g.MIN_PER_VIEWER || 0).toFixed(1)
+      }))
+    });
   }
-  function rowsForShows(shows) {
-    return shows.map((g,i) => ({
-      rank: i+1, show: g.AIRING_TITLE||'-', sport: g.SPORT||'-', date: formatDate(g.DATE),
-      viewers: g.UNIQUE_VIEWERS||0, mpv: +(g.MIN_PER_VIEWER||0).toFixed(1), period: g.REPORT_PERIOD||'-'
-    }));
+
+  function buildShowsSheet(shows) {
+    const total = shows.length;
+    const totalViewers = shows.reduce((s,g) => s + (g.UNIQUE_VIEWERS||0), 0);
+    const avgViewers = total ? Math.round(totalViewers / total) : 0;
+    const avgMpv = total ? +(shows.reduce((s,g) => s + (g.MIN_PER_VIEWER||0), 0) / total).toFixed(1) : 0;
+    return buildFormattedSheet({
+      title:    '📺  SHOWS — KICKOFF & TIP OFF',
+      subtitle: 'Auto-Filtered: events with "Kickoff" or "Tip Off" in title',
+      summary: {
+        labels:  ['TOTAL SHOWS', 'TOTAL VIEWERS', 'AVG VIEWERS/SHOW', 'AVG MIN/VIEWER'],
+        values:  [total, totalViewers, avgViewers, avgMpv],
+        formats: ['#,##0', '#,##0', '#,##0', '0.0']
+      },
+      columns: [
+        { key: 'matchup', label: 'SHOW', width: 38 },
+        { key: 'sport',   label: 'SPORT', width: 22 },
+        { key: 'date',    label: 'DATE',  format: 'date',     width: 14 },
+        { key: 'viewers', label: 'UNIQUE VIEWERS', format: 'integer',  width: 18 },
+        { key: 'mpv',     label: 'MIN/VIEWER',     format: 'decimal1', width: 14 }
+      ],
+      rows: shows.map(g => ({
+        matchup: g.AIRING_TITLE || '-',
+        sport:   g.SPORT || '-',
+        date: g.DATE,
+        viewers: g.UNIQUE_VIEWERS || 0,
+        mpv: +(g.MIN_PER_VIEWER || 0).toFixed(1)
+      }))
+    });
   }
-  function rowsForSchool(events) {
-    return events.map((g,i) => ({
-      rank: i+1, sport: g.SPORT||'-', matchup: g.AIRING_TITLE||'-', date: formatDate(g.DATE),
-      viewers: g.UNIQUE_VIEWERS||0, minutes: g.TOTAL_MINUTES||0,
-      mpv: +(g.MIN_PER_VIEWER||0).toFixed(1), period: g.REPORT_PERIOD||'-'
-    }));
+
+  function buildAllEventsSheet(events) {
+    const total = events.length;
+    const totalViewers = events.reduce((s,g) => s + (g.UNIQUE_VIEWERS||0), 0);
+    const avgViewers = total ? Math.round(totalViewers / total) : 0;
+    const avgMpv = total ? +(events.reduce((s,g) => s + (g.MIN_PER_VIEWER||0), 0) / total).toFixed(1) : 0;
+    return buildFormattedSheet({
+      title:    '📊  ALL EVENTS — RAW DATA',
+      subtitle: SUBTITLE,
+      summary: {
+        labels:  ['TOTAL EVENTS', 'TOTAL VIEWERS', 'AVG VIEWERS/EVENT', 'AVG MIN/VIEWER'],
+        values:  [total, totalViewers, avgViewers, avgMpv],
+        formats: ['#,##0', '#,##0', '#,##0', '0.0']
+      },
+      columns: [
+        { key: 'sport',   label: 'SPORT',   width: 22 },
+        { key: 'matchup', label: 'MATCHUP', width: 38 },
+        { key: 'date',    label: 'DATE',    format: 'date',     width: 14 },
+        { key: 'viewers', label: 'UNIQUE VIEWERS', format: 'integer',  width: 18 },
+        { key: 'minutes', label: 'TOTAL MINUTES',  format: 'integer',  width: 16 },
+        { key: 'mpv',     label: 'MIN/VIEWER',     format: 'decimal1', width: 14 }
+      ],
+      rows: events.map(g => ({
+        sport:   g.SPORT || '-',
+        matchup: g.AIRING_TITLE || '-',
+        date: g.DATE,
+        viewers: g.UNIQUE_VIEWERS || 0,
+        minutes: g.TOTAL_MINUTES || 0,
+        mpv: +(g.MIN_PER_VIEWER || 0).toFixed(1)
+      }))
+    });
+  }
+
+  function buildDashboardSheet() {
+    const data = activeData();
+    const total = data.length;
+    const totalViewers = data.reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
+    const totalMinutes = data.reduce((s,r) => s + (r.TOTAL_MINUTES||0), 0);
+    const avgMpv = total ? +(data.reduce((s,r) => s + (r.MIN_PER_VIEWER||0), 0) / total).toFixed(1) : 0;
+    const sportStats = {};
+    data.forEach(r => {
+      const sp = r.SPORT || 'Unknown';
+      if (!sportStats[sp]) sportStats[sp] = { events:0, viewers:0, minutes:0, mpvSum:0 };
+      sportStats[sp].events++;
+      sportStats[sp].viewers += r.UNIQUE_VIEWERS||0;
+      sportStats[sp].minutes += r.TOTAL_MINUTES||0;
+      sportStats[sp].mpvSum  += r.MIN_PER_VIEWER||0;
+    });
+    const rows = Object.entries(sportStats)
+      .map(([sp, st]) => ({
+        sport: sp,
+        events: st.events,
+        viewers: st.viewers,
+        pct: totalViewers ? st.viewers / totalViewers : 0,
+        avgViewers: st.events ? Math.round(st.viewers / st.events) : 0,
+        minutes: st.minutes,
+        avgMpv: st.events ? +(st.mpvSum / st.events).toFixed(1) : 0
+      }))
+      .sort((a,b) => b.viewers - a.viewers);
+    return buildFormattedSheet({
+      title:    'CONFERENCE USA — ESPN DTC VIEWERSHIP DASHBOARD',
+      subtitle: SUBTITLE,
+      summary: {
+        labels:  ['TOTAL EVENTS', 'TOTAL UNIQUE VIEWERS', 'TOTAL VIEW MINUTES', 'AVG MIN/VIEWER'],
+        values:  [total, totalViewers, totalMinutes, avgMpv],
+        formats: ['#,##0', '#,##0', '#,##0', '0.0']
+      },
+      columns: [
+        { key: 'sport',      label: 'SPORT',             width: 26 },
+        { key: 'events',     label: 'EVENTS',            format: 'integer',  width: 12 },
+        { key: 'viewers',    label: 'UNIQUE VIEWERS',    format: 'integer',  width: 18 },
+        { key: 'pct',        label: '% OF TOTAL',        format: 'percent',  width: 12 },
+        { key: 'avgViewers', label: 'AVG VIEWERS/EVENT', format: 'integer',  width: 18 },
+        { key: 'minutes',    label: 'TOTAL MINUTES',     format: 'integer',  width: 16 },
+        { key: 'avgMpv',     label: 'AVG MIN/VIEWER',    format: 'decimal1', width: 16 }
+      ],
+      rows
+    });
   }
 
   function parseDateForSort(v) {

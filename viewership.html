@@ -486,50 +486,119 @@
     filterSchoolEvents(school);
   }
 
-  /* ── Styled Excel export ── */
-  const EX_HEADER_STYLE = {
-    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11, name: 'Segoe UI' },
-    fill: { patternType: 'solid', fgColor: { rgb: '00263A' } },
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: {
-      top: { style: 'thin', color: { rgb: '00263A' } },
-      bottom: { style: 'thin', color: { rgb: '00263A' } },
-      left: { style: 'thin', color: { rgb: '00263A' } },
-      right: { style: 'thin', color: { rgb: '00263A' } }
-    }
-  };
-  function exCellStyle(rowIndex, isNumber) {
+  /* ── Styled Excel export — mirrors Viewership Tracker Example ── */
+  const EX_NAVY = '062538';
+  const EX_LIGHT = 'E8EFF4';
+  const EX_FONT = 'Arial Narrow';
+  function exBorder() {
     return {
-      font: { sz: 11, name: 'Segoe UI', color: { rgb: rowIndex === 0 ? 'EF4035' : '222222' } },
-      fill: { patternType: 'solid', fgColor: { rgb: rowIndex % 2 === 0 ? 'FFFFFF' : 'F4F7FA' } },
-      alignment: { horizontal: isNumber ? 'right' : 'left', vertical: 'center' },
-      border: { bottom: { style: 'thin', color: { rgb: 'EEEEEE' } } }
+      top:    { style: 'thin', color: { rgb: EX_NAVY } },
+      bottom: { style: 'thin', color: { rgb: EX_NAVY } },
+      left:   { style: 'thin', color: { rgb: EX_NAVY } },
+      right:  { style: 'thin', color: { rgb: EX_NAVY } }
     };
   }
-  function buildStyledSheet(rows, columns) {
-    const aoa = [
-      columns.map(c => c.label),
-      ...rows.map(row => columns.map(c => row[c.key]))
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    for (let C = 0; C < columns.length; C++) {
-      const a = XLSX.utils.encode_cell({ r: 0, c: C });
-      if (ws[a]) ws[a].s = EX_HEADER_STYLE;
+  const EX_STYLE = {
+    title:    { font: { name: EX_FONT, sz: 14, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: EX_NAVY } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    subtitle: { font: { name: EX_FONT, sz: 10, italic: true, color: { rgb: '666666' } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    section:  { font: { name: EX_FONT, sz: 11, bold: true, color: { rgb: EX_NAVY } }, fill: { patternType: 'solid', fgColor: { rgb: EX_LIGHT } }, alignment: { horizontal: 'left',   vertical: 'center' } },
+    statHead: { font: { name: EX_FONT, sz: 11, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: EX_NAVY  } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    statVal:  { font: { name: EX_FONT, sz: 14, bold: true, color: { rgb: EX_NAVY } }, fill: { patternType: 'solid', fgColor: { rgb: EX_LIGHT } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    colHead:  { font: { name: EX_FONT, sz: 11, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: EX_NAVY  } }, alignment: { horizontal: 'center', vertical: 'center' } },
+    cellTxt:  { font: { name: EX_FONT, sz: 11 }, alignment: { horizontal: 'left',   vertical: 'center' } },
+    cellNum:  { font: { name: EX_FONT, sz: 11 }, alignment: { horizontal: 'right',  vertical: 'center' } },
+    cellDate: { font: { name: EX_FONT, sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' } }
+  };
+
+  function toExcelDate(v) {
+    if (!v) return null;
+    let d;
+    if (v instanceof Date) d = v;
+    else if (typeof v === 'number') return v;
+    else if (typeof v === 'string') {
+      if (v.includes('/')) {
+        const [m, day, y] = v.split('/');
+        d = new Date(+y, +m - 1, +day);
+      } else d = new Date(v);
     }
-    for (let R = 0; R < rows.length; R++) {
-      for (let C = 0; C < columns.length; C++) {
-        const a = XLSX.utils.encode_cell({ r: R + 1, c: C });
-        const cell = ws[a];
-        if (!cell) continue;
-        const fmt = columns[C].format;
-        const isNum = fmt === 'integer' || fmt === 'decimal1';
-        if (fmt === 'integer') { cell.t = 'n'; cell.z = '#,##0'; }
-        else if (fmt === 'decimal1') { cell.t = 'n'; cell.z = '#,##0.0'; }
-        cell.s = exCellStyle(R, isNum);
+    if (!d || isNaN(d.getTime())) return null;
+    const tzMin = d.getTimezoneOffset();
+    return (d.getTime() - tzMin * 60000) / 86400000 + 25569;
+  }
+
+  function buildFormattedSheet(cfg) {
+    const dataCols = cfg.columns.length;
+    const summaryCols = cfg.summary ? cfg.summary.labels.length : 0;
+    const numCols = Math.max(dataCols, summaryCols);
+    const blank = (n) => Array(n).fill('');
+    const aoa = [];
+    aoa.push([cfg.title, ...blank(numCols - 1)]);
+    aoa.push([cfg.subtitle || '', ...blank(numCols - 1)]);
+    aoa.push(blank(numCols));
+    if (cfg.summary) {
+      aoa.push(['SUMMARY STATISTICS', ...blank(numCols - 1)]);
+      aoa.push([...cfg.summary.labels, ...blank(numCols - summaryCols)]);
+      aoa.push([...cfg.summary.values, ...blank(numCols - summaryCols)]);
+      aoa.push(blank(numCols));
+    }
+    const headerR = aoa.length;
+    aoa.push([...cfg.columns.map(c => c.label), ...blank(numCols - dataCols)]);
+    cfg.rows.forEach(row => {
+      aoa.push([
+        ...cfg.columns.map(c => {
+          const val = row[c.key];
+          if (c.format === 'date' && val) return toExcelDate(val) ?? val;
+          return val == null ? '' : val;
+        }),
+        ...blank(numCols - dataCols)
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const setStyle = (r, c, style, extras = {}) => {
+      const a = XLSX.utils.encode_cell({ r, c });
+      if (!ws[a]) ws[a] = { v: '' };
+      ws[a].s = { ...style, border: exBorder() };
+      Object.assign(ws[a], extras);
+    };
+    for (let c = 0; c < numCols; c++) setStyle(0, c, EX_STYLE.title);
+    for (let c = 0; c < numCols; c++) setStyle(1, c, EX_STYLE.subtitle);
+    if (cfg.summary) {
+      for (let c = 0; c < numCols; c++) setStyle(3, c, EX_STYLE.section);
+      for (let c = 0; c < summaryCols; c++) setStyle(4, c, EX_STYLE.statHead);
+      for (let c = 0; c < summaryCols; c++) {
+        const fmt = cfg.summary.formats?.[c];
+        const extras = fmt ? { t: 'n', z: fmt } : {};
+        setStyle(5, c, EX_STYLE.statVal, extras);
       }
     }
-    ws['!cols'] = columns.map(c => ({ wch: c.width || 15 }));
-    ws['!rows'] = [{ hpt: 22 }, ...rows.map(() => ({ hpt: 18 }))];
+    for (let c = 0; c < dataCols; c++) setStyle(headerR, c, EX_STYLE.colHead);
+    cfg.rows.forEach((_, i) => {
+      const rowR = headerR + 1 + i;
+      cfg.columns.forEach((col, c) => {
+        const fmt = col.format;
+        let style = EX_STYLE.cellTxt;
+        const extras = {};
+        if (fmt === 'integer')  { style = EX_STYLE.cellNum;  extras.t = 'n'; extras.z = '#,##0'; }
+        else if (fmt === 'decimal1') { style = EX_STYLE.cellNum; extras.t = 'n'; extras.z = '0.0'; }
+        else if (fmt === 'percent')  { style = EX_STYLE.cellNum; extras.t = 'n'; extras.z = '0.0%'; }
+        else if (fmt === 'date')     { style = EX_STYLE.cellDate; extras.t = 'n'; extras.z = 'mm-dd-yy'; }
+        setStyle(rowR, c, style, extras);
+      });
+    });
+    const merges = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } }
+    ];
+    if (cfg.summary) merges.push({ s: { r: 3, c: 0 }, e: { r: 3, c: numCols - 1 } });
+    ws['!merges'] = merges;
+    const cols = cfg.columns.map(c => ({ wch: c.width || 15 }));
+    while (cols.length < numCols) cols.push({ wch: 15 });
+    ws['!cols'] = cols;
+    const rows = [{ hpt: 30 }, { hpt: 16 }, { hpt: 8 }];
+    if (cfg.summary) rows.push({ hpt: 20 }, { hpt: 26 }, { hpt: 28 }, { hpt: 10 });
+    rows.push({ hpt: 24 });
+    cfg.rows.forEach(() => rows.push({ hpt: 16 }));
+    ws['!rows'] = rows;
     return ws;
   }
 
@@ -540,27 +609,36 @@
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (!schoolData.length) { alert('No data to export'); return; }
 
-    const cols = [
-      { key: 'rank', label: '#', format: 'integer', width: 5 },
-      { key: 'sport', label: 'Sport', width: 22 },
-      { key: 'matchup', label: 'Matchup', width: 38 },
-      { key: 'date', label: 'Date', width: 12 },
-      { key: 'viewers', label: 'Unique Viewers', format: 'integer', width: 16 },
-      { key: 'minutes', label: 'Total Minutes', format: 'integer', width: 16 },
-      { key: 'mpv', label: 'Min/Viewer', format: 'decimal1', width: 12 },
-      { key: 'period', label: 'Report Period', width: 16 }
-    ];
-    const rows = schoolData.map((g, i) => ({
-      rank: i+1,
-      sport: g.SPORT || '-',
-      matchup: g.AIRING_TITLE || '-',
-      date: formatDate(g.DATE),
-      viewers: g.UNIQUE_VIEWERS || 0,
-      minutes: g.TOTAL_MINUTES || 0,
-      mpv: +(g.MIN_PER_VIEWER || 0).toFixed(1),
-      period: g.REPORT_PERIOD || '-'
-    }));
-    const ws = buildStyledSheet(rows, cols);
+    const total = schoolData.length;
+    const totalViewers = schoolData.reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
+    const avgViewers = total ? Math.round(totalViewers / total) : 0;
+    const avgMpv = total ? +(schoolData.reduce((s,r) => s + (r.MIN_PER_VIEWER||0), 0) / total).toFixed(1) : 0;
+
+    const ws = buildFormattedSheet({
+      title:    `🎓  ${school.toUpperCase()}`,
+      subtitle: 'ESPN+ DTC Viewership Data  |  CUSA',
+      summary: {
+        labels:  ['TOTAL EVENTS', 'TOTAL VIEWERS', 'AVG VIEWERS/EVENT', 'AVG MIN/VIEWER'],
+        values:  [total, totalViewers, avgViewers, avgMpv],
+        formats: ['#,##0', '#,##0', '#,##0', '0.0']
+      },
+      columns: [
+        { key: 'sport',   label: 'SPORT',   width: 22 },
+        { key: 'matchup', label: 'MATCHUP', width: 38 },
+        { key: 'date',    label: 'DATE',    format: 'date',     width: 14 },
+        { key: 'viewers', label: 'UNIQUE VIEWERS', format: 'integer',  width: 18 },
+        { key: 'minutes', label: 'TOTAL MINUTES',  format: 'integer',  width: 16 },
+        { key: 'mpv',     label: 'MIN/VIEWER',     format: 'decimal1', width: 14 }
+      ],
+      rows: schoolData.map(g => ({
+        sport:   g.SPORT || '-',
+        matchup: g.AIRING_TITLE || '-',
+        date:    g.DATE,
+        viewers: g.UNIQUE_VIEWERS || 0,
+        minutes: g.TOTAL_MINUTES || 0,
+        mpv:     +(g.MIN_PER_VIEWER || 0).toFixed(1)
+      }))
+    });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, school.substring(0,30));
     XLSX.writeFile(wb, `CUSA_${school.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);

@@ -30,6 +30,8 @@ create table if not exists schools (
   mv_sources int default 0, mv_software text,
   -- School login
   pw_hash text,
+  -- Admin manual "recently updated" flag (independent of auto updated_at)
+  manually_marked_at timestamptz,
   -- Audit
   updated_at timestamptz default now(),
   updated_by text

@@ -122,6 +122,26 @@
     line-height: 1;
     text-shadow: 0 0 4px rgba(167,213,0,0.6);
   }
+  .mark-toggle {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 8px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.08);
+    color: var(--white);
+    transition: all 0.15s;
+  }
+  .mark-toggle:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.55); }
+  .mark-toggle.on { background: var(--green); color: var(--navy); border-color: var(--green); }
+  .mark-toggle.on:hover { background: #b8e510; }
+  .mark-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
   td { padding: 6px 10px; border-bottom: 1px solid #eee; }
   tr:nth-child(even) td { background: #fafafa; }
   td.label { font-weight: 600; color: var(--navy); }
@@ -447,6 +467,7 @@ function toDbRow(s) {
     tx_digital: s.txDigital, tx_approved: s.txApproved, backup_power: s.backupPower,
     mv_sources: s.mvSources, mv_software: s.mvSoftware,
     pw_hash: s.pw_hash || null,
+    manually_marked_at: s.manually_marked_at || null,
     updated_by: s.updatedBy || null
   };
 }
@@ -467,7 +488,8 @@ function fromDbRow(r) {
     txDigital: r.tx_digital || 'Haivision IP Encoder', txApproved: r.tx_approved !== false,
     backupPower: r.backup_power || false, mvSources: r.mv_sources || 0, mvSoftware: r.mv_software || '',
     pw_hash: r.pw_hash || '',
-    updated_at: r.updated_at || null
+    updated_at: r.updated_at || null,
+    manually_marked_at: r.manually_marked_at || null
   };
 }
 
@@ -508,19 +530,34 @@ let state = {
   highlightUpdated: localStorage.getItem(HIGHLIGHT_UPDATED_KEY) === 'true'
 };
 
-function isRecentlyUpdated(school) {
-  if (!school || !school.updated_at) return false;
-  const t = new Date(school.updated_at).getTime();
+function withinRecentWindow(iso) {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
   if (isNaN(t)) return false;
   const ageDays = (Date.now() - t) / 86400000;
   return ageDays >= 0 && ageDays <= RECENT_UPDATE_DAYS;
 }
+function isManuallyMarked(school) {
+  return withinRecentWindow(school?.manually_marked_at);
+}
+function isAutoUpdated(school) {
+  return withinRecentWindow(school?.updated_at);
+}
+function isRecentlyUpdated(school) {
+  return isAutoUpdated(school) || isManuallyMarked(school);
+}
 
 function formatUpdatedDate(school) {
-  if (!school?.updated_at) return 'Never updated';
-  const d = new Date(school.updated_at);
-  if (isNaN(d.getTime())) return 'Never updated';
-  return 'Last updated: ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  const lines = [];
+  if (school?.updated_at) {
+    const d = new Date(school.updated_at);
+    if (!isNaN(d.getTime())) lines.push('Last edit: ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }));
+  }
+  if (school?.manually_marked_at) {
+    const d = new Date(school.manually_marked_at);
+    if (!isNaN(d.getTime())) lines.push('Admin marked: ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }));
+  }
+  return lines.length ? lines.join('  •  ') : 'Never updated';
 }
 
 function loadSchools() {
@@ -927,6 +964,18 @@ function wireCompliance() {
     localStorage.setItem(HIGHLIGHT_UPDATED_KEY, state.highlightUpdated);
     render();
   });
+  document.querySelectorAll('.mark-toggle').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = +btn.dataset.schoolIdx;
+      const school = state.schools[idx];
+      if (!school) return;
+      school.manually_marked_at = isManuallyMarked(school) ? null : new Date().toISOString();
+      btn.disabled = true;
+      await saveSchool(school);
+      render();
+    });
+  });
 }
 
 function exportCompliance() {
@@ -1135,11 +1184,16 @@ function renderCompliance() {
   rows += `<tr>${totalCells}</tr>`;
 
   let headers = `<th>ESPN Minimum</th>`;
-  schools.forEach(s => {
+  schools.forEach((s, idx) => {
     const recent = isRecentlyUpdated(s);
     const cls = 'school-col' + (state.highlightUpdated && recent ? ' recently-updated' : '');
     const tip = formatUpdatedDate(s) + (recent ? ' (within ' + RECENT_UPDATE_DAYS + ' days)' : '');
-    headers += `<th class="${cls}" title="${escapeHtml(tip)}">${escapeHtml(s.name)}</th>`;
+    const marked = isManuallyMarked(s);
+    const showToggle = state.isAdmin && !state.espnAccess;
+    const toggle = showToggle
+      ? `<button class="mark-toggle ${marked ? 'on' : ''}" data-school-idx="${idx}" title="${marked ? 'Clear admin mark' : 'Mark as recently updated'}">${marked ? '✓ Marked' : '○ Mark'}</button>`
+      : '';
+    headers += `<th class="${cls}" title="${escapeHtml(tip)}"><div>${escapeHtml(s.name)}</div>${toggle}</th>`;
   });
 
   let lensItems = schools.map(s => `

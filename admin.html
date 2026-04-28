@@ -235,6 +235,24 @@
   .recon-list li:last-child { border-bottom: none; }
   .recon-ok-msg { color: #4a6600; font-weight: 600; font-size: 12px; }
 
+  /* Production Tracker placeholder rows (events without viewership data yet) */
+  .placeholder-row td { color: #6b7280; font-style: italic; background: rgba(0,181,226,0.05) !important; }
+  .ph-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: rgba(0,181,226,0.15);
+    color: var(--blue);
+    border: 1px solid rgba(0,181,226,0.4);
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-style: normal;
+    vertical-align: middle;
+  }
+
   /* ── School search section ── */
   .section-title { font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
 
@@ -470,7 +488,7 @@
         if (data.length < PAGE) break;
         from += PAGE;
       }
-      rawData = all;
+      rawData = mergeProducedPlaceholders(all);
       return true;
     } catch(e) {
       console.error('Supabase load error:', e);
@@ -478,10 +496,50 @@
     }
   }
 
+  /* Merge produced_events rows as placeholders for any event we don't already
+     have viewership data for. Placeholders show up in sport tabs / school
+     search so admins can see the full schedule from the Production Tracker. */
+  function mergeProducedPlaceholders(viewership) {
+    if (!_producedEvents.length) return viewership;
+    const cusaSet = new Set(CUSA_SCHOOLS);
+    const haveKey = new Set();
+    viewership.forEach(v => {
+      const d = formatDateForFilter(v.DATE);
+      if (!d) return;
+      if (v.HOME_TEAM && cusaSet.has(v.HOME_TEAM)) haveKey.add(`${d}|${v.HOME_TEAM}`);
+      if (v.AWAY_TEAM && cusaSet.has(v.AWAY_TEAM)) haveKey.add(`${d}|${v.AWAY_TEAM}`);
+    });
+    const placeholders = [];
+    _producedEvents.forEach(p => {
+      const sportName = PROD_TO_VIEW_SPORT[p.sport];
+      if (!sportName) return;
+      if (!p.event_date) return;
+      if (haveKey.has(`${p.event_date}|${p.school}`)) return;
+      const home = p.home_team || p.school || '';
+      const away = p.away_team || '';
+      const title = (away && home) ? `${away} vs. ${home}` : (home || away || `${p.school} (produced)`);
+      placeholders.push({
+        SPORT: sportName,
+        AIRING_TITLE: title,
+        DATE: p.event_date,
+        AWAY_TEAM: away,
+        HOME_TEAM: home,
+        UNIQUE_VIEWERS: 0,
+        TOTAL_MINUTES: 0,
+        MIN_PER_VIEWER: 0,
+        REPORT_PERIOD: '',
+        _placeholder: true
+      });
+    });
+    return viewership.concat(placeholders);
+  }
+
   async function saveToSupabase() {
-    if (!_db || !rawData.length) return false;
+    if (!_db) return false;
+    const real = rawData.filter(r => !r._placeholder);
+    if (!real.length) return false;
     try {
-      const rows = rawData.map(rowToDb);
+      const rows = real.map(rowToDb);
       for (let i = 0; i < rows.length; i += 500) {
         const { error } = await _db.from('viewership_events')
           .upsert(rows.slice(i, i + 500), { onConflict: 'sport,airing_title,event_date' });
@@ -593,6 +651,8 @@
           if (ins.error) throw ins.error;
         }
         await loadProducedEvents();
+        // Refresh placeholders so the newly-imported produced events appear
+        rawData = mergeProducedPlaceholders(rawData.filter(r => !r._placeholder));
         renderAllTabs();
         updateStatus(`☁️ Imported ${events.length} produced events from Production Tracker`, 'saved-cloud');
         event.target.value = '';
@@ -745,11 +805,13 @@
 
   async function initAdminPortal() {
     initSupabase();
-    loadProducedEvents();
+    await loadProducedEvents();
     updateProducedToggleUI();
     const dbLoaded = await loadFromSupabase();
     if (dbLoaded) {
-      updateStatus(`Loaded ${rawData.length} events from database`);
+      const real = rawData.filter(r => !r._placeholder).length;
+      const ph = rawData.length - real;
+      updateStatus(ph ? `Loaded ${real} events with viewership + ${ph} scheduled from Production Tracker` : `Loaded ${real} events from database`);
       const lastMod = await loadLastModified();
       updateMetaBar({ modified: lastMod, period: getCurrentPeriod() });
     } else {
@@ -810,8 +872,9 @@
         });
 
         if (appendMode) {
-          const result = mergeData(rawData, newData);
-          rawData = result.data;
+          const existingReal = rawData.filter(r => !r._placeholder);
+          const result = mergeData(existingReal, newData);
+          rawData = mergeProducedPlaceholders(result.data);
           saveToStorage();
           updateStatus('Syncing to database…');
           const ok = await saveToSupabase();
@@ -823,13 +886,14 @@
             ok ? 'saved-cloud' : 'saved-local'
           );
         } else {
-          rawData = newData;
+          rawData = mergeProducedPlaceholders(newData);
           saveToStorage();
           updateStatus('Syncing to database…');
           const ok = await saveToSupabase();
           renderAllTabs();
+          const realCount = rawData.filter(r => !r._placeholder).length;
           updateStatus(
-            ok ? `☁️ Loaded ${rawData.length} events — synced to database` : `💻 Loaded ${rawData.length} events — saved locally`,
+            ok ? `☁️ Loaded ${realCount} events — synced to database` : `💻 Loaded ${realCount} events — saved locally`,
             ok ? 'saved-cloud' : 'saved-local'
           );
         }
@@ -853,7 +917,8 @@
 
   function saveToStorage() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(rawData));
+      const real = rawData.filter(r => !r._placeholder);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(real));
       const meta = { modified: new Date().toISOString(), period: getCurrentPeriod() };
       localStorage.setItem(META_KEY, JSON.stringify(meta));
       updateMetaBar(meta);
@@ -935,17 +1000,19 @@
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        rawData = JSON.parse(stored);
+        rawData = mergeProducedPlaceholders(JSON.parse(stored));
         updateStatus(`Loaded ${rawData.length} events from storage`);
         const meta = JSON.parse(localStorage.getItem(META_KEY) || 'null');
         updateMetaBar(meta || { modified: null, period: getCurrentPeriod() });
+      } else {
+        rawData = mergeProducedPlaceholders([]);
       }
     } catch(e) {}
   }
 
   function clearAllData() {
     if (!confirm('Clear all data? This cannot be undone.')) return;
-    rawData = [];
+    rawData = mergeProducedPlaceholders([]);
     localStorage.removeItem(STORAGE_KEY);
     clearSupabase();
     renderAllTabs();
@@ -1118,10 +1185,11 @@
 
   function renderDashboard() {
     const data = activeData();
-    const total = data.length;
-    const totalV = data.reduce((s,r) => s+(r.UNIQUE_VIEWERS||0), 0);
+    const real = data.filter(r => !r._placeholder);
+    const total = real.length;
+    const totalV = real.reduce((s,r) => s+(r.UNIQUE_VIEWERS||0), 0);
     const avgV = total ? Math.round(totalV/total) : 0;
-    const avgMin = total ? (data.reduce((s,r) => s+(r.MIN_PER_VIEWER||0),0)/total).toFixed(1) : 0;
+    const avgMin = total ? (real.reduce((s,r) => s+(r.MIN_PER_VIEWER||0),0)/total).toFixed(1) : 0;
 
     document.getElementById('dashboardStats').innerHTML = `
       <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value">${total.toLocaleString()}</div></div>
@@ -1186,9 +1254,10 @@
         container.innerHTML = `<div class="empty-state"><h3>No games found</h3><p>Import data to see ${sportName} games</p></div>`;
         return;
       }
-      const totalV = games.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
-      const avgV = Math.round(totalV/games.length);
-      const avgMin = (games.reduce((s,g) => s+(g.MIN_PER_VIEWER||0),0)/games.length).toFixed(1);
+      const realGames = games.filter(g => !g._placeholder);
+      const totalV = realGames.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
+      const avgV = realGames.length ? Math.round(totalV/realGames.length) : 0;
+      const avgMin = realGames.length ? (realGames.reduce((s,g) => s+(g.MIN_PER_VIEWER||0),0)/realGames.length).toFixed(1) : '0.0';
 
       container.innerHTML = `
         <div class="stats-grid">
@@ -1244,15 +1313,23 @@
       countEl.textContent = `Showing 0 of ${all.length} games`;
       return;
     }
-    tbody.innerHTML = games.map((g,i) => `<tr>
-      <td class="rank">${i+1}</td>
-      <td>${g.AIRING_TITLE||'-'}</td>
-      <td>${formatDate(g.DATE)}</td>
-      <td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
-      <td class="number">${(g.TOTAL_MINUTES||0).toLocaleString()}</td>
-      <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td>
-    </tr>`).join('');
-    countEl.textContent = games.length === all.length ? `${games.length} games` : `Showing ${games.length} of ${all.length} games`;
+    tbody.innerHTML = games.map((g,i) => {
+      const ph = g._placeholder;
+      const dash = '<span style="color:#bbb">—</span>';
+      return `<tr class="${ph ? 'placeholder-row' : ''}">
+        <td class="rank">${i+1}</td>
+        <td>${g.AIRING_TITLE||'-'}${ph ? ' <span class="ph-badge" title="From Production Tracker — no viewership data yet">📋 scheduled</span>' : ''}</td>
+        <td>${formatDate(g.DATE)}</td>
+        <td class="number">${ph ? dash : (g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
+        <td class="number">${ph ? dash : (g.TOTAL_MINUTES||0).toLocaleString()}</td>
+        <td class="number">${ph ? dash : (g.MIN_PER_VIEWER||0).toFixed(1)}</td>
+      </tr>`;
+    }).join('');
+    const real = games.filter(g => !g._placeholder).length;
+    const phCount = games.length - real;
+    countEl.textContent = phCount
+      ? `${games.length} games (${real} with viewership, ${phCount} scheduled from Production Tracker)`
+      : (games.length === all.length ? `${games.length} games` : `Showing ${games.length} of ${all.length} games`);
   }
 
   function renderChampionships() {

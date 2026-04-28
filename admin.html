@@ -371,6 +371,7 @@
     <input type="file" id="prodInput" accept=".xlsx,.xls">
   </div>
   <button class="btn" id="msFetchBtn" title="Fetch and parse the Master Schedule from Google Sheets" style="background:#6366f1;color:#fff">🌐 Cross-check Master Schedule</button>
+  <button class="btn" id="dbDiagBtn" title="Test the Supabase connection and show table status" style="background:#94a3b8;color:#fff">🔍 Diagnose DB</button>
   <button class="btn btn-export" id="exportBtn">📤 Export Current Tab</button>
   <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
   <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
@@ -1285,6 +1286,7 @@
     document.getElementById('appendInput').addEventListener('change', e => handleFileImport(e, true));
     document.getElementById('prodInput').addEventListener('change', handleProductionTrackerImport);
     document.getElementById('msFetchBtn').addEventListener('click', loadMasterSchedule);
+    document.getElementById('dbDiagBtn').addEventListener('click', diagnoseDatabase);
 
     // Delegated click handler for Edit / Confirm / Remove buttons (rendered into tab content)
     document.querySelector('.content').addEventListener('click', async (e) => {
@@ -1425,6 +1427,36 @@
       localStorage.setItem(META_KEY, JSON.stringify(meta));
       updateMetaBar(meta);
     } catch(e) {}
+  }
+
+  async function diagnoseDatabase() {
+    const lines = [];
+    const url = (window.SUPABASE_URL || '').replace(/^https?:\/\//, '');
+    lines.push(`Project: ${url || '(not set)'}`);
+    lines.push(`Anon key: ${window.SUPABASE_ANON_KEY ? '✓ set (' + window.SUPABASE_ANON_KEY.length + ' chars)' : '✗ missing'}`);
+    if (!_db) {
+      lines.push('_db client: ✗ not initialised');
+      alert(lines.join('\n'));
+      return;
+    }
+    lines.push('_db client: ✓ initialised');
+
+    // Probe each table independently
+    const tables = ['viewership_events', 'produced_events', 'schools', 'app_settings'];
+    for (const t of tables) {
+      try {
+        const { data, error, count } = await _db.from(t).select('*', { count: 'exact', head: true });
+        if (error) {
+          lines.push(`${t}: ✗ ${error.code || ''} — ${error.message}`);
+        } else {
+          lines.push(`${t}: ✓ exists (${count ?? '?'} rows visible)`);
+        }
+      } catch (err) {
+        lines.push(`${t}: ✗ ${err.message || err}`);
+      }
+    }
+    console.log('DB diagnostics:\n' + lines.join('\n'));
+    alert(lines.join('\n'));
   }
 
   /* Push the in-memory _producedEvents back to Supabase as the source of truth.

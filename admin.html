@@ -235,6 +235,56 @@
   .recon-list li:last-child { border-bottom: none; }
   .recon-ok-msg { color: #4a6600; font-weight: 600; font-size: 12px; }
 
+  /* Per-row edit / confirm buttons */
+  .row-edit-btn {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border: 1px solid var(--blue);
+    background: #fff;
+    color: var(--blue);
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .row-edit-btn:hover { background: var(--blue); color: #fff; }
+  .row-edit-btn.add { background: var(--green); border-color: var(--green); color: var(--navy); }
+  .row-edit-btn.add:hover { background: #b8e510; }
+
+  /* Edit/Add Event modal */
+  .ee-overlay { display: none; position: fixed; inset: 0; background: rgba(0,38,58,0.7); z-index: 250; align-items: center; justify-content: center; padding: 20px; }
+  .ee-overlay.open { display: flex; }
+  .ee-modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 580px;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .ee-modal h2 { font-size: 18px; color: var(--navy); margin: 0 0 14px; }
+  .ee-modal .ee-row { display: grid; grid-template-columns: 1fr; gap: 10px 12px; margin-bottom: 10px; }
+  .ee-modal .ee-row.two { grid-template-columns: 1fr 1fr; }
+  .ee-modal .ee-row.three { grid-template-columns: 1fr 1fr 1fr; }
+  .ee-modal label { display: block; font-size: 10px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .ee-modal input, .ee-modal select { width: 100%; padding: 7px 10px; border: 1px solid var(--gray); border-radius: 5px; font-family: inherit; font-size: 13px; box-sizing: border-box; }
+  .ee-modal input:focus, .ee-modal select:focus { outline: none; border-color: var(--blue); }
+  .ee-modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .ee-modal .actions button { padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 13px; font-family: inherit; }
+  .ee-cancel { background: #eee; color: #555; }
+  .ee-save { background: var(--green); color: var(--navy); }
+  .ee-err { color: var(--espn-red); font-size: 12px; margin-top: 6px; display: none; }
+
+  /* Master schedule indicator */
+  .ms-tag { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; vertical-align: middle; }
+  .ms-tag.found { background: rgba(167,213,0,0.25); color: #4a6600; border: 1px solid var(--green); }
+  .ms-tag.not-found { background: rgba(239,64,53,0.15); color: #991b1b; border: 1px solid #fca5a5; }
+
   /* Production Tracker placeholder rows (events without viewership data yet) */
   .placeholder-row td { color: #6b7280; font-style: italic; background: rgba(0,181,226,0.05) !important; }
   .ph-badge {
@@ -318,10 +368,56 @@
     <label for="prodInput" class="btn btn-append" title="Upload CUSA_ESPN_Production_Tracker.xlsx">📋 Import Production Tracker</label>
     <input type="file" id="prodInput" accept=".xlsx,.xls">
   </div>
+  <button class="btn" id="msFetchBtn" title="Fetch and parse the Master Schedule from Google Sheets" style="background:#6366f1;color:#fff">🌐 Cross-check Master Schedule</button>
   <button class="btn btn-export" id="exportBtn">📤 Export Current Tab</button>
   <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
   <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
   <div class="status" id="status">No data loaded</div>
+</div>
+
+<!-- Edit / Add Event modal -->
+<div class="ee-overlay" id="eeOverlay">
+  <div class="ee-modal">
+    <h2 id="eeTitle">Edit Event</h2>
+    <div class="ee-row">
+      <div>
+        <label>Sport</label>
+        <select id="ee-sport">
+          <option value="NCAA Football">NCAA Football</option>
+          <option value="NCAA Women's Volleyball">NCAA Women's Volleyball</option>
+          <option value="NCAA Women's Soccer">NCAA Women's Soccer</option>
+          <option value="NCAA Baseball">NCAA Baseball</option>
+          <option value="NCAA Softball">NCAA Softball</option>
+          <option value="NCAA Men's Basketball">NCAA Men's Basketball</option>
+          <option value="NCAA Women's Basketball">NCAA Women's Basketball</option>
+        </select>
+      </div>
+    </div>
+    <div class="ee-row">
+      <div>
+        <label>Matchup (Airing Title)</label>
+        <input type="text" id="ee-airing" placeholder="Away vs. Home">
+      </div>
+    </div>
+    <div class="ee-row two">
+      <div><label>Date</label><input type="date" id="ee-date"></div>
+      <div><label>Report Period</label><input type="text" id="ee-period" placeholder="e.g. Aug-Oct 2025"></div>
+    </div>
+    <div class="ee-row two">
+      <div><label>Away Team</label><input type="text" id="ee-away"></div>
+      <div><label>Home Team</label><input type="text" id="ee-home"></div>
+    </div>
+    <div class="ee-row three">
+      <div><label>Unique Viewers</label><input type="number" id="ee-viewers" min="0" step="1"></div>
+      <div><label>Total Minutes</label><input type="number" id="ee-minutes" min="0" step="1"></div>
+      <div><label>Min/Viewer</label><input type="number" id="ee-mpv" min="0" step="0.1"></div>
+    </div>
+    <div class="ee-err" id="ee-err"></div>
+    <div class="actions">
+      <button class="ee-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="ee-save" onclick="saveEditModal()">Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- Meta bar -->
@@ -402,6 +498,28 @@
     'MTSU': 'Middle Tennessee',
     'WKU': 'Western Kentucky'
   };
+
+  /* Master Schedule (Google Sheets, scraped from school sites) */
+  const MASTER_SCHEDULE_URL = 'https://docs.google.com/spreadsheets/d/1FyknP3xzkfHNAfzXo7gsqgQ5D84K7iUNl5sq-ecYs04/export?format=csv&gid=1847745486';
+  let _masterSchedule = []; // [{ date, school, opponent, sport, homeAway }]
+  let _masterScheduleLoaded = false;
+  const MS_SCHOOL_MAP = {
+    'FIU': 'Florida International', 'Florida International University': 'Florida International',
+    'MTSU': 'Middle Tennessee', 'Middle Tennessee State University': 'Middle Tennessee', 'Middle Tennessee State': 'Middle Tennessee',
+    'WKU': 'Western Kentucky', 'Western Kentucky University': 'Western Kentucky',
+    'Sam Houston State University': 'Sam Houston', 'Sam Houston State': 'Sam Houston',
+    'Liberty University': 'Liberty',
+    'New Mexico State University': 'New Mexico State',
+    'Jacksonville State University': 'Jacksonville State',
+    'Kennesaw State University': 'Kennesaw State',
+    'Missouri State University': 'Missouri State',
+    'University of Delaware': 'Delaware'
+  };
+  function normalizeMsSchool(s) { s = (s || '').trim(); return MS_SCHOOL_MAP[s] || s; }
+
+  /* Edit/Add Event modal state */
+  let _editingEventRef = null; // existing rawData row reference
+  let _editingProdEvent = null;
 
   async function hashPw(pw) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
@@ -667,26 +785,59 @@
   }
 
   /* ── Sport-by-sport reconciliation ── */
+  function normalizeName(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
   function renderReconciliation(viewSportName) {
     if (!_producedEvents.length) return '';
     const prodSportKeys = Object.entries(PROD_TO_VIEW_SPORT)
       .filter(([_, v]) => v === viewSportName).map(([k]) => k);
     if (!prodSportKeys.length) return '';
     const today = new Date().toISOString().split('T')[0];
-    const prodEvents = _producedEvents.filter(e => prodSportKeys.includes(e.sport) && e.event_date && e.event_date <= today);
+    const prodEvents = _producedEvents
+      .filter(e => prodSportKeys.includes(e.sport) && e.event_date && e.event_date <= today)
+      .sort((a,b) => (a.event_date || '').localeCompare(b.event_date || ''));
     if (!prodEvents.length) return '';
 
     const cusaSet = new Set(CUSA_SCHOOLS);
     // Only count REAL viewership rows — placeholders don't have viewership data
     const viewEvents = rawData.filter(r => r.SPORT === viewSportName && !r._placeholder);
-    const viewKeys = new Set();
-    viewEvents.forEach(v => {
-      const d = formatDateForFilter(v.DATE);
-      if (!d) return;
-      if (v.HOME_TEAM && cusaSet.has(v.HOME_TEAM)) viewKeys.add(`${d}|${v.HOME_TEAM}`);
-      if (v.AWAY_TEAM && cusaSet.has(v.AWAY_TEAM)) viewKeys.add(`${d}|${v.AWAY_TEAM}`);
+
+    // Doubleheader-aware matching: each viewership row can only "satisfy"
+    // ONE produced event. We try to match by opponent name first, then fall
+    // back to first available candidate.
+    const claimed = new Set();
+    const missing = [];
+
+    prodEvents.forEach(p => {
+      const candidates = [];
+      viewEvents.forEach((v, idx) => {
+        if (claimed.has(idx)) return;
+        const d = formatDateForFilter(v.DATE);
+        if (d !== p.event_date) return;
+        const isHome = v.HOME_TEAM === p.school;
+        const isAway = v.AWAY_TEAM === p.school;
+        if (!isHome && !isAway) return;
+        candidates.push({ idx, v, isHome });
+      });
+      if (!candidates.length) { missing.push(p); return; }
+      if (candidates.length === 1) { claimed.add(candidates[0].idx); return; }
+      // Multiple candidates → match by opponent name
+      const prodOppA = normalizeName(p.away_team);
+      const prodOppH = normalizeName(p.home_team);
+      let chosen = candidates.find(c => {
+        const opp = c.isHome ? c.v.AWAY_TEAM : c.v.HOME_TEAM;
+        const oppN = normalizeName(opp);
+        const titleN = normalizeName(c.v.AIRING_TITLE);
+        if (!oppN) return false;
+        if (prodOppA && (oppN.includes(prodOppA) || prodOppA.includes(oppN))) return true;
+        if (prodOppH && (oppN.includes(prodOppH) || prodOppH.includes(oppN))) return true;
+        if (prodOppA && titleN.includes(prodOppA)) return true;
+        if (prodOppH && titleN.includes(prodOppH)) return true;
+        return false;
+      });
+      if (!chosen) chosen = candidates[0];
+      claimed.add(chosen.idx);
     });
-    const missing = prodEvents.filter(p => !viewKeys.has(`${p.event_date}|${p.school}`));
 
     const matched = prodEvents.length - missing.length;
     const allMatch = missing.length === 0;
@@ -694,18 +845,246 @@
       <div class="recon-panel ${allMatch ? 'recon-ok' : 'recon-warn'}">
         <div class="recon-header">
           <span>📋 Production Tracker Reconciliation</span>
-          <span class="recon-counts">Tracker: ${prodEvents.length} produced (to date) • With viewership data: ${matched}/${prodEvents.length}</span>
+          <span class="recon-counts">Tracker: ${prodEvents.length} produced (to date) • With viewership data: ${matched}/${prodEvents.length}${_masterScheduleLoaded ? ' • Master Schedule loaded' : ''}</span>
         </div>
         ${missing.length ? `
           <div class="recon-section">
             <div class="recon-section-title">⚠ ${missing.length} produced event${missing.length === 1 ? '' : 's'} without a viewership row</div>
             <ul class="recon-list">
-              ${missing.map(e => `<li>${escapeReconText(e.event_date)} — ${escapeReconText(e.away_team || '?')} @ ${escapeReconText(e.home_team || '?')}  <span style="color:#888">(${escapeReconText(e.school)})</span></li>`).join('')}
+              ${missing.map(e => {
+                const ms = _masterScheduleLoaded ? checkMasterSchedule(e) : null;
+                const msTag = ms === true ? '<span class="ms-tag found" title="Found in Master Schedule">✓ MS</span>'
+                            : ms === false ? '<span class="ms-tag not-found" title="Not found in Master Schedule">✗ MS</span>'
+                            : '';
+                const data = JSON.stringify(e).replace(/'/g, '&#39;');
+                return `<li>
+                  ${escapeReconText(e.event_date)} — ${escapeReconText(e.away_team || '?')} @ ${escapeReconText(e.home_team || '?')}
+                  <span style="color:#888">(${escapeReconText(e.school)})</span>
+                  ${msTag}
+                  <button class="row-edit-btn add" data-recon-event='${data}' data-recon-sport="${escapeReconText(viewSportName)}">+ Confirm</button>
+                </li>`;
+              }).join('')}
             </ul>
           </div>
         ` : '<div class="recon-ok-msg">✓ Every produced event in the Production Tracker has a matching viewership row</div>'}
       </div>
     `;
+  }
+
+  /* ── Master Schedule (Google Sheets) ── */
+  async function loadMasterSchedule() {
+    try {
+      updateStatus('Fetching Master Schedule…');
+      const res = await fetch(MASTER_SCHEDULE_URL, { cache: 'no-cache' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const csv = await res.text();
+      _masterSchedule = parseMasterScheduleCsv(csv);
+      _masterScheduleLoaded = true;
+      updateStatus(`☁️ Master Schedule loaded — ${_masterSchedule.length} events`, 'saved-cloud');
+      renderAllTabs();
+    } catch (err) {
+      console.error('Master Schedule fetch failed:', err);
+      updateStatus('Master Schedule fetch failed: ' + (err.message || err), 'saved-local');
+    }
+  }
+
+  function parseCsvRow(line) {
+    const out = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQ) {
+        if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+        else if (c === '"') inQ = false;
+        else cur += c;
+      } else {
+        if (c === ',') { out.push(cur); cur = ''; }
+        else if (c === '"') inQ = true;
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function parseMasterScheduleCsv(csv) {
+    const lines = csv.split(/\r?\n/);
+    const events = [];
+    // Find the header row that has 'Date', 'Day', 'Time', 'Home/Away', 'Opponent', 'School'
+    let headerCols = null, headerIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const cols = parseCsvRow(lines[i]).map(c => c.trim());
+      const dateCol = cols.indexOf('Date');
+      if (dateCol !== -1 && cols.includes('Opponent') && cols.includes('School')) {
+        headerCols = cols; headerIdx = i; break;
+      }
+    }
+    if (!headerCols) return [];
+    const idx = name => headerCols.indexOf(name);
+    const iDate = idx('Date'), iHA = idx('Home/Away'), iOpp = idx('Opponent'),
+          iSport = idx('Sport'), iSeason = idx('Season'), iSchool = idx('School'), iCode = idx('Code');
+    const today = new Date();
+    const currYear = today.getFullYear();
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const cols = parseCsvRow(lines[i]);
+      if (!cols[iDate]) continue;
+      const dateStr = (cols[iDate] || '').trim();
+      // Date format like "Apr 2" — infer year from Code (e.g. "402" = April 2)
+      // For year, use heuristic: if month >= 7 (Jul-Dec), it's the start of academic year
+      const parts = dateStr.split(/\s+/);
+      if (parts.length < 2) continue;
+      const monthNames = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Sept:8, Oct:9, Nov:10, Dec:11 };
+      const m = monthNames[parts[0]];
+      const day = parseInt(parts[1], 10);
+      if (m == null || isNaN(day)) continue;
+      // Infer academic year — use season hint if present
+      const season = (cols[iSeason] || '').toLowerCase();
+      let year = currYear;
+      if (season.includes('fall')) year = (m >= 6) ? currYear : currYear - 1;
+      else if (season.includes('winter')) year = (m >= 9 || m <= 4) ? (m >= 9 ? currYear : currYear) : currYear;
+      else if (season.includes('spring')) year = (m <= 7) ? currYear : currYear - 1;
+      else year = (m >= 7) ? currYear : currYear + 1;
+      const isoDate = `${year}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      events.push({
+        date: isoDate,
+        school: normalizeMsSchool(cols[iSchool] || cols[iCode] || ''),
+        opponent: (cols[iOpp] || '').trim(),
+        sport: (cols[iSport] || '').trim(),
+        homeAway: (cols[iHA] || '').trim()
+      });
+    }
+    return events;
+  }
+
+  function checkMasterSchedule(prodEvent) {
+    if (!_masterScheduleLoaded) return null;
+    const opp = normalizeName(prodEvent.away_team) + ' ' + normalizeName(prodEvent.home_team);
+    const found = _masterSchedule.some(m =>
+      m.date === prodEvent.event_date &&
+      m.school === prodEvent.school &&
+      (opp.includes(normalizeName(m.opponent)) || normalizeName(m.opponent).length > 2 && opp.includes(normalizeName(m.opponent).slice(0, 4)))
+    );
+    return found;
+  }
+
+  /* ── Edit / Add Event modal ── */
+  function openEditModal(opts) {
+    _editingEventRef = opts.existingEvent || null;
+    _editingProdEvent = opts.prodEvent || null;
+    document.getElementById('eeTitle').textContent = _editingEventRef ? '✏ Edit Event' : '+ Add Viewership for Produced Event';
+
+    const set = (id, v) => { document.getElementById(id).value = v == null ? '' : v; };
+    if (_editingEventRef) {
+      set('ee-sport', _editingEventRef.SPORT || 'NCAA Football');
+      set('ee-airing', _editingEventRef.AIRING_TITLE || '');
+      set('ee-date', formatDateForFilter(_editingEventRef.DATE));
+      set('ee-period', _editingEventRef.REPORT_PERIOD || '');
+      set('ee-away', _editingEventRef.AWAY_TEAM || '');
+      set('ee-home', _editingEventRef.HOME_TEAM || '');
+      set('ee-viewers', _editingEventRef.UNIQUE_VIEWERS || 0);
+      set('ee-minutes', _editingEventRef.TOTAL_MINUTES || 0);
+      set('ee-mpv', (_editingEventRef.MIN_PER_VIEWER || 0).toFixed(1));
+    } else if (_editingProdEvent) {
+      const p = _editingProdEvent;
+      const sport = PROD_TO_VIEW_SPORT[p.sport] || opts.sportName || 'NCAA Football';
+      const home = p.home_team || p.school || '';
+      const away = p.away_team || '';
+      const title = (away && home) ? `${away} vs. ${home}` : (home || away);
+      set('ee-sport', sport);
+      set('ee-airing', title);
+      set('ee-date', p.event_date);
+      set('ee-period', getCurrentPeriod());
+      set('ee-away', away);
+      set('ee-home', home);
+      set('ee-viewers', 0);
+      set('ee-minutes', 0);
+      set('ee-mpv', '0.0');
+    }
+    document.getElementById('ee-err').style.display = 'none';
+    document.getElementById('eeOverlay').classList.add('open');
+    setTimeout(() => document.getElementById('ee-viewers').focus(), 80);
+  }
+
+  function closeEditModal() {
+    document.getElementById('eeOverlay').classList.remove('open');
+    _editingEventRef = null;
+    _editingProdEvent = null;
+  }
+
+  async function saveEditModal() {
+    const errEl = document.getElementById('ee-err');
+    errEl.style.display = 'none';
+    const sport = document.getElementById('ee-sport').value.trim();
+    const airing = document.getElementById('ee-airing').value.trim();
+    const date = document.getElementById('ee-date').value;
+    const away = document.getElementById('ee-away').value.trim();
+    const home = document.getElementById('ee-home').value.trim();
+    const viewers = parseFloat(document.getElementById('ee-viewers').value) || 0;
+    const minutes = parseFloat(document.getElementById('ee-minutes').value) || 0;
+    const mpv = parseFloat(document.getElementById('ee-mpv').value) || 0;
+    const period = document.getElementById('ee-period').value.trim();
+    if (!sport || !airing || !date) {
+      errEl.textContent = 'Sport, Matchup, and Date are required';
+      errEl.style.display = 'block';
+      return;
+    }
+    const newRow = {
+      SPORT: sport,
+      AIRING_TITLE: airing,
+      DATE: date,
+      AWAY_TEAM: away,
+      HOME_TEAM: home,
+      UNIQUE_VIEWERS: Math.round(viewers),
+      TOTAL_MINUTES: Math.round(minutes),
+      MIN_PER_VIEWER: mpv,
+      REPORT_PERIOD: period
+    };
+
+    if (_db) {
+      try {
+        // If editing existing AND key fields changed, delete the old row first
+        if (_editingEventRef && !_editingEventRef._placeholder) {
+          const oldKey = {
+            sport: _editingEventRef.SPORT || '',
+            airing_title: _editingEventRef.AIRING_TITLE || '',
+            event_date: String(_editingEventRef.DATE || '')
+          };
+          const newKey = { sport, airing_title: airing, event_date: date };
+          if (oldKey.sport !== newKey.sport || oldKey.airing_title !== newKey.airing_title || oldKey.event_date !== newKey.event_date) {
+            await _db.from('viewership_events').delete()
+              .eq('sport', oldKey.sport).eq('airing_title', oldKey.airing_title).eq('event_date', oldKey.event_date);
+          }
+        }
+        const { error } = await _db.from('viewership_events')
+          .upsert([rowToDb(newRow)], { onConflict: 'sport,airing_title,event_date' });
+        if (error) throw error;
+      } catch (err) {
+        console.error(err);
+        errEl.textContent = 'Save failed: ' + (err.message || err);
+        errEl.style.display = 'block';
+        return;
+      }
+    }
+
+    // Update local state
+    if (_editingEventRef) {
+      const idx = rawData.indexOf(_editingEventRef);
+      if (idx !== -1) {
+        if (_editingEventRef._placeholder) {
+          rawData.splice(idx, 1);
+          rawData.push(newRow);
+        } else {
+          rawData[idx] = newRow;
+        }
+      }
+    } else {
+      rawData.push(newRow);
+    }
+    rawData = mergeProducedPlaceholders(rawData.filter(r => !r._placeholder));
+    saveToStorage();
+    closeEditModal();
+    renderAllTabs();
+    updateStatus(_editingEventRef ? '✓ Event updated' : '✓ Event added', 'saved-cloud');
   }
 
   function escapeReconText(s) {
@@ -813,6 +1192,32 @@
     document.getElementById('fileInput').addEventListener('change', e => handleFileImport(e, false));
     document.getElementById('appendInput').addEventListener('change', e => handleFileImport(e, true));
     document.getElementById('prodInput').addEventListener('change', handleProductionTrackerImport);
+    document.getElementById('msFetchBtn').addEventListener('click', loadMasterSchedule);
+
+    // Delegated click handler for Edit / Confirm buttons (they're rendered into tab content)
+    document.querySelector('.content').addEventListener('click', (e) => {
+      const btn = e.target.closest('.row-edit-btn');
+      if (!btn) return;
+      e.stopPropagation();
+      if (btn.dataset.reconEvent) {
+        try {
+          const prod = JSON.parse(btn.dataset.reconEvent);
+          openEditModal({ prodEvent: prod, sportName: btn.dataset.reconSport });
+        } catch (err) { console.error(err); }
+        return;
+      }
+      if (btn.dataset.rowIdx) {
+        const idx = +btn.dataset.rowIdx;
+        const row = rawData[idx];
+        if (!row) return;
+        if (row._placeholder) {
+          // Convert placeholder → produced event entry for the modal
+          openEditModal({ prodEvent: { sport: '', school: row.HOME_TEAM, event_date: row.DATE, home_team: row.HOME_TEAM, away_team: row.AWAY_TEAM }, sportName: row.SPORT });
+        } else {
+          openEditModal({ existingEvent: row });
+        }
+      }
+    });
     document.querySelectorAll('.tab-bar button').forEach(btn => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
@@ -1291,9 +1696,13 @@
     tbody.innerHTML = games.map((g,i) => {
       const ph = g._placeholder;
       const dash = '<span style="color:#bbb">—</span>';
+      const idx = rawData.indexOf(g);
+      const editBtn = ph
+        ? `<button class="row-edit-btn add" data-row-idx="${idx}" title="Add viewership data">+ Add</button>`
+        : `<button class="row-edit-btn" data-row-idx="${idx}" title="Edit this row">✏ Edit</button>`;
       return `<tr class="${ph ? 'placeholder-row' : ''}">
         <td class="rank">${i+1}</td>
-        <td>${g.AIRING_TITLE||'-'}${ph ? ' <span class="ph-badge" title="From Production Tracker — no viewership data yet">📋 scheduled</span>' : ''}</td>
+        <td>${g.AIRING_TITLE||'-'}${ph ? ' <span class="ph-badge" title="From Production Tracker — no viewership data yet">📋 scheduled</span>' : ''} ${editBtn}</td>
         <td>${formatDate(g.DATE)}</td>
         <td class="number">${ph ? dash : (g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
         <td class="number">${ph ? dash : (g.TOTAL_MINUTES||0).toLocaleString()}</td>

@@ -677,7 +677,8 @@
     if (!prodEvents.length) return '';
 
     const cusaSet = new Set(CUSA_SCHOOLS);
-    const viewEvents = rawData.filter(r => r.SPORT === viewSportName);
+    // Only count REAL viewership rows — placeholders don't have viewership data
+    const viewEvents = rawData.filter(r => r.SPORT === viewSportName && !r._placeholder);
     const viewKeys = new Set();
     viewEvents.forEach(v => {
       const d = formatDateForFilter(v.DATE);
@@ -685,50 +686,24 @@
       if (v.HOME_TEAM && cusaSet.has(v.HOME_TEAM)) viewKeys.add(`${d}|${v.HOME_TEAM}`);
       if (v.AWAY_TEAM && cusaSet.has(v.AWAY_TEAM)) viewKeys.add(`${d}|${v.AWAY_TEAM}`);
     });
-    const missingFromView = prodEvents.filter(p => !viewKeys.has(`${p.event_date}|${p.school}`));
+    const missing = prodEvents.filter(p => !viewKeys.has(`${p.event_date}|${p.school}`));
 
-    const prodKeys = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
-    const missingFromProd = viewEvents.filter(v => {
-      const d = formatDateForFilter(v.DATE);
-      if (!d) return false;
-      const homeIsCusa = v.HOME_TEAM && cusaSet.has(v.HOME_TEAM);
-      const awayIsCusa = v.AWAY_TEAM && cusaSet.has(v.AWAY_TEAM);
-      if (!homeIsCusa && !awayIsCusa) return false;
-      if (homeIsCusa && prodKeys.has(`${d}|${v.HOME_TEAM}`)) return false;
-      if (awayIsCusa && prodKeys.has(`${d}|${v.AWAY_TEAM}`)) return false;
-      return true;
-    });
-
-    const matched = prodEvents.length - missingFromView.length;
-    const allMatch = missingFromView.length === 0 && missingFromProd.length === 0;
+    const matched = prodEvents.length - missing.length;
+    const allMatch = missing.length === 0;
     return `
       <div class="recon-panel ${allMatch ? 'recon-ok' : 'recon-warn'}">
         <div class="recon-header">
           <span>📋 Production Tracker Reconciliation</span>
-          <span class="recon-counts">Tracker: ${prodEvents.length} produced (to date) • Matched in Viewership: ${matched}/${prodEvents.length}</span>
+          <span class="recon-counts">Tracker: ${prodEvents.length} produced (to date) • With viewership data: ${matched}/${prodEvents.length}</span>
         </div>
-        ${missingFromView.length ? `
+        ${missing.length ? `
           <div class="recon-section">
-            <div class="recon-section-title">⚠ ${missingFromView.length} produced event${missingFromView.length === 1 ? '' : 's'} missing from Viewership data <span style="color:#888;font-weight:400">(in Production Tracker, no viewership row found)</span></div>
+            <div class="recon-section-title">⚠ ${missing.length} produced event${missing.length === 1 ? '' : 's'} without a viewership row</div>
             <ul class="recon-list">
-              ${missingFromView.map(e => `<li>${escapeReconText(e.event_date)} — ${escapeReconText(e.away_team || '?')} @ ${escapeReconText(e.home_team || '?')}  <span style="color:#888">(${escapeReconText(e.school)})</span></li>`).join('')}
+              ${missing.map(e => `<li>${escapeReconText(e.event_date)} — ${escapeReconText(e.away_team || '?')} @ ${escapeReconText(e.home_team || '?')}  <span style="color:#888">(${escapeReconText(e.school)})</span></li>`).join('')}
             </ul>
           </div>
-        ` : ''}
-        ${missingFromProd.length ? `
-          <div class="recon-section">
-            <div class="recon-section-title">⚠ ${missingFromProd.length} CUSA event${missingFromProd.length === 1 ? '' : 's'} in Viewership but not in Production Tracker <span style="color:#888;font-weight:400">(viewership has data but no matching produced row)</span></div>
-            <ul class="recon-list">
-              ${missingFromProd.map(e => {
-                const d = formatDateForFilter(e.DATE);
-                const cusaSchool = (e.HOME_TEAM && cusaSet.has(e.HOME_TEAM)) ? e.HOME_TEAM
-                  : (e.AWAY_TEAM && cusaSet.has(e.AWAY_TEAM) ? e.AWAY_TEAM : '');
-                return `<li>${escapeReconText(formatDate(e.DATE))} — ${escapeReconText(e.AIRING_TITLE || '(no title)')}${cusaSchool ? ` <span style="color:#888">(${escapeReconText(cusaSchool)})</span>` : ''}</li>`;
-              }).join('')}
-            </ul>
-          </div>
-        ` : ''}
-        ${allMatch ? '<div class="recon-ok-msg">✓ All produced events for this sport are accounted for in Viewership data</div>' : ''}
+        ` : '<div class="recon-ok-msg">✓ Every produced event in the Production Tracker has a matching viewership row</div>'}
       </div>
     `;
   }

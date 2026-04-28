@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CUSA ESPN Viewership Tracker</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <style>
@@ -21,7 +21,6 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; background: var(--light); min-height: 100vh; color: #222; }
 
-  /* ── Header ── */
   .header {
     background: var(--navy);
     padding: 12px 20px;
@@ -29,22 +28,41 @@
     align-items: center;
     gap: 14px;
     flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
   }
   .header img { height: 26px; filter: brightness(0) invert(1); }
   .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
-  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; }
-  .header a:hover { color: var(--white); }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .header a.admin-link { color: #fff; background: rgba(239,64,53,0.85); padding: 5px 12px; border-radius: 6px; font-weight: 700; font-size: 11px; }
+  .header a.admin-link:hover { background: var(--espn-red); }
 
-  /* ── Controls bar ── */
-  .controls {
+  .content { padding: 24px 20px; max-width: 1400px; margin: 0 auto; }
+  .section-title { font-size: 18px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
+
+  .search-bar {
     background: var(--white);
-    border-bottom: 3px solid var(--espn-red);
-    padding: 12px 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
     display: flex;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-end;
   }
+  .search-field { flex: 1; min-width: 180px; }
+  .search-field label { display: block; margin-bottom: 5px; font-weight: 700; font-size: 11px; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; }
+  .search-field input, .search-field select {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--gray);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .search-field input:focus, .search-field select:focus { outline: none; border-color: var(--blue); }
+
   .btn {
     padding: 7px 16px;
     border: none;
@@ -56,70 +74,25 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transition: filter 0.15s;
     white-space: nowrap;
   }
   .btn:hover { filter: brightness(0.9); }
-  .btn-import { background: var(--espn-red); color: var(--white); }
-  .btn-append { background: var(--blue); color: var(--white); }
+  .btn-primary { background: var(--espn-red); color: var(--white); }
   .btn-export { background: var(--navy); color: var(--white); }
   .btn-clear { background: #888; color: var(--white); }
-  .btn-save { background: var(--green); color: var(--navy); }
-  .btn-toggle { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
-  .btn-toggle.active { background: var(--green); color: var(--navy); border-color: var(--green); }
-  .btn-toggle[disabled] { opacity: 0.5; cursor: not-allowed; }
-  .file-input-wrapper { position: relative; display: inline-block; }
-  .file-input-wrapper input[type=file] { position: absolute; left: -9999px; }
+
   .status {
-    margin-left: auto;
-    padding: 5px 12px;
-    background: var(--light);
-    border-radius: 6px;
-    font-size: 11px;
-    color: var(--navy);
-    font-weight: 600;
-    border: 1px solid var(--gray);
-    transition: background 0.3s, border-color 0.3s, color 0.3s;
-  }
-  .status.saved-cloud {
-    background: rgba(167,213,0,0.18);
-    border-color: var(--green);
-    color: #4a6600;
-  }
-  .status.saved-local {
-    background: rgba(245,158,11,0.15);
-    border-color: #f59e0b;
-    color: #78350f;
-  }
-
-  /* ── Tab bar ── */
-  .tab-bar {
+    margin-bottom: 12px;
+    padding: 8px 14px;
     background: var(--white);
-    border-bottom: 3px solid var(--espn-red);
-    display: flex;
-    overflow-x: auto;
-  }
-  .tab-bar button {
-    padding: 11px 18px;
-    border: none;
-    cursor: pointer;
+    border: 1px solid var(--gray);
+    border-radius: 6px;
     font-size: 12px;
-    font-weight: 600;
-    background: transparent;
     color: var(--navy);
-    border-bottom: 3px solid transparent;
-    transition: all 0.15s;
-    white-space: nowrap;
-    font-family: inherit;
-    margin-bottom: -3px;
+    font-weight: 600;
+    display: inline-block;
   }
-  .tab-bar button.active { background: var(--espn-red); color: var(--white); border-bottom-color: var(--navy); }
-  .tab-bar button:hover:not(.active) { background: #f5f5f5; }
 
-  /* ── Content ── */
-  .content { padding: 20px; max-width: 1400px; margin: 0 auto; }
-
-  /* ── Stats grid ── */
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -143,1135 +116,78 @@
   }
   .stat-value { font-size: 28px; font-weight: 700; color: var(--espn-red); }
 
-  /* ── Tables ── */
   .table-container {
     overflow-x: auto;
     background: var(--white);
     border-radius: 8px;
     border: 1px solid #ddd;
+    margin-bottom: 20px;
   }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead { background: var(--navy); color: var(--white); position: sticky; top: 0; z-index: 10; }
+  thead { background: var(--navy); color: var(--white); }
   th { padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
-  thead .filter-row th {
-    background: #f0f2f5;
-    color: var(--navy);
-    padding: 5px 8px;
-    text-transform: none;
-    letter-spacing: normal;
-    font-weight: 400;
-    border-bottom: 2px solid var(--gray);
-  }
-  .filter-row input {
-    width: 100%;
-    min-width: 70px;
-    padding: 4px 6px;
-    border: 1px solid var(--gray);
-    border-radius: 4px;
-    font-size: 11px;
-    font-family: inherit;
-    font-weight: 400;
-    color: var(--navy);
-    background: #fff;
-  }
-  .filter-row input:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 2px rgba(0,181,226,0.2);
-  }
   td { padding: 9px 12px; border-bottom: 1px solid #eee; }
   tbody tr:hover { background: #f8f9fa; }
   tbody tr:nth-child(even) td { background: rgba(191,206,214,0.08); }
   .rank { font-weight: 700; color: var(--espn-red); font-size: 14px; }
   .number { font-family: 'Courier New', monospace; font-weight: 600; }
 
-  /* ── Search bar ── */
-  .search-bar {
-    background: var(--white);
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 16px;
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-  }
-  .search-field { flex: 1; min-width: 180px; }
-  .search-field label { display: block; margin-bottom: 5px; font-weight: 700; font-size: 11px; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; }
-  .search-field input, .search-field select {
-    width: 100%;
-    padding: 7px 10px;
-    border: 1px solid var(--gray);
-    border-radius: 6px;
-    font-size: 13px;
-    font-family: inherit;
-    transition: border-color 0.2s;
-  }
-  .search-field input:focus, .search-field select:focus { outline: none; border-color: var(--blue); }
-
-  /* ── Empty state ── */
-  .empty-state { text-align: center; padding: 60px 20px; color: var(--navy); opacity: 0.5; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--navy); opacity: 0.55; }
   .empty-state h3 { font-size: 18px; margin-bottom: 8px; }
   .empty-state p { font-size: 13px; }
 
-  /* ── School search section ── */
-  .section-title { font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
-
-  /* ── Lock icon on protected tabs ── */
-  .tab-bar button.locked::after { content: ' 🔒'; font-size: 10px; }
-
-  /* ── Password modal ── */
-  .pw-overlay { display:none; position:fixed; inset:0; background:rgba(0,38,58,0.7); z-index:200; align-items:center; justify-content:center; padding:20px; }
-  .pw-overlay.open { display:flex; }
-  .pw-box { background:#fff; border-radius:12px; padding:32px; max-width:360px; width:100%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
-  .pw-box h2 { font-size:18px; color:var(--navy); margin-bottom:6px; }
-  .pw-box p { font-size:12px; color:#666; margin-bottom:20px; }
-  .pw-input { width:100%; padding:10px 14px; border:2px solid #ddd; border-radius:8px; font-size:14px; text-align:center; letter-spacing:2px; font-family:inherit; margin-bottom:12px; }
-  .pw-input:focus { outline:none; border-color:var(--blue); }
-  .pw-err { color:var(--espn-red); font-size:12px; margin-bottom:10px; display:none; }
-  .pw-actions { display:flex; gap:8px; justify-content:center; }
-
   @media (max-width: 640px) {
-    .controls { flex-direction: column; align-items: stretch; }
-    .btn { justify-content: center; }
+    .search-bar { flex-direction: column; align-items: stretch; }
     .stats-grid { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
 <body>
 
-<!-- Header -->
 <div class="header">
-  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
-       onerror="this.style.display='none'">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN" onerror="this.style.display='none'">
   <h1>ESPN+ Viewership Tracker</h1>
-  <button id="lockBtn" onclick="lockViewer()" style="display:none;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Lock</button>
+  <a href="admin.html" class="admin-link">🔒 Admin Portal</a>
   <a href="index.html">← Hub</a>
 </div>
 
-<!-- Password modal -->
-<div class="pw-overlay" id="pwOverlay">
-  <div class="pw-box">
-    <h2>🔒 Admin Access</h2>
-    <p>Enter the admin password to view this section</p>
-    <input class="pw-input" id="pwInput" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitPw()">
-    <div class="pw-err" id="pwErr">Incorrect password. Try again.</div>
-    <div class="pw-actions">
-      <button onclick="closePwModal()" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
-      <button onclick="submitPw()" style="background:var(--espn-red);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Unlock</button>
-    </div>
-  </div>
-</div>
-
-<!-- Controls -->
-<div class="controls">
-  <div class="file-input-wrapper">
-    <label for="fileInput" class="btn btn-import">📂 Import Excel</label>
-    <input type="file" id="fileInput" accept=".xlsx,.xls">
-  </div>
-  <button class="btn btn-save" id="saveBtn" title="Save current data to Supabase">💾 Save</button>
-  <div class="file-input-wrapper">
-    <label for="appendInput" class="btn btn-append">➕ Add New Period</label>
-    <input type="file" id="appendInput" accept=".xlsx,.xls">
-  </div>
-  <button class="btn btn-toggle" id="producedToggle" onclick="toggleProducedFilter()" title="Show only events produced by CUSA schools" disabled>○ CUSA Produced Only</button>
-  <button class="btn btn-export" id="exportBtn">📤 Export Current Tab</button>
-  <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
-  <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
-  <div class="status" id="status">No data loaded</div>
-</div>
-
-<!-- Meta bar -->
-<div id="metaBar" style="display:none;background:var(--white);border-bottom:1px solid #ddd;padding:7px 20px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;font-size:11px;">
-  <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Reporting Period:</span>
-  <span id="metaPeriodText" style="color:var(--espn-red);font-weight:700;display:none;">—</span>
-  <select id="metaPeriodSelect" style="display:none;border:1px solid var(--gray);border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--espn-red);font-family:inherit;background:#fff;cursor:pointer;" onchange="saveSelectedPeriod(this.value)"></select>
-  <button id="removePeriodBtn" onclick="removeSelectedPeriod()" style="display:none;background:none;border:1px solid #fca5a5;border-radius:4px;padding:2px 8px;font-size:11px;color:#991b1b;cursor:pointer;font-family:inherit;font-weight:600;">🗑 Remove</button>
-  <span style="color:#ccc;">|</span>
-  <span style="font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;">Last Modified:</span>
-  <span id="metaModified" style="color:#555;">—</span>
-</div>
-
-<!-- Tab bar -->
-<div class="tab-bar">
-  <button class="active" data-tab="dashboard">Dashboard</button>
-  <button data-tab="schoolsearch">🔍 School Search</button>
-  <button data-tab="football">Football</button>
-  <button data-tab="volleyball">Volleyball</button>
-  <button data-tab="soccer">Soccer</button>
-  <button data-tab="baseball">Baseball</button>
-  <button data-tab="softball">Softball</button>
-  <button data-tab="mbb">Men's Basketball</button>
-  <button data-tab="wbb">Women's Basketball</button>
-  <button data-tab="championships">Championships</button>
-  <button data-tab="shows">Shows</button>
-  <button data-tab="rawdata">Raw Data</button>
-</div>
-
-<!-- Tab content -->
 <div class="content">
+  <div class="section-title">🔍 Search by School</div>
 
-  <div id="dashboard" class="tab-content active">
-    <div class="stats-grid" id="dashboardStats"></div>
-    <h3 style="margin-bottom:12px;color:var(--navy);font-size:15px;">Viewership by Sport</h3>
-    <div class="table-container" id="dashboardTable"></div>
-  </div>
-
-  <div id="schoolsearch" class="tab-content" style="display:none">
-    <div class="section-title">🔍 Search by School</div>
-    <div class="search-bar">
-      <div class="search-field" style="min-width:260px">
-        <label>Select School</label>
-        <select id="schoolSelect">
-          <option value="">-- Select a School --</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:8px;align-items:flex-end">
-        <button class="btn btn-import" id="schoolSearchBtn">Search</button>
-        <button class="btn btn-export" id="exportSchoolBtn">💾 Export School Data</button>
-      </div>
+  <div class="search-bar">
+    <div class="search-field" style="min-width:260px">
+      <label>Select School</label>
+      <select id="schoolSelect">
+        <option value="">-- Select a School --</option>
+      </select>
     </div>
-    <div id="schoolResults"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <button class="btn btn-primary" onclick="performSchoolSearch()">Search</button>
+      <button class="btn btn-export" onclick="exportCurrentTab()">📤 Export Current Tab</button>
+    </div>
   </div>
 
-  <div id="football"      class="tab-content" style="display:none"></div>
-  <div id="volleyball"    class="tab-content" style="display:none"></div>
-  <div id="soccer"        class="tab-content" style="display:none"></div>
-  <div id="baseball"      class="tab-content" style="display:none"></div>
-  <div id="softball"      class="tab-content" style="display:none"></div>
-  <div id="mbb"           class="tab-content" style="display:none"></div>
-  <div id="wbb"           class="tab-content" style="display:none"></div>
-  <div id="championships" class="tab-content" style="display:none"></div>
-  <div id="shows"         class="tab-content" style="display:none"></div>
-  <div id="rawdata"       class="tab-content" style="display:none"></div>
+  <div id="status" class="status">Loading data…</div>
 
+  <div id="schoolResults"></div>
 </div>
 
 <script>
-  // Global state
-  let rawData = [];
-  const STORAGE_KEY = 'cusa_tracker_data';
-  const META_KEY = 'cusa_tracker_meta';
-  const PERIOD_KEY = 'cusa_tracker_period';
-  const VW_UNLOCK_KEY = 'cusa_viewer_unlocked';
-  const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
-  const PROTECTED_TABS = new Set(['dashboard','football','volleyball','soccer','baseball','softball','mbb','wbb','championships','shows','rawdata']);
-  let adminUnlocked = localStorage.getItem(VW_UNLOCK_KEY) === 'true';
-  let pendingTab = null;
-  let _db = null;
-  let _producedOnly = localStorage.getItem('cusa_produced_only') === 'true';
-  let _producedSet = new Set();
-
-  async function hashPw(pw) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-  }
-  function openPwModal(tab) {
-    pendingTab = tab;
-    document.getElementById('pwInput').value = '';
-    document.getElementById('pwErr').style.display = 'none';
-    document.getElementById('pwOverlay').classList.add('open');
-    setTimeout(() => document.getElementById('pwInput').focus(), 80);
-  }
-  function closePwModal() {
-    document.getElementById('pwOverlay').classList.remove('open');
-    pendingTab = null;
-  }
-  async function submitPw() {
-    const h = await hashPw(document.getElementById('pwInput').value);
-    if (h === VW_PW_HASH) {
-      adminUnlocked = true;
-      localStorage.setItem(VW_UNLOCK_KEY, 'true');
-      document.getElementById('lockBtn').style.display = 'inline-block';
-      closePwModal();
-      updateTabLocks();
-      updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
-      if (pendingTab) switchTab(pendingTab);
-    } else {
-      document.getElementById('pwErr').style.display = 'block';
-    }
-  }
-  function lockViewer() {
-    adminUnlocked = false;
-    localStorage.removeItem(VW_UNLOCK_KEY);
-    document.getElementById('lockBtn').style.display = 'none';
-    updateTabLocks();
-    updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
-    switchTab('schoolsearch');
-  }
-  function updateTabLocks() {
-    document.querySelectorAll('.tab-bar button').forEach(b => {
-      b.classList.toggle('locked', PROTECTED_TABS.has(b.dataset.tab) && !adminUnlocked);
-    });
-    if (adminUnlocked) document.getElementById('lockBtn').style.display = 'inline-block';
-  }
-
-  /* ── Supabase ── */
-  function initSupabase() {
-    if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
-      _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-    }
-  }
-
-  function rowToDb(r) {
-    return {
-      sport: r.SPORT || '',
-      airing_title: r.AIRING_TITLE || '',
-      event_date: String(r.DATE || ''),
-      away_team: r.AWAY_TEAM || '',
-      home_team: r.HOME_TEAM || '',
-      unique_viewers: Math.round(r.UNIQUE_VIEWERS || 0),
-      total_minutes: Math.round(r.TOTAL_MINUTES || 0),
-      min_per_viewer: parseFloat(r.MIN_PER_VIEWER || 0),
-      report_period: r.REPORT_PERIOD || '',
-      extra_data: r
-    };
-  }
-
-  function rowFromDb(r) {
-    const base = r.extra_data || {};
-    return {
-      ...base,
-      SPORT: r.sport,
-      AIRING_TITLE: r.airing_title,
-      DATE: r.event_date,
-      AWAY_TEAM: r.away_team,
-      HOME_TEAM: r.home_team,
-      UNIQUE_VIEWERS: r.unique_viewers,
-      TOTAL_MINUTES: r.total_minutes,
-      MIN_PER_VIEWER: parseFloat(r.min_per_viewer),
-      REPORT_PERIOD: r.report_period
-    };
-  }
-
-  async function loadFromSupabase() {
-    if (!_db) return false;
-    try {
-      updateStatus('Loading from database…');
-      let all = [];
-      let from = 0;
-      const PAGE = 1000;
-      while (true) {
-        const { data, error } = await _db.from('viewership_events').select('*').range(from, from + PAGE - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        all = all.concat(data.map(rowFromDb));
-        if (data.length < PAGE) break;
-        from += PAGE;
-      }
-      rawData = all;
-      return true;
-    } catch(e) {
-      console.error('Supabase load error:', e);
-      return false;
-    }
-  }
-
-  async function saveToSupabase() {
-    if (!_db || !rawData.length) return false;
-    try {
-      const rows = rawData.map(rowToDb);
-      for (let i = 0; i < rows.length; i += 500) {
-        const { error } = await _db.from('viewership_events')
-          .upsert(rows.slice(i, i + 500), { onConflict: 'sport,airing_title,event_date' });
-        if (error) throw error;
-      }
-      return true;
-    } catch(e) {
-      console.error('Supabase save error:', e);
-      return false;
-    }
-  }
-
-  function deleteSupabasePeriod(period) {
-    if (!_db) return;
-    _db.from('viewership_events').delete().eq('report_period', period);
-  }
-
-  function clearSupabase() {
-    if (!_db) return;
-    _db.from('viewership_events').delete().not('id', 'is', null);
-  }
-
-  /* ── CUSA-Produced filter ── */
-  async function loadProducedEvents() {
-    try {
-      const r = await fetch('produced_events.json', { cache: 'no-cache' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const events = await r.json();
-      _producedSet = new Set(events.map(e => `${e.date}|${e.school}`));
-      const btn = document.getElementById('producedToggle');
-      if (btn) btn.disabled = false;
-    } catch(e) {
-      console.warn('Produced events list not available:', e);
-    }
-  }
-
-  function isProduced(r) {
-    if (!_producedSet.size) return false;
-    const d = formatDateForFilter(r.DATE);
-    if (!d) return false;
-    if (r.HOME_TEAM && _producedSet.has(`${d}|${r.HOME_TEAM}`)) return true;
-    if (r.AWAY_TEAM && _producedSet.has(`${d}|${r.AWAY_TEAM}`)) return true;
-    return false;
-  }
-
-  function activeData() {
-    return _producedOnly ? rawData.filter(isProduced) : rawData;
-  }
-
-  function toggleProducedFilter() {
-    if (!_producedSet.size) return;
-    _producedOnly = !_producedOnly;
-    localStorage.setItem('cusa_produced_only', _producedOnly);
-    updateProducedToggleUI();
-    if (rawData.length > 0) renderAllTabs();
-  }
-
-  function updateProducedToggleUI() {
-    const btn = document.getElementById('producedToggle');
-    if (!btn) return;
-    btn.classList.toggle('active', _producedOnly);
-    btn.textContent = (_producedOnly ? '✓' : '○') + ' CUSA Produced Only';
-  }
-
-  function getSchoolRankBySport(school, sportName) {
-    const cusaSet = new Set(CUSA_SCHOOLS);
-    const sportRows = activeData().filter(r => r.SPORT === sportName);
-    const totals = {};
-    sportRows.forEach(r => {
-      [r.AWAY_TEAM, r.HOME_TEAM].filter(t => t && cusaSet.has(t)).forEach(t => {
-        totals[t] = (totals[t] || 0) + (r.UNIQUE_VIEWERS || 0);
-      });
-    });
-    const sorted = Object.entries(totals).sort((a,b) => b[1]-a[1]);
-    const rank = sorted.findIndex(([t]) => t === school) + 1;
-    return rank > 0 ? `#${rank} of ${sorted.length}` : '—';
-  }
-
+  /* ── Constants ── */
   const CUSA_SCHOOLS = [
     'Delaware','Florida International','Jacksonville State','Kennesaw State',
     'Liberty','Middle Tennessee','Missouri State','New Mexico State','Sam Houston','Western Kentucky'
   ];
+  const STORAGE_KEY = 'cusa_tracker_data';
 
-  const SPORT_MAP = {
-    'football':   "NCAA Football",
-    'volleyball': "NCAA Women's Volleyball",
-    'soccer':     "NCAA Women's Soccer",
-    'baseball':   "NCAA Baseball",
-    'softball':   "NCAA Softball",
-    'mbb':        "NCAA Men's Basketball",
-    'wbb':        "NCAA Women's Basketball"
-  };
+  /* ── State ── */
+  let rawData = [];
+  let _db = null;
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    initSupabase();
-    loadProducedEvents();
-    updateProducedToggleUI();
-    const dbLoaded = await loadFromSupabase();
-    if (dbLoaded) {
-      updateStatus(`Loaded ${rawData.length} events from database`);
-      updateMetaBar({ modified: null, period: getCurrentPeriod() });
-    } else {
-      loadFromStorage();
-    }
-    setupEventListeners();
-    updateTabLocks();
-    if (adminUnlocked) document.getElementById('lockBtn').style.display = 'inline-block';
-    if (rawData.length > 0) {
-      renderAllTabs();
-      if (!adminUnlocked) switchTab('schoolsearch');
-    }
-  });
-
-  function setupEventListeners() {
-    document.getElementById('fileInput').addEventListener('change', e => handleFileImport(e, false));
-    document.getElementById('appendInput').addEventListener('change', e => handleFileImport(e, true));
-    document.querySelectorAll('.tab-bar button').forEach(btn => {
-      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-    });
-    document.getElementById('exportBtn').addEventListener('click', exportCurrentTab);
-    document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
-    document.getElementById('schoolSearchBtn').addEventListener('click', performSchoolSearch);
-    document.getElementById('exportSchoolBtn').addEventListener('click', exportSchoolData);
-    document.getElementById('clearBtn').addEventListener('click', clearAllData);
-    document.getElementById('saveBtn').addEventListener('click', saveData);
-  }
-
-  function handleFileImport(event, appendMode = false) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async e => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-        let headerRow = -1;
-        for (let i = 0; i < jsonData.length; i++) {
-          if (jsonData[i][0] === 'SPORT') { headerRow = i; break; }
-        }
-        if (headerRow === -1) { alert('Could not find header row with "SPORT" column'); return; }
-
-        const headers = jsonData[headerRow];
-        const newData = jsonData.slice(headerRow + 1).filter(row => row[0]).map(row => {
-          const obj = {};
-          headers.forEach((h, i) => { obj[h] = row[i]; });
-          return obj;
-        });
-
-        if (appendMode) {
-          const result = mergeData(rawData, newData);
-          rawData = result.data;
-          saveToStorage();
-          updateStatus('Syncing to database…');
-          const ok = await saveToSupabase();
-          renderAllTabs();
-          updateStatus(
-            ok
-              ? `☁️ Added ${result.added} new events — synced to database (${result.duplicates} duplicates skipped)`
-              : `💻 Added ${result.added} new events — saved locally (${result.duplicates} duplicates skipped)`,
-            ok ? 'saved-cloud' : 'saved-local'
-          );
-        } else {
-          rawData = newData;
-          saveToStorage();
-          updateStatus('Syncing to database…');
-          const ok = await saveToSupabase();
-          renderAllTabs();
-          updateStatus(
-            ok ? `☁️ Loaded ${rawData.length} events — synced to database` : `💻 Loaded ${rawData.length} events — saved locally`,
-            ok ? 'saved-cloud' : 'saved-local'
-          );
-        }
-        event.target.value = '';
-      } catch (err) { alert('Error reading file: ' + err.message); }
-    };
-    reader.readAsArrayBuffer(file);
-  }
-
-  function mergeData(existing, newData) {
-    const getKey = r => `${r.SPORT}|${r.AIRING_TITLE}|${r.DATE}`;
-    const keys = new Set(existing.map(getKey));
-    let added = 0, duplicates = 0;
-    newData.forEach(r => {
-      const k = getKey(r);
-      if (!keys.has(k)) { existing.push(r); keys.add(k); added++; }
-      else duplicates++;
-    });
-    return { data: existing, added, duplicates };
-  }
-
-  function saveToStorage() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(rawData));
-      const meta = { modified: new Date().toISOString(), period: getCurrentPeriod() };
-      localStorage.setItem(META_KEY, JSON.stringify(meta));
-      updateMetaBar(meta);
-    } catch(e) {}
-  }
-
-  async function saveData() {
-    if (!rawData.length) { updateStatus('No data to save'); return; }
-    saveToStorage();
-    const btn = document.getElementById('saveBtn');
-    btn.textContent = '⏳ Saving…';
-    btn.disabled = true;
-    const ok = await saveToSupabase();
-    btn.disabled = false;
-    btn.textContent = '✓ Saved';
-    updateStatus(
-      ok ? `☁️ Saved to database — ${rawData.length} events` : `💻 Saved locally only — no database connection`,
-      ok ? 'saved-cloud' : 'saved-local'
-    );
-    setTimeout(() => { btn.textContent = '💾 Save'; }, 2000);
-  }
-
-  function getCurrentPeriod() {
-    const periods = getAllPeriods();
-    const saved = localStorage.getItem(PERIOD_KEY);
-    return (saved && periods.includes(saved)) ? saved : (periods.length ? periods[periods.length - 1] : '—');
-  }
-
-  function getAllPeriods() {
-    return [...new Set(rawData.map(r => r.REPORT_PERIOD).filter(p => p))].sort();
-  }
-
-  function saveSelectedPeriod(val) {
-    localStorage.setItem(PERIOD_KEY, val);
-    document.getElementById('metaPeriodText').textContent = val || '—';
-  }
-
-  function removeSelectedPeriod() {
-    const sel = document.getElementById('metaPeriodSelect');
-    const period = sel.value;
-    if (!period) return;
-    const count = rawData.filter(r => r.REPORT_PERIOD === period).length;
-    if (!confirm(`Remove all ${count} events from period "${period}"? This cannot be undone.`)) return;
-    rawData = rawData.filter(r => r.REPORT_PERIOD !== period);
-    localStorage.removeItem(PERIOD_KEY);
-    saveToStorage();
-    deleteSupabasePeriod(period);
-    renderAllTabs();
-    updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
-    updateStatus(`Removed period "${period}" — ${rawData.length} events remaining`);
-  }
-
-  function updateMetaBar(meta) {
-    const bar = document.getElementById('metaBar');
-    if (!rawData.length) { bar.style.display = 'none'; return; }
-    bar.style.display = 'flex';
-    const periods = getAllPeriods();
-    const selected = getCurrentPeriod();
-    const textEl = document.getElementById('metaPeriodText');
-    const selectEl = document.getElementById('metaPeriodSelect');
-    const removeBtn = document.getElementById('removePeriodBtn');
-    if (adminUnlocked) {
-      textEl.style.display = 'none';
-      selectEl.style.display = 'inline-block';
-      selectEl.innerHTML = periods.map(p => `<option value="${p}" ${p === selected ? 'selected' : ''}>${p}</option>`).join('');
-      removeBtn.style.display = 'inline-block';
-    } else {
-      selectEl.style.display = 'none';
-      removeBtn.style.display = 'none';
-      textEl.style.display = 'inline';
-      textEl.textContent = selected || '—';
-    }
-    document.getElementById('metaModified').textContent = meta?.modified
-      ? new Date(meta.modified).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' })
-      : '—';
-  }
-
-  function loadFromStorage() {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        rawData = JSON.parse(stored);
-        updateStatus(`Loaded ${rawData.length} events from storage`);
-        const meta = JSON.parse(localStorage.getItem(META_KEY) || 'null');
-        updateMetaBar(meta || { modified: null, period: getCurrentPeriod() });
-      }
-    } catch(e) {}
-  }
-
-  function clearAllData() {
-    if (!confirm('Clear all data? This cannot be undone.')) return;
-    rawData = [];
-    localStorage.removeItem(STORAGE_KEY);
-    clearSupabase();
-    renderAllTabs();
-    updateStatus('All data cleared');
-  }
-
-  function updateStatus(msg, cls) {
+  /* ── Helpers ── */
+  function updateStatus(msg) {
     const el = document.getElementById('status');
-    el.textContent = msg;
-    el.className = 'status' + (cls ? ' ' + cls : '');
-    if (cls) setTimeout(() => { el.className = 'status'; }, 6000);
-  }
-
-  function switchTab(name) {
-    if (PROTECTED_TABS.has(name) && !adminUnlocked) { openPwModal(name); return; }
-    document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-    document.querySelectorAll('.tab-content').forEach(c => c.style.display = c.id === name ? 'block' : 'none');
-  }
-
-  function renderAllTabs() {
-    renderDashboard();
-    renderSportTabs();
-    renderChampionships();
-    renderShows();
-    renderRawData();
-    populateSchoolDropdown();
-  }
-
-  function populateSchoolDropdown() {
-    const sel = document.getElementById('schoolSelect');
-    sel.innerHTML = '<option value="">-- Select a School --</option>';
-    CUSA_SCHOOLS.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s; opt.textContent = s;
-      sel.appendChild(opt);
-    });
-  }
-
-  function performSchoolSearch() {
-    const school = document.getElementById('schoolSelect').value;
-    if (!school) { alert('Please select a school'); return; }
-    const schoolData = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-
-    if (!schoolData.length) {
-      document.getElementById('schoolResults').innerHTML = `<div class="empty-state"><h3>No events found for ${school}</h3></div>`;
-      return;
-    }
-
-    const totalViewers = schoolData.reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
-    const avgViewers = Math.round(totalViewers / schoolData.length);
-    const avgMin = (schoolData.reduce((s,r) => s + (r.MIN_PER_VIEWER||0), 0) / schoolData.length).toFixed(1);
-    const sportBreakdown = {};
-    schoolData.forEach(r => {
-      const sp = r.SPORT || 'Unknown';
-      if (!sportBreakdown[sp]) sportBreakdown[sp] = { count:0, viewers:0 };
-      sportBreakdown[sp].count++;
-      sportBreakdown[sp].viewers += r.UNIQUE_VIEWERS || 0;
-    });
-    const sports = Object.keys(sportBreakdown).sort();
-    const periods = [...new Set(schoolData.map(r => r.REPORT_PERIOD).filter(Boolean))].sort();
-
-    document.getElementById('schoolResults').innerHTML = `
-      <h3 style="color:var(--navy);margin-bottom:16px;">${school}</h3>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value">${schoolData.length}</div></div>
-        <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalViewers.toLocaleString()}</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Viewers/Event</div><div class="stat-value">${avgViewers.toLocaleString()}</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
-      </div>
-      <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">By Sport</h4>
-      <div class="table-container" style="margin-bottom:20px;">
-        <table><thead><tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers</th><th>Overall Rank</th></tr></thead>
-        <tbody>${Object.entries(sportBreakdown).map(([sp, st]) => `
-          <tr><td><strong>${sp}</strong></td><td class="number">${st.count}</td>
-          <td class="number">${st.viewers.toLocaleString()}</td>
-          <td class="number">${Math.round(st.viewers/st.count).toLocaleString()}</td>
-          <td class="rank">${getSchoolRankBySport(school, sp)}</td></tr>`).join('')}
-        </tbody></table>
-      </div>
-      <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">All Events</h4>
-      <div class="search-bar">
-        <div class="search-field"><label>Search Matchup</label><input type="text" id="school-filter-matchup" placeholder="Team or matchup name…"></div>
-        <div class="search-field"><label>Sport</label>
-          <select id="school-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
-        </div>
-        <div class="search-field"><label>Filter by Date</label><input type="date" id="school-filter-date"></div>
-        <div class="search-field"><label>Report Period</label>
-          <select id="school-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
-        </div>
-        <div class="search-field"><label>Min Viewers</label><input type="number" id="school-filter-viewers" placeholder="e.g. 500" min="0"></div>
-        <div class="search-field"><label>Min Total Min</label><input type="number" id="school-filter-totalmin" placeholder="e.g. 1000" min="0"></div>
-        <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="school-filter-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <button class="btn btn-import" onclick="filterSchoolEvents('${school}')">🔍 Filter</button>
-          <button class="btn btn-clear" onclick="clearSchoolFilter('${school}')">Clear</button>
-        </div>
-      </div>
-      <div id="schoolEventTable"></div>`;
-    filterSchoolEvents(school);
-  }
-
-  function filterSchoolEvents(school) {
-    const matchup = document.getElementById('school-filter-matchup').value.toLowerCase().trim();
-    const sport = document.getElementById('school-filter-sport').value;
-    const date = document.getElementById('school-filter-date').value;
-    const period = document.getElementById('school-filter-period').value;
-    const minV = parseFloat(document.getElementById('school-filter-viewers').value) || 0;
-    const minTotalMin = parseFloat(document.getElementById('school-filter-totalmin').value) || 0;
-    const minMinViewer = parseFloat(document.getElementById('school-filter-minviewer').value) || 0;
-    let data = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (matchup) data = data.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes(matchup) || (r.AWAY_TEAM||'').toLowerCase().includes(matchup) || (r.HOME_TEAM||'').toLowerCase().includes(matchup));
-    if (sport) data = data.filter(r => r.SPORT === sport);
-    if (date) data = data.filter(r => formatDateForFilter(r.DATE) === date);
-    if (period) data = data.filter(r => r.REPORT_PERIOD === period);
-    if (minV) data = data.filter(r => (r.UNIQUE_VIEWERS||0) >= minV);
-    if (minTotalMin) data = data.filter(r => (r.TOTAL_MINUTES||0) >= minTotalMin);
-    if (minMinViewer) data = data.filter(r => (r.MIN_PER_VIEWER||0) >= minMinViewer);
-    const total = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school).length;
-    const el = document.getElementById('schoolEventTable');
-    if (!data.length) { el.innerHTML = `<div class="empty-state"><h3>No events match your filter</h3></div>`; return; }
-    el.innerHTML = `
-      <div class="table-container">
-        <table><thead><tr><th>#</th><th>Sport</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
-        <tbody>${data.map((ev, i) => `
-          <tr><td class="rank">${i+1}</td><td>${ev.SPORT||'-'}</td><td>${ev.AIRING_TITLE||'-'}</td>
-          <td>${formatDate(ev.DATE)}</td>
-          <td class="number">${(ev.UNIQUE_VIEWERS||0).toLocaleString()}</td>
-          <td class="number">${(ev.TOTAL_MINUTES||0).toLocaleString()}</td>
-          <td class="number">${(ev.MIN_PER_VIEWER||0).toFixed(1)}</td>
-          <td>${ev.REPORT_PERIOD||'-'}</td></tr>`).join('')}
-        </tbody></table>
-        ${data.length < total ? `<p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${data.length} of ${total} events</p>` : ''}
-      </div>`;
-  }
-
-  function clearSchoolFilter(school) {
-    document.getElementById('school-filter-matchup').value = '';
-    document.getElementById('school-filter-sport').value = '';
-    document.getElementById('school-filter-date').value = '';
-    document.getElementById('school-filter-period').value = '';
-    document.getElementById('school-filter-viewers').value = '';
-    document.getElementById('school-filter-totalmin').value = '';
-    document.getElementById('school-filter-minviewer').value = '';
-    filterSchoolEvents(school);
-  }
-
-  function exportSchoolData() {
-    const school = document.getElementById('schoolSelect').value;
-    if (!school) { alert('Please select a school and search first'); return; }
-    const schoolData = activeData().filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (!schoolData.length) { alert('No data to export'); return; }
-    const ws = XLSX.utils.json_to_sheet(schoolData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, school.substring(0,30));
-    XLSX.writeFile(wb, `CUSA_${school.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
-    updateStatus(`Exported ${schoolData.length} events for ${school}`);
-  }
-
-  function filterBySport(sportName) {
-    return activeData().filter(r => r.SPORT === sportName)
-      .filter(r => {
-        const t = (r.AIRING_TITLE||'').toLowerCase();
-        return !t.includes('kickoff') && !t.includes('tip off') && !t.includes('willie simmons');
-      })
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-  }
-
-  let _dashboardRows = [];
-
-  function renderDashboard() {
-    const data = activeData();
-    const total = data.length;
-    const totalV = data.reduce((s,r) => s+(r.UNIQUE_VIEWERS||0), 0);
-    const avgV = total ? Math.round(totalV/total) : 0;
-    const avgMin = total ? (data.reduce((s,r) => s+(r.MIN_PER_VIEWER||0),0)/total).toFixed(1) : 0;
-
-    document.getElementById('dashboardStats').innerHTML = `
-      <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value">${total.toLocaleString()}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
-      <div class="stat-card"><div class="stat-label">Avg Viewers/Event</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
-      <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>`;
-
-    const sportStats = {};
-    data.forEach(r => {
-      const sp = r.SPORT;
-      if (!sportStats[sp]) sportStats[sp] = { events:0, viewers:0 };
-      sportStats[sp].events++;
-      sportStats[sp].viewers += r.UNIQUE_VIEWERS||0;
-    });
-    _dashboardRows = Object.entries(sportStats)
-      .map(([sp, st]) => ({ sp, events:st.events, viewers:st.viewers, avg:Math.round(st.viewers/st.events) }))
-      .sort((a,b) => b.viewers - a.viewers);
-
-    document.getElementById('dashboardTable').innerHTML = total ? `
-      <table>
-        <thead>
-          <tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers/Event</th></tr>
-          <tr class="filter-row">
-            <th><input type="text" id="dash-filter-sport" placeholder="Search…" oninput="filterDashboardTable()"></th>
-            <th><input type="number" id="dash-filter-events" placeholder="Min" min="0" oninput="filterDashboardTable()"></th>
-            <th><input type="number" id="dash-filter-viewers" placeholder="Min" min="0" oninput="filterDashboardTable()"></th>
-            <th><input type="number" id="dash-filter-avg" placeholder="Min" min="0" oninput="filterDashboardTable()"></th>
-          </tr>
-        </thead>
-        <tbody id="dashboard-tbody"></tbody>
-      </table>` :
-      `<div class="empty-state"><h3>No data loaded</h3><p>Import an Excel file to get started</p></div>`;
-    if (total) filterDashboardTable();
-  }
-
-  function filterDashboardTable() {
-    const sport = document.getElementById('dash-filter-sport').value.toLowerCase().trim();
-    const minE = parseFloat(document.getElementById('dash-filter-events').value) || 0;
-    const minV = parseFloat(document.getElementById('dash-filter-viewers').value) || 0;
-    const minA = parseFloat(document.getElementById('dash-filter-avg').value) || 0;
-    let rows = _dashboardRows;
-    if (sport) rows = rows.filter(r => (r.sp||'').toLowerCase().includes(sport));
-    if (minE) rows = rows.filter(r => r.events >= minE);
-    if (minV) rows = rows.filter(r => r.viewers >= minV);
-    if (minA) rows = rows.filter(r => r.avg >= minA);
-    const tbody = document.getElementById('dashboard-tbody');
-    if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:#999;">No sports match your filters</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = rows.map(r => `<tr><td><strong>${r.sp}</strong></td>
-      <td class="number">${r.events.toLocaleString()}</td>
-      <td class="number">${r.viewers.toLocaleString()}</td>
-      <td class="number">${r.avg.toLocaleString()}</td></tr>`).join('');
-  }
-
-  function renderSportTabs() {
-    Object.entries(SPORT_MAP).forEach(([tabId, sportName]) => {
-      const games = filterBySport(sportName);
-      const container = document.getElementById(tabId);
-      if (!games.length) {
-        container.innerHTML = `<div class="empty-state"><h3>No games found</h3><p>Import data to see ${sportName} games</p></div>`;
-        return;
-      }
-      const totalV = games.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
-      const avgV = Math.round(totalV/games.length);
-      const avgMin = (games.reduce((s,g) => s+(g.MIN_PER_VIEWER||0),0)/games.length).toFixed(1);
-
-      container.innerHTML = `
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-label">Total Games</div><div class="stat-value">${games.length}</div></div>
-          <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
-          <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
-          <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
-        </div>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th>
-              </tr>
-              <tr class="filter-row">
-                <th></th>
-                <th><input type="text" id="${tabId}-search-matchup" placeholder="Search…" oninput="filterSportTab('${tabId}','${sportName}')"></th>
-                <th><input type="date" id="${tabId}-search-date" onchange="filterSportTab('${tabId}','${sportName}')"></th>
-                <th><input type="number" id="${tabId}-search-viewers" placeholder="Min" min="0" oninput="filterSportTab('${tabId}','${sportName}')"></th>
-                <th><input type="number" id="${tabId}-search-totalmin" placeholder="Min" min="0" oninput="filterSportTab('${tabId}','${sportName}')"></th>
-                <th><input type="number" id="${tabId}-search-minviewer" placeholder="Min" min="0" step="0.1" oninput="filterSportTab('${tabId}','${sportName}')"></th>
-              </tr>
-            </thead>
-            <tbody id="${tabId}-tbody"></tbody>
-          </table>
-          <p id="${tabId}-count" style="padding:10px 12px;font-size:12px;color:#666;"></p>
-        </div>`;
-      filterSportTab(tabId, sportName);
-    });
-  }
-
-  function filterSportTab(tabId, sportName) {
-    const matchupEl = document.getElementById(`${tabId}-search-matchup`);
-    if (!matchupEl) return;
-    const matchup = matchupEl.value.toLowerCase().trim();
-    const date = document.getElementById(`${tabId}-search-date`).value;
-    const minViewers = parseFloat(document.getElementById(`${tabId}-search-viewers`).value) || 0;
-    const minTotalMin = parseFloat(document.getElementById(`${tabId}-search-totalmin`).value) || 0;
-    const minMinViewer = parseFloat(document.getElementById(`${tabId}-search-minviewer`).value) || 0;
-    const all = filterBySport(sportName);
-    let games = all;
-    if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup) || (g.AWAY_TEAM||'').toLowerCase().includes(matchup) || (g.HOME_TEAM||'').toLowerCase().includes(matchup));
-    if (date) games = games.filter(g => formatDateForFilter(g.DATE) === date);
-    if (minViewers) games = games.filter(g => (g.UNIQUE_VIEWERS||0) >= minViewers);
-    if (minTotalMin) games = games.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
-    if (minMinViewer) games = games.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
-
-    const tbody = document.getElementById(`${tabId}-tbody`);
-    const countEl = document.getElementById(`${tabId}-count`);
-    if (!games.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#999;">No games match your filters</td></tr>`;
-      countEl.textContent = `Showing 0 of ${all.length} games`;
-      return;
-    }
-    tbody.innerHTML = games.map((g,i) => `<tr>
-      <td class="rank">${i+1}</td>
-      <td>${g.AIRING_TITLE||'-'}</td>
-      <td>${formatDate(g.DATE)}</td>
-      <td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
-      <td class="number">${(g.TOTAL_MINUTES||0).toLocaleString()}</td>
-      <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td>
-    </tr>`).join('');
-    countEl.textContent = games.length === all.length ? `${games.length} games` : `Showing ${games.length} of ${all.length} games`;
-  }
-
-  function renderChampionships() {
-    const allGames = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    const container = document.getElementById('championships');
-    if (!allGames.length) { container.innerHTML = `<div class="empty-state"><h3>No championship events found</h3><p>Import data to see championship games</p></div>`; return; }
-    const totalV = allGames.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
-    const sports = [...new Set(allGames.map(g => g.SPORT).filter(Boolean))].sort();
-    const periods = [...new Set(allGames.map(g => g.REPORT_PERIOD).filter(Boolean))].sort();
-    container.innerHTML = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Championships</div><div class="stat-value">${allGames.length}</div></div>
-        <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
-      </div>
-      <div class="search-bar">
-        <div class="search-field"><label>Search Matchup</label><input type="text" id="champ-filter-matchup" placeholder="Team or event name…"></div>
-        <div class="search-field"><label>Sport</label>
-          <select id="champ-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
-        </div>
-        <div class="search-field"><label>Filter by Date</label><input type="date" id="champ-filter-date"></div>
-        <div class="search-field"><label>Report Period</label>
-          <select id="champ-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
-        </div>
-        <div class="search-field"><label>Min Viewers</label><input type="number" id="champ-filter-viewers" placeholder="e.g. 500" min="0"></div>
-        <div class="search-field"><label>Min Total Min</label><input type="number" id="champ-filter-totalmin" placeholder="e.g. 1000" min="0"></div>
-        <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="champ-filter-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <button class="btn btn-import" onclick="filterChampionships()">🔍 Search</button>
-          <button class="btn btn-clear" onclick="clearChampionshipsFilter()">Clear</button>
-        </div>
-      </div>
-      <div id="champ-table"></div>`;
-    filterChampionships();
-  }
-
-  function filterChampionships() {
-    const matchup = document.getElementById('champ-filter-matchup').value.toLowerCase().trim();
-    const sport = document.getElementById('champ-filter-sport').value;
-    const date = document.getElementById('champ-filter-date').value;
-    const period = document.getElementById('champ-filter-period').value;
-    const minV = parseFloat(document.getElementById('champ-filter-viewers').value) || 0;
-    const minTotalMin = parseFloat(document.getElementById('champ-filter-totalmin').value) || 0;
-    const minMinViewer = parseFloat(document.getElementById('champ-filter-minviewer').value) || 0;
-    let games = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup));
-    if (sport) games = games.filter(g => g.SPORT === sport);
-    if (date) games = games.filter(g => formatDateForFilter(g.DATE) === date);
-    if (period) games = games.filter(g => g.REPORT_PERIOD === period);
-    if (minV) games = games.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
-    if (minTotalMin) games = games.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
-    if (minMinViewer) games = games.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
-    const total = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).length;
-    const el = document.getElementById('champ-table');
-    if (!games.length) { el.innerHTML = `<div class="empty-state"><h3>No championships match your filter</h3></div>`; return; }
-    el.innerHTML = `
-      <div class="table-container">
-        <table><thead><tr><th>#</th><th>Matchup</th><th>Sport</th><th>Date</th><th>Unique Viewers</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
-        <tbody>${games.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${g.SPORT||'-'}</td>
-          <td>${formatDate(g.DATE)}</td><td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
-          <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
-        </tbody></table>
-        ${games.length < total ? `<p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${games.length} of ${total} events</p>` : ''}
-      </div>`;
-  }
-
-  function clearChampionshipsFilter() {
-    document.getElementById('champ-filter-matchup').value = '';
-    document.getElementById('champ-filter-sport').value = '';
-    document.getElementById('champ-filter-date').value = '';
-    document.getElementById('champ-filter-period').value = '';
-    document.getElementById('champ-filter-viewers').value = '';
-    document.getElementById('champ-filter-totalmin').value = '';
-    document.getElementById('champ-filter-minviewer').value = '';
-    filterChampionships();
-  }
-
-  function renderShows() {
-    const isShow = r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); };
-    const allShows = activeData().filter(isShow)
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    const container = document.getElementById('shows');
-    if (!allShows.length) { container.innerHTML = `<div class="empty-state"><h3>No shows found</h3><p>Import data to see Kickoff/Tip Off shows</p></div>`; return; }
-    const totalV = allShows.reduce((s,g) => s+(g.UNIQUE_VIEWERS||0), 0);
-    const sports = [...new Set(allShows.map(g => g.SPORT).filter(Boolean))].sort();
-    const periods = [...new Set(allShows.map(g => g.REPORT_PERIOD).filter(Boolean))].sort();
-    container.innerHTML = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Shows</div><div class="stat-value">${allShows.length}</div></div>
-        <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
-      </div>
-      <div class="search-bar">
-        <div class="search-field"><label>Search Show</label><input type="text" id="shows-filter-show" placeholder="Show name…"></div>
-        <div class="search-field"><label>Sport</label>
-          <select id="shows-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
-        </div>
-        <div class="search-field"><label>Filter by Date</label><input type="date" id="shows-filter-date"></div>
-        <div class="search-field"><label>Report Period</label>
-          <select id="shows-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
-        </div>
-        <div class="search-field"><label>Min Viewers</label><input type="number" id="shows-filter-viewers" placeholder="e.g. 500" min="0"></div>
-        <div class="search-field"><label>Min Total Min</label><input type="number" id="shows-filter-totalmin" placeholder="e.g. 1000" min="0"></div>
-        <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="shows-filter-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <button class="btn btn-import" onclick="filterShows()">🔍 Search</button>
-          <button class="btn btn-clear" onclick="clearShowsFilter()">Clear</button>
-        </div>
-      </div>
-      <div id="shows-table"></div>`;
-    filterShows();
-  }
-
-  function filterShows() {
-    const isShow = r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); };
-    const name = document.getElementById('shows-filter-show').value.toLowerCase().trim();
-    const sport = document.getElementById('shows-filter-sport').value;
-    const date = document.getElementById('shows-filter-date').value;
-    const period = document.getElementById('shows-filter-period').value;
-    const minV = parseFloat(document.getElementById('shows-filter-viewers').value) || 0;
-    const minTotalMin = parseFloat(document.getElementById('shows-filter-totalmin').value) || 0;
-    const minMinViewer = parseFloat(document.getElementById('shows-filter-minviewer').value) || 0;
-    let shows = activeData().filter(isShow).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (name) shows = shows.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(name));
-    if (sport) shows = shows.filter(g => g.SPORT === sport);
-    if (date) shows = shows.filter(g => formatDateForFilter(g.DATE) === date);
-    if (period) shows = shows.filter(g => g.REPORT_PERIOD === period);
-    if (minV) shows = shows.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
-    if (minTotalMin) shows = shows.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
-    if (minMinViewer) shows = shows.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
-    const total = activeData().filter(isShow).length;
-    const el = document.getElementById('shows-table');
-    if (!shows.length) { el.innerHTML = `<div class="empty-state"><h3>No shows match your filter</h3></div>`; return; }
-    el.innerHTML = `
-      <div class="table-container">
-        <table><thead><tr><th>#</th><th>Show</th><th>Sport</th><th>Date</th><th>Unique Viewers</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
-        <tbody>${shows.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${g.SPORT||'-'}</td>
-          <td>${formatDate(g.DATE)}</td><td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
-          <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
-        </tbody></table>
-        ${shows.length < total ? `<p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${shows.length} of ${total} shows</p>` : ''}
-      </div>`;
-  }
-
-  function clearShowsFilter() {
-    document.getElementById('shows-filter-show').value = '';
-    document.getElementById('shows-filter-sport').value = '';
-    document.getElementById('shows-filter-date').value = '';
-    document.getElementById('shows-filter-period').value = '';
-    document.getElementById('shows-filter-viewers').value = '';
-    document.getElementById('shows-filter-totalmin').value = '';
-    document.getElementById('shows-filter-minviewer').value = '';
-    filterShows();
-  }
-
-  function renderRawData() {
-    const container = document.getElementById('rawdata');
-    const data = activeData();
-    if (!data.length) { container.innerHTML = `<div class="empty-state"><h3>No data loaded</h3><p>${rawData.length ? 'No events match the current filter' : 'Import an Excel file to get started'}</p></div>`; return; }
-    const sorted = [...data].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    const headers = Object.keys(sorted[0]);
-    container.innerHTML = `
-      <div class="table-container">
-        <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-        <tbody>${sorted.map(r=>`<tr>${headers.map(h=>`<td>${r[h]||'-'}</td>`).join('')}</tr>`).join('')}</tbody>
-        </table>
-      </div>`;
-  }
-
-  function exportCurrentTab() {
-    const activeBtn = document.querySelector('.tab-bar button.active');
-    const tabName = activeBtn.dataset.tab;
-    const label = activeBtn.textContent.trim();
-    let data = [];
-    if (tabName === 'dashboard') { alert('Export a specific sport tab instead.'); return; }
-    else if (tabName === 'rawdata') data = [...activeData()].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    else if (tabName === 'championships') data = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    else if (tabName === 'shows') data = activeData().filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); }).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    else if (SPORT_MAP[tabName]) data = filterBySport(SPORT_MAP[tabName]);
-    if (!data.length) { alert('No data to export'); return; }
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, label.substring(0,30));
-    XLSX.writeFile(wb, `CUSA_${label.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
-    updateStatus(`Exported ${data.length} rows`);
-  }
-
-  function exportAllData() {
-    if (!rawData.length) { alert('No data to export'); return; }
-    const wb = XLSX.utils.book_new();
-    const sortedRaw = [...activeData()].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sortedRaw), 'Raw Data');
-    Object.entries(SPORT_MAP).forEach(([tabId, sportName]) => {
-      const d = filterBySport(sportName);
-      if (d.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), sportName.replace('NCAA ','').substring(0,30));
-    });
-    const champ = activeData().filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (champ.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(champ), 'Championships');
-    const shows = activeData().filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
-      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
-    if (shows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shows), 'Shows');
-    XLSX.writeFile(wb, `CUSA_Complete_Tracker_${new Date().toISOString().split('T')[0]}.xlsx`);
-    updateStatus(`Exported complete tracker with ${wb.SheetNames.length} sheets`);
+    if (el) el.textContent = msg;
   }
 
   function parseDateForSort(v) {
@@ -1307,6 +223,289 @@
       return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
     } catch { return ''; }
   }
+
+  /* ── Supabase ── */
+  function initSupabase() {
+    if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+  }
+
+  function rowFromDb(r) {
+    const base = r.extra_data || {};
+    return {
+      ...base,
+      SPORT: r.sport,
+      AIRING_TITLE: r.airing_title,
+      DATE: r.event_date,
+      AWAY_TEAM: r.away_team,
+      HOME_TEAM: r.home_team,
+      UNIQUE_VIEWERS: r.unique_viewers,
+      TOTAL_MINUTES: r.total_minutes,
+      MIN_PER_VIEWER: parseFloat(r.min_per_viewer),
+      REPORT_PERIOD: r.report_period
+    };
+  }
+
+  async function loadFromSupabase() {
+    if (!_db) return false;
+    try {
+      let all = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await _db.from('viewership_events').select('*').range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all = all.concat(data.map(rowFromDb));
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      rawData = all;
+      return true;
+    } catch(e) {
+      console.error('Supabase load error:', e);
+      return false;
+    }
+  }
+
+  function loadFromLocalStorage() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) rawData = JSON.parse(stored);
+    } catch(e) {}
+  }
+
+  /* ── School search ── */
+  function populateSchoolDropdown() {
+    const sel = document.getElementById('schoolSelect');
+    sel.innerHTML = '<option value="">-- Select a School --</option>';
+    CUSA_SCHOOLS.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    });
+  }
+
+  function getSchoolRankBySport(school, sportName) {
+    const cusaSet = new Set(CUSA_SCHOOLS);
+    const sportRows = rawData.filter(r => r.SPORT === sportName);
+    const totals = {};
+    sportRows.forEach(r => {
+      [r.AWAY_TEAM, r.HOME_TEAM].filter(t => t && cusaSet.has(t)).forEach(t => {
+        totals[t] = (totals[t] || 0) + (r.UNIQUE_VIEWERS || 0);
+      });
+    });
+    const sorted = Object.entries(totals).sort((a,b) => b[1]-a[1]);
+    const rank = sorted.findIndex(([t]) => t === school) + 1;
+    return rank > 0 ? `#${rank} of ${sorted.length}` : '—';
+  }
+
+  function performSchoolSearch() {
+    const school = document.getElementById('schoolSelect').value;
+    if (!school) { alert('Please select a school'); return; }
+    if (!rawData.length) { alert('No data loaded yet — please wait or contact admin'); return; }
+    const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+
+    if (!schoolData.length) {
+      document.getElementById('schoolResults').innerHTML = `<div class="empty-state"><h3>No events found for ${school}</h3></div>`;
+      return;
+    }
+
+    const totalViewers = schoolData.reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
+    const avgViewers = Math.round(totalViewers / schoolData.length);
+    const avgMin = (schoolData.reduce((s,r) => s + (r.MIN_PER_VIEWER||0), 0) / schoolData.length).toFixed(1);
+    const sportBreakdown = {};
+    schoolData.forEach(r => {
+      const sp = r.SPORT || 'Unknown';
+      if (!sportBreakdown[sp]) sportBreakdown[sp] = { count:0, viewers:0 };
+      sportBreakdown[sp].count++;
+      sportBreakdown[sp].viewers += r.UNIQUE_VIEWERS || 0;
+    });
+    const sports = Object.keys(sportBreakdown).sort();
+    const periods = [...new Set(schoolData.map(r => r.REPORT_PERIOD).filter(Boolean))].sort();
+
+    document.getElementById('schoolResults').innerHTML = `
+      <h3 style="color:var(--navy);margin-bottom:16px;">${school}</h3>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value">${schoolData.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalViewers.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Viewers/Event</div><div class="stat-value">${avgViewers.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
+      </div>
+      <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">By Sport</h4>
+      <div class="table-container">
+        <table><thead><tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers</th><th>Overall Rank</th></tr></thead>
+        <tbody>${Object.entries(sportBreakdown).map(([sp, st]) => `
+          <tr><td><strong>${sp}</strong></td><td class="number">${st.count}</td>
+          <td class="number">${st.viewers.toLocaleString()}</td>
+          <td class="number">${Math.round(st.viewers/st.count).toLocaleString()}</td>
+          <td class="rank">${getSchoolRankBySport(school, sp)}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+      <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">All Events</h4>
+      <div class="search-bar">
+        <div class="search-field"><label>Search Matchup</label><input type="text" id="school-filter-matchup" placeholder="Team or matchup name…"></div>
+        <div class="search-field"><label>Sport</label>
+          <select id="school-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Filter by Date</label><input type="date" id="school-filter-date"></div>
+        <div class="search-field"><label>Report Period</label>
+          <select id="school-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
+        </div>
+        <div class="search-field"><label>Min Viewers</label><input type="number" id="school-filter-viewers" placeholder="e.g. 500" min="0"></div>
+        <div class="search-field"><label>Min Total Min</label><input type="number" id="school-filter-totalmin" placeholder="e.g. 1000" min="0"></div>
+        <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="school-filter-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <button class="btn btn-primary" onclick="filterSchoolEvents('${school}')">🔍 Filter</button>
+          <button class="btn btn-clear" onclick="clearSchoolFilter('${school}')">Clear</button>
+        </div>
+      </div>
+      <div id="schoolEventTable"></div>`;
+    filterSchoolEvents(school);
+  }
+
+  function filterSchoolEvents(school) {
+    const matchup = document.getElementById('school-filter-matchup').value.toLowerCase().trim();
+    const sport = document.getElementById('school-filter-sport').value;
+    const date = document.getElementById('school-filter-date').value;
+    const period = document.getElementById('school-filter-period').value;
+    const minV = parseFloat(document.getElementById('school-filter-viewers').value) || 0;
+    const minTotalMin = parseFloat(document.getElementById('school-filter-totalmin').value) || 0;
+    const minMinViewer = parseFloat(document.getElementById('school-filter-minviewer').value) || 0;
+    let data = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    if (matchup) data = data.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes(matchup) || (r.AWAY_TEAM||'').toLowerCase().includes(matchup) || (r.HOME_TEAM||'').toLowerCase().includes(matchup));
+    if (sport) data = data.filter(r => r.SPORT === sport);
+    if (date) data = data.filter(r => formatDateForFilter(r.DATE) === date);
+    if (period) data = data.filter(r => r.REPORT_PERIOD === period);
+    if (minV) data = data.filter(r => (r.UNIQUE_VIEWERS||0) >= minV);
+    if (minTotalMin) data = data.filter(r => (r.TOTAL_MINUTES||0) >= minTotalMin);
+    if (minMinViewer) data = data.filter(r => (r.MIN_PER_VIEWER||0) >= minMinViewer);
+    const total = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school).length;
+    const el = document.getElementById('schoolEventTable');
+    if (!data.length) { el.innerHTML = `<div class="empty-state"><h3>No events match your filter</h3></div>`; return; }
+    el.innerHTML = `
+      <div class="table-container">
+        <table><thead><tr><th>#</th><th>Sport</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
+        <tbody>${data.map((ev, i) => `
+          <tr><td class="rank">${i+1}</td><td>${ev.SPORT||'-'}</td><td>${ev.AIRING_TITLE||'-'}</td>
+          <td>${formatDate(ev.DATE)}</td>
+          <td class="number">${(ev.UNIQUE_VIEWERS||0).toLocaleString()}</td>
+          <td class="number">${(ev.TOTAL_MINUTES||0).toLocaleString()}</td>
+          <td class="number">${(ev.MIN_PER_VIEWER||0).toFixed(1)}</td>
+          <td>${ev.REPORT_PERIOD||'-'}</td></tr>`).join('')}
+        </tbody></table>
+        ${data.length < total ? `<p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${data.length} of ${total} events</p>` : ''}
+      </div>`;
+  }
+
+  function clearSchoolFilter(school) {
+    document.getElementById('school-filter-matchup').value = '';
+    document.getElementById('school-filter-sport').value = '';
+    document.getElementById('school-filter-date').value = '';
+    document.getElementById('school-filter-period').value = '';
+    document.getElementById('school-filter-viewers').value = '';
+    document.getElementById('school-filter-totalmin').value = '';
+    document.getElementById('school-filter-minviewer').value = '';
+    filterSchoolEvents(school);
+  }
+
+  /* ── Styled Excel export ── */
+  const EX_HEADER_STYLE = {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11, name: 'Segoe UI' },
+    fill: { patternType: 'solid', fgColor: { rgb: '00263A' } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: '00263A' } },
+      bottom: { style: 'thin', color: { rgb: '00263A' } },
+      left: { style: 'thin', color: { rgb: '00263A' } },
+      right: { style: 'thin', color: { rgb: '00263A' } }
+    }
+  };
+  function exCellStyle(rowIndex, isNumber) {
+    return {
+      font: { sz: 11, name: 'Segoe UI', color: { rgb: rowIndex === 0 ? 'EF4035' : '222222' } },
+      fill: { patternType: 'solid', fgColor: { rgb: rowIndex % 2 === 0 ? 'FFFFFF' : 'F4F7FA' } },
+      alignment: { horizontal: isNumber ? 'right' : 'left', vertical: 'center' },
+      border: { bottom: { style: 'thin', color: { rgb: 'EEEEEE' } } }
+    };
+  }
+  function buildStyledSheet(rows, columns) {
+    const aoa = [
+      columns.map(c => c.label),
+      ...rows.map(row => columns.map(c => row[c.key]))
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    for (let C = 0; C < columns.length; C++) {
+      const a = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (ws[a]) ws[a].s = EX_HEADER_STYLE;
+    }
+    for (let R = 0; R < rows.length; R++) {
+      for (let C = 0; C < columns.length; C++) {
+        const a = XLSX.utils.encode_cell({ r: R + 1, c: C });
+        const cell = ws[a];
+        if (!cell) continue;
+        const fmt = columns[C].format;
+        const isNum = fmt === 'integer' || fmt === 'decimal1';
+        if (fmt === 'integer') { cell.t = 'n'; cell.z = '#,##0'; }
+        else if (fmt === 'decimal1') { cell.t = 'n'; cell.z = '#,##0.0'; }
+        cell.s = exCellStyle(R, isNum);
+      }
+    }
+    ws['!cols'] = columns.map(c => ({ wch: c.width || 15 }));
+    ws['!rows'] = [{ hpt: 22 }, ...rows.map(() => ({ hpt: 18 }))];
+    return ws;
+  }
+
+  function exportCurrentTab() {
+    const school = document.getElementById('schoolSelect').value;
+    if (!school) { alert('Please select a school and search first'); return; }
+    const schoolData = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    if (!schoolData.length) { alert('No data to export'); return; }
+
+    const cols = [
+      { key: 'rank', label: '#', format: 'integer', width: 5 },
+      { key: 'sport', label: 'Sport', width: 22 },
+      { key: 'matchup', label: 'Matchup', width: 38 },
+      { key: 'date', label: 'Date', width: 12 },
+      { key: 'viewers', label: 'Unique Viewers', format: 'integer', width: 16 },
+      { key: 'minutes', label: 'Total Minutes', format: 'integer', width: 16 },
+      { key: 'mpv', label: 'Min/Viewer', format: 'decimal1', width: 12 },
+      { key: 'period', label: 'Report Period', width: 16 }
+    ];
+    const rows = schoolData.map((g, i) => ({
+      rank: i+1,
+      sport: g.SPORT || '-',
+      matchup: g.AIRING_TITLE || '-',
+      date: formatDate(g.DATE),
+      viewers: g.UNIQUE_VIEWERS || 0,
+      minutes: g.TOTAL_MINUTES || 0,
+      mpv: +(g.MIN_PER_VIEWER || 0).toFixed(1),
+      period: g.REPORT_PERIOD || '-'
+    }));
+    const ws = buildStyledSheet(rows, cols);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, school.substring(0,30));
+    XLSX.writeFile(wb, `CUSA_${school.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    updateStatus(`Exported ${schoolData.length} events for ${school}`);
+  }
+
+  /* ── Init ── */
+  document.addEventListener('DOMContentLoaded', async () => {
+    populateSchoolDropdown();
+    initSupabase();
+    const ok = await loadFromSupabase();
+    if (!ok) loadFromLocalStorage();
+    if (rawData.length) {
+      updateStatus(`${rawData.length.toLocaleString()} events available — select a school to begin`);
+    } else {
+      updateStatus('No data available yet. Please ask the admin to import the latest report.');
+    }
+  });
 </script>
+
 </body>
 </html>

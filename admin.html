@@ -1046,9 +1046,13 @@
 
   /* ── Edit / Add Event modal ── */
   function openEditModal(opts) {
+    opts = opts || {};
     _editingEventRef = opts.existingEvent || null;
     _editingProdEvent = opts.prodEvent || null;
-    document.getElementById('eeTitle').textContent = _editingEventRef ? '✏ Edit Event' : '+ Add Viewership for Produced Event';
+    let title = '+ Add New Event';
+    if (_editingEventRef) title = '✏ Edit Event';
+    else if (_editingProdEvent) title = '+ Add Viewership for Produced Event';
+    document.getElementById('eeTitle').textContent = title;
 
     const set = (id, v) => { document.getElementById(id).value = v == null ? '' : v; };
     if (_editingEventRef) {
@@ -1066,9 +1070,9 @@
       const sport = PROD_TO_VIEW_SPORT[p.sport] || opts.sportName || 'NCAA Football';
       const home = p.home_team || p.school || '';
       const away = p.away_team || '';
-      const title = (away && home) ? `${away} vs. ${home}` : (home || away);
+      const t = (away && home) ? `${away} vs. ${home}` : (home || away);
       set('ee-sport', sport);
-      set('ee-airing', title);
+      set('ee-airing', t);
       set('ee-date', p.event_date);
       set('ee-period', getCurrentPeriod());
       set('ee-away', away);
@@ -1076,10 +1080,21 @@
       set('ee-viewers', 0);
       set('ee-minutes', 0);
       set('ee-mpv', '0.0');
+    } else {
+      // Blank new event — pre-select sport if provided
+      set('ee-sport', opts.sportName || 'NCAA Football');
+      set('ee-airing', '');
+      set('ee-date', new Date().toISOString().split('T')[0]);
+      set('ee-period', getCurrentPeriod());
+      set('ee-away', '');
+      set('ee-home', '');
+      set('ee-viewers', 0);
+      set('ee-minutes', 0);
+      set('ee-mpv', '0.0');
     }
     document.getElementById('ee-err').style.display = 'none';
     document.getElementById('eeOverlay').classList.add('open');
-    setTimeout(() => document.getElementById('ee-viewers').focus(), 80);
+    setTimeout(() => document.getElementById(_editingEventRef || _editingProdEvent ? 'ee-viewers' : 'ee-airing').focus(), 80);
   }
 
   function closeEditModal() {
@@ -1294,6 +1309,12 @@
         if (!confirm(`Remove this event from the Production Tracker?\n\n${label}\n\nThis deletes the produced_events row and clears the scheduled placeholder.`)) return;
         btn.disabled = true;
         await removeProducedEvent(prodKey);
+        return;
+      }
+
+      // ── Add New Event (manual, blank) ──
+      if (btn.dataset.addSport) {
+        openEditModal({ sportName: btn.dataset.addSport });
         return;
       }
 
@@ -1746,6 +1767,9 @@
           <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+          <button class="row-edit-btn add" data-add-sport="${escapeReconText(sportName)}" style="padding:8px 16px;font-size:12px">+ Add New Event</button>
         </div>
         ${renderReconciliation(sportName)}
         <div class="table-container">

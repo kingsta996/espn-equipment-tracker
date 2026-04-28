@@ -215,6 +215,27 @@
   .empty-state h3 { font-size: 18px; margin-bottom: 8px; }
   .empty-state p { font-size: 13px; }
 
+  /* Production Tracker Reconciliation panel */
+  .recon-panel {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .recon-panel.recon-warn { border-left: 4px solid #f59e0b; background: #fffbeb; }
+  .recon-panel.recon-ok   { border-left: 4px solid var(--green); background: rgba(167,213,0,0.08); }
+  .recon-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+  .recon-counts { font-size: 11px; color: #555; font-weight: 600; }
+  .recon-panel details { margin-top: 8px; }
+  .recon-panel summary { cursor: pointer; color: #92400e; font-weight: 600; padding: 4px 0; user-select: none; }
+  .recon-panel.recon-ok summary { color: #4a6600; }
+  .recon-list { margin: 8px 0 0 22px; padding: 0; font-size: 11px; max-height: 220px; overflow-y: auto; }
+  .recon-list li { padding: 3px 0; color: #444; font-family: 'Courier New', monospace; list-style: none; border-bottom: 1px dashed #eee; }
+  .recon-list li:last-child { border-bottom: none; }
+  .recon-ok-msg { color: #4a6600; font-weight: 600; font-size: 12px; }
+
   /* ── School search section ── */
   .section-title { font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
 
@@ -276,6 +297,10 @@
     <input type="file" id="appendInput" accept=".xlsx,.xls">
   </div>
   <button class="btn btn-toggle" id="producedToggle" onclick="toggleProducedFilter()" title="Show only events produced by CUSA schools" disabled>○ CUSA Produced Only</button>
+  <div class="file-input-wrapper">
+    <label for="prodInput" class="btn btn-append" title="Upload CUSA_ESPN_Production_Tracker.xlsx">📋 Import Production Tracker</label>
+    <input type="file" id="prodInput" accept=".xlsx,.xls">
+  </div>
   <button class="btn btn-export" id="exportBtn">📤 Export Current Tab</button>
   <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
   <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
@@ -344,6 +369,22 @@
   let _db = null;
   let _producedOnly = localStorage.getItem('cusa_produced_only') === 'true';
   let _producedSet = new Set();
+  let _producedEvents = [];
+
+  const PROD_TO_VIEW_SPORT = {
+    'Football': 'NCAA Football',
+    'Soccer': "NCAA Women's Soccer",
+    'Volleyball': "NCAA Women's Volleyball",
+    "Men's Basketball": "NCAA Men's Basketball",
+    "Women's Basketball": "NCAA Women's Basketball",
+    'Baseball': 'NCAA Baseball',
+    'Softball': 'NCAA Softball'
+  };
+  const PROD_SCHOOL_MAP = {
+    'FIU': 'Florida International',
+    'MTSU': 'Middle Tennessee',
+    'WKU': 'Western Kentucky'
+  };
 
   async function hashPw(pw) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
@@ -466,16 +507,170 @@
 
   /* ── CUSA-Produced filter ── */
   async function loadProducedEvents() {
-    try {
-      const r = await fetch('produced_events.json', { cache: 'no-cache' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const events = await r.json();
-      _producedSet = new Set(events.map(e => `${e.date}|${e.school}`));
-      const btn = document.getElementById('producedToggle');
-      if (btn) btn.disabled = false;
-    } catch(e) {
-      console.warn('Produced events list not available:', e);
+    let events = null;
+    if (_db) {
+      try {
+        const { data, error } = await _db.from('produced_events').select('*');
+        if (error) throw error;
+        if (data && data.length) events = data;
+      } catch(e) { console.warn('Supabase produced_events fetch failed:', e); }
     }
+    if (!events) {
+      try {
+        const r = await fetch('produced_events.json', { cache: 'no-cache' });
+        if (r.ok) {
+          const arr = await r.json();
+          events = arr.map(e => ({
+            sport: e.sport, school: e.school,
+            event_date: e.date, home_team: e.home, away_team: e.away
+          }));
+        }
+      } catch(e) { console.warn('Static produced_events.json not available:', e); }
+    }
+    _producedEvents = events || [];
+    _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
+    const btn = document.getElementById('producedToggle');
+    if (btn) btn.disabled = !_producedEvents.length;
+  }
+
+  function handleProductionTrackerImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array', cellDates: true });
+        const events = [];
+        ['Fall Data', 'Winter Data', 'Spring Data'].forEach(sn => {
+          const sheet = wb.Sheets[sn];
+          if (!sheet) return;
+          const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          let headerRow = -1;
+          for (let i = 0; i < json.length; i++) {
+            if (json[i] && json[i][0] === 'SPORT') { headerRow = i; break; }
+          }
+          if (headerRow === -1) return;
+          const h = json[headerRow];
+          const idx = name => h.indexOf(name);
+          const iSport = idx('SPORT'), iStatus = idx('STATUS'), iSchool = idx('SCHOOL');
+          const iDate = idx('DATE'), iAway = idx('AWAY'), iHome = idx('HOME');
+          for (let i = headerRow + 1; i < json.length; i++) {
+            const row = json[i];
+            if (!row || !row[iSport]) continue;
+            if (row[iStatus] !== 'Produced') continue;
+            const d = row[iDate];
+            let dateStr = '';
+            if (d instanceof Date && !isNaN(d.getTime())) {
+              const tz = d.getTimezoneOffset() * 60000;
+              dateStr = new Date(d.getTime() - tz).toISOString().split('T')[0];
+            } else if (typeof d === 'string' && d.trim()) {
+              dateStr = formatDateForFilter(d) || d.trim();
+            } else if (typeof d === 'number') {
+              const js = new Date(Math.round((d - 25569) * 86400 * 1000));
+              if (!isNaN(js.getTime())) dateStr = js.toISOString().split('T')[0];
+            }
+            if (!dateStr) continue;
+            const schoolRaw = String(row[iSchool] || '').trim();
+            const school = PROD_SCHOOL_MAP[schoolRaw] || schoolRaw;
+            events.push({
+              sport: String(row[iSport] || '').trim(),
+              school,
+              event_date: dateStr,
+              home_team: String(row[iHome] || '').trim(),
+              away_team: String(row[iAway] || '').trim()
+            });
+          }
+        });
+        if (!events.length) { alert('No produced events found in this file (looking for STATUS = "Produced" rows in Fall/Winter/Spring sheets)'); event.target.value = ''; return; }
+        if (!_db) { alert('Supabase not connected — cannot save Production Tracker'); event.target.value = ''; return; }
+        updateStatus('Uploading Production Tracker…');
+        // Replace all rows: delete then insert
+        const del = await _db.from('produced_events').delete().not('sport', 'is', null);
+        if (del.error) throw del.error;
+        for (let i = 0; i < events.length; i += 500) {
+          const chunk = events.slice(i, i + 500);
+          const ins = await _db.from('produced_events').insert(chunk);
+          if (ins.error) throw ins.error;
+        }
+        await loadProducedEvents();
+        renderAllTabs();
+        updateStatus(`☁️ Imported ${events.length} produced events from Production Tracker`, 'saved-cloud');
+        event.target.value = '';
+      } catch (err) {
+        console.error(err);
+        alert('Production Tracker import failed: ' + (err.message || err));
+        updateStatus('Import failed', 'saved-local');
+        event.target.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ── Sport-by-sport reconciliation ── */
+  function renderReconciliation(viewSportName) {
+    if (!_producedEvents.length) return '';
+    const prodSportKeys = Object.entries(PROD_TO_VIEW_SPORT)
+      .filter(([_, v]) => v === viewSportName).map(([k]) => k);
+    if (!prodSportKeys.length) return '';
+    const today = new Date().toISOString().split('T')[0];
+    const prodEvents = _producedEvents.filter(e => prodSportKeys.includes(e.sport) && e.event_date && e.event_date <= today);
+    if (!prodEvents.length) return '';
+
+    const cusaSet = new Set(CUSA_SCHOOLS);
+    const viewEvents = rawData.filter(r => r.SPORT === viewSportName);
+    const viewKeys = new Set();
+    viewEvents.forEach(v => {
+      const d = formatDateForFilter(v.DATE);
+      if (!d) return;
+      if (v.HOME_TEAM && cusaSet.has(v.HOME_TEAM)) viewKeys.add(`${d}|${v.HOME_TEAM}`);
+      if (v.AWAY_TEAM && cusaSet.has(v.AWAY_TEAM)) viewKeys.add(`${d}|${v.AWAY_TEAM}`);
+    });
+    const missingFromView = prodEvents.filter(p => !viewKeys.has(`${p.event_date}|${p.school}`));
+
+    const prodKeys = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
+    const missingFromProd = viewEvents.filter(v => {
+      const d = formatDateForFilter(v.DATE);
+      if (!d) return false;
+      const homeIsCusa = v.HOME_TEAM && cusaSet.has(v.HOME_TEAM);
+      const awayIsCusa = v.AWAY_TEAM && cusaSet.has(v.AWAY_TEAM);
+      if (!homeIsCusa && !awayIsCusa) return false;
+      if (homeIsCusa && prodKeys.has(`${d}|${v.HOME_TEAM}`)) return false;
+      if (awayIsCusa && prodKeys.has(`${d}|${v.AWAY_TEAM}`)) return false;
+      return true;
+    });
+
+    const matched = prodEvents.length - missingFromView.length;
+    const allMatch = missingFromView.length === 0 && missingFromProd.length === 0;
+    return `
+      <div class="recon-panel ${allMatch ? 'recon-ok' : 'recon-warn'}">
+        <div class="recon-header">
+          <span>📋 Production Tracker Reconciliation</span>
+          <span class="recon-counts">Tracker: ${prodEvents.length} produced (to date) • Matched in Viewership: ${matched}/${prodEvents.length}</span>
+        </div>
+        ${missingFromView.length ? `
+          <details>
+            <summary>⚠ ${missingFromView.length} produced event${missingFromView.length === 1 ? '' : 's'} missing from Viewership data</summary>
+            <ul class="recon-list">
+              ${missingFromView.map(e => `<li>${escapeReconText(e.event_date)} — ${escapeReconText(e.away_team || '?')} @ ${escapeReconText(e.home_team || '?')}  <span style="color:#888">(${escapeReconText(e.school)})</span></li>`).join('')}
+            </ul>
+          </details>
+        ` : ''}
+        ${missingFromProd.length ? `
+          <details>
+            <summary>⚠ ${missingFromProd.length} CUSA event${missingFromProd.length === 1 ? '' : 's'} in Viewership but not in Production Tracker</summary>
+            <ul class="recon-list">
+              ${missingFromProd.map(e => `<li>${escapeReconText(formatDate(e.DATE))} — ${escapeReconText(e.AIRING_TITLE || '(no title)')}</li>`).join('')}
+            </ul>
+          </details>
+        ` : ''}
+        ${allMatch ? '<div class="recon-ok-msg">✓ All produced events for this sport are accounted for in Viewership data</div>' : ''}
+      </div>
+    `;
+  }
+
+  function escapeReconText(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
   function isProduced(r) {
@@ -576,6 +771,7 @@
   function setupEventListeners() {
     document.getElementById('fileInput').addEventListener('change', e => handleFileImport(e, false));
     document.getElementById('appendInput').addEventListener('change', e => handleFileImport(e, true));
+    document.getElementById('prodInput').addEventListener('change', handleProductionTrackerImport);
     document.querySelectorAll('.tab-bar button').forEach(btn => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
@@ -997,6 +1193,7 @@
           <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
         </div>
+        ${renderReconciliation(sportName)}
         <div class="table-container">
           <table>
             <thead>

@@ -118,6 +118,24 @@ create or replace trigger school_audit_trigger
   for each row execute function log_school_changes();
 
 
+-- ── CUSA Production Tracker (drives 'CUSA Produced Only' filter) ──────────
+create table if not exists produced_events (
+  id uuid primary key default gen_random_uuid(),
+  sport text not null default '',
+  school text not null default '',
+  event_date text not null default '',
+  home_team text,
+  away_team text,
+  uploaded_at timestamptz default now(),
+  uploaded_by text,
+  unique (sport, school, event_date, home_team, away_team)
+);
+
+alter table produced_events enable row level security;
+create policy "public read produced events" on produced_events for select using (true);
+create policy "public write produced events" on produced_events for all using (true) with check (true);
+
+
 -- ── Viewership Tracker ────────────────────────────────────────────────────
 create table if not exists viewership_events (
   id uuid primary key default gen_random_uuid(),

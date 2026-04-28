@@ -116,6 +116,28 @@ create or replace trigger school_audit_trigger
   for each row execute function log_school_changes();
 
 
+-- ── Viewership Tracker ────────────────────────────────────────────────────
+create table if not exists viewership_events (
+  id uuid primary key default gen_random_uuid(),
+  sport text not null default '',
+  airing_title text not null default '',
+  event_date text not null default '',
+  away_team text,
+  home_team text,
+  unique_viewers int default 0,
+  total_minutes bigint default 0,
+  min_per_viewer numeric(8,2) default 0,
+  report_period text,
+  extra_data jsonb default '{}',
+  created_at timestamptz default now(),
+  unique (sport, airing_title, event_date)
+);
+
+alter table viewership_events enable row level security;
+create policy "public read viewership" on viewership_events for select using (true);
+create policy "public write viewership" on viewership_events for all using (true) with check (true);
+
+
 -- ── Commercials Hub ────────────────────────────────────────────────────────
 -- Active/inactive spot inventory managed by admin
 create table if not exists commercials (

@@ -253,6 +253,8 @@
   .row-edit-btn:hover { background: var(--blue); color: #fff; }
   .row-edit-btn.add { background: var(--green); border-color: var(--green); color: var(--navy); }
   .row-edit-btn.add:hover { background: #b8e510; }
+  .row-edit-btn.remove { background: #fff; color: var(--espn-red); border-color: var(--espn-red); }
+  .row-edit-btn.remove:hover { background: var(--espn-red); color: #fff; }
 
   /* Edit/Add Event modal */
   .ee-overlay { display: none; position: fixed; inset: 0; background: rgba(0,38,58,0.7); z-index: 250; align-items: center; justify-content: center; padding: 20px; }
@@ -646,7 +648,8 @@
         TOTAL_MINUTES: 0,
         MIN_PER_VIEWER: 0,
         REPORT_PERIOD: '',
-        _placeholder: true
+        _placeholder: true,
+        _prodKey: { sport: p.sport, school: p.school, event_date: p.event_date, home_team: p.home_team || '', away_team: p.away_team || '' }
       });
     });
     return viewership.concat(placeholders);
@@ -862,6 +865,7 @@
                   <span style="color:#888">(${escapeReconText(e.school)})</span>
                   ${msTag}
                   <button class="row-edit-btn add" data-recon-event='${data}' data-recon-sport="${escapeReconText(viewSportName)}">+ Confirm</button>
+                  <button class="row-edit-btn remove" data-recon-event='${data}' data-action="remove">× Remove</button>
                 </li>`;
               }).join('')}
             </ul>
@@ -965,6 +969,40 @@
       (opp.includes(normalizeName(m.opponent)) || normalizeName(m.opponent).length > 2 && opp.includes(normalizeName(m.opponent).slice(0, 4)))
     );
     return found;
+  }
+
+  async function removeProducedEvent(prodKey) {
+    if (!_db) {
+      alert('Supabase not connected — cannot remove from database');
+      return false;
+    }
+    try {
+      let q = _db.from('produced_events').delete()
+        .eq('sport', prodKey.sport || '')
+        .eq('school', prodKey.school || '')
+        .eq('event_date', prodKey.event_date || '');
+      if (prodKey.home_team) q = q.eq('home_team', prodKey.home_team);
+      if (prodKey.away_team) q = q.eq('away_team', prodKey.away_team);
+      const { error } = await q;
+      if (error) throw error;
+    } catch(err) {
+      console.error('Remove produced event failed:', err);
+      alert('Failed to remove: ' + (err.message || err));
+      return false;
+    }
+    // Strip from local state
+    _producedEvents = _producedEvents.filter(p =>
+      !(p.sport === prodKey.sport
+        && p.school === prodKey.school
+        && p.event_date === prodKey.event_date
+        && (p.home_team || '') === (prodKey.home_team || '')
+        && (p.away_team || '') === (prodKey.away_team || ''))
+    );
+    _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
+    rawData = mergeProducedPlaceholders(rawData.filter(r => !r._placeholder));
+    renderAllTabs();
+    updateStatus('✓ Produced event removed', 'saved-cloud');
+    return true;
   }
 
   /* ── Edit / Add Event modal ── */
@@ -1194,11 +1232,33 @@
     document.getElementById('prodInput').addEventListener('change', handleProductionTrackerImport);
     document.getElementById('msFetchBtn').addEventListener('click', loadMasterSchedule);
 
-    // Delegated click handler for Edit / Confirm buttons (they're rendered into tab content)
-    document.querySelector('.content').addEventListener('click', (e) => {
+    // Delegated click handler for Edit / Confirm / Remove buttons (rendered into tab content)
+    document.querySelector('.content').addEventListener('click', async (e) => {
       const btn = e.target.closest('.row-edit-btn');
       if (!btn) return;
       e.stopPropagation();
+
+      // ── Remove action ──
+      if (btn.dataset.action === 'remove') {
+        let prodKey = null;
+        if (btn.dataset.reconEvent) {
+          try {
+            const ev = JSON.parse(btn.dataset.reconEvent);
+            prodKey = { sport: ev.sport, school: ev.school, event_date: ev.event_date, home_team: ev.home_team || '', away_team: ev.away_team || '' };
+          } catch (err) { console.error(err); return; }
+        } else if (btn.dataset.rowIdx) {
+          const row = rawData[+btn.dataset.rowIdx];
+          if (row?._prodKey) prodKey = row._prodKey;
+        }
+        if (!prodKey) return;
+        const label = `${prodKey.event_date} — ${prodKey.away_team || '?'} @ ${prodKey.home_team || '?'}`;
+        if (!confirm(`Remove this event from the Production Tracker?\n\n${label}\n\nThis deletes the produced_events row and clears the scheduled placeholder.`)) return;
+        btn.disabled = true;
+        await removeProducedEvent(prodKey);
+        return;
+      }
+
+      // ── Confirm (from reconciliation) ──
       if (btn.dataset.reconEvent) {
         try {
           const prod = JSON.parse(btn.dataset.reconEvent);
@@ -1206,13 +1266,15 @@
         } catch (err) { console.error(err); }
         return;
       }
+
+      // ── Edit / Confirm (from sport tab row) ──
       if (btn.dataset.rowIdx) {
         const idx = +btn.dataset.rowIdx;
         const row = rawData[idx];
         if (!row) return;
         if (row._placeholder) {
-          // Convert placeholder → produced event entry for the modal
-          openEditModal({ prodEvent: { sport: '', school: row.HOME_TEAM, event_date: row.DATE, home_team: row.HOME_TEAM, away_team: row.AWAY_TEAM }, sportName: row.SPORT });
+          const k = row._prodKey || {};
+          openEditModal({ prodEvent: { sport: k.sport || '', school: k.school || row.HOME_TEAM, event_date: k.event_date || row.DATE, home_team: k.home_team || row.HOME_TEAM, away_team: k.away_team || row.AWAY_TEAM }, sportName: row.SPORT });
         } else {
           openEditModal({ existingEvent: row });
         }
@@ -1698,7 +1760,7 @@
       const dash = '<span style="color:#bbb">—</span>';
       const idx = rawData.indexOf(g);
       const editBtn = ph
-        ? `<button class="row-edit-btn add" data-row-idx="${idx}" title="Add viewership data">+ Add</button>`
+        ? `<button class="row-edit-btn add" data-row-idx="${idx}" title="Confirm and add viewership data">+ Confirm</button> <button class="row-edit-btn remove" data-row-idx="${idx}" data-action="remove" title="Remove this produced event">× Remove</button>`
         : `<button class="row-edit-btn" data-row-idx="${idx}" title="Edit this row">✏ Edit</button>`;
       return `<tr class="${ph ? 'placeholder-row' : ''}">
         <td class="rank">${i+1}</td>

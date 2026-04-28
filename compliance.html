@@ -207,6 +207,14 @@
   }
   .school-card:hover { border-color: var(--blue); }
   .school-card.active { background: var(--navy); color: var(--white); border-color: var(--espn-red); }
+  .school-card.is-marked-updated {
+    border-color: #2f5500;
+    box-shadow: 0 0 0 2px #2f5500 inset;
+  }
+  .school-card.is-marked-updated.active {
+    border-color: #2f5500;
+    box-shadow: 0 0 0 2px #2f5500 inset, 0 0 0 4px var(--espn-red);
+  }
   .school-card .name { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
   .school-card .stats { font-size: 11px; opacity: 0.7; }
   .editor-wrap {
@@ -1492,11 +1500,14 @@ function renderEditor() {
     const isActive = state.editingIdx === i || state.pendingEditIdx === i;
     const marked = isManuallyMarked(s);
     const recent = isRecentlyUpdated(s);
+    const cardClasses = ['school-card'];
+    if (isActive) cardClasses.push('active');
+    if (marked) cardClasses.push('is-marked-updated');
     const toggle = showMarkToggle
       ? `<button class="mark-toggle ${marked ? 'on' : ''}" data-mark-idx="${i}" title="${marked ? 'Clear admin mark' : 'Mark this school as recently updated'}">${marked ? '✓ Marked Updated' : '○ Mark as Updated'}</button>`
       : '';
     const metaLine = recent ? `<div class="mark-meta">${escapeHtml(formatUpdatedDate(s))}</div>` : '';
-    return `<div class="school-card ${isActive ? 'active' : ''}" data-idx="${i}">
+    return `<div class="${cardClasses.join(' ')}" data-idx="${i}">
       <div class="name">${escapeHtml(s.name || 'Unnamed')}</div>
       ${metaLine}
       ${toggle}
@@ -1716,9 +1727,14 @@ function wireEditor() {
       const idx = +btn.dataset.markIdx;
       const school = state.schools[idx];
       if (!school) return;
+      const prev = school.manually_marked_at;
       school.manually_marked_at = isManuallyMarked(school) ? null : new Date().toISOString();
       btn.disabled = true;
-      await saveSchool(school);
+      const ok = await saveSchool(school);
+      if (!ok) {
+        school.manually_marked_at = prev;
+        showToast('⚠ Could not save mark — reverted', true);
+      }
       render();
     });
   });

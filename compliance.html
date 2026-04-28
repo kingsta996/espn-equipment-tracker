@@ -124,24 +124,29 @@
   }
   .mark-toggle {
     display: inline-block;
-    margin-top: 6px;
-    padding: 3px 8px;
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 4px;
-    font-size: 9px;
+    margin-top: 8px;
+    padding: 5px 10px;
+    border: 1px solid var(--gray);
+    border-radius: 5px;
+    font-size: 10px;
     font-weight: 700;
     font-family: inherit;
     text-transform: uppercase;
     letter-spacing: 0.4px;
     cursor: pointer;
-    background: rgba(255,255,255,0.08);
-    color: var(--white);
+    background: #fff;
+    color: var(--navy);
     transition: all 0.15s;
   }
-  .mark-toggle:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.55); }
+  .mark-toggle:hover { background: #f3f6f9; border-color: var(--blue); }
   .mark-toggle.on { background: var(--green); color: var(--navy); border-color: var(--green); }
   .mark-toggle.on:hover { background: #b8e510; }
   .mark-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+  .school-card.active .mark-toggle { background: rgba(255,255,255,0.12); color: var(--white); border-color: rgba(255,255,255,0.35); }
+  .school-card.active .mark-toggle:hover { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.6); }
+  .school-card.active .mark-toggle.on { background: var(--green); color: var(--navy); border-color: var(--green); }
+  .mark-meta { font-size: 10px; color: var(--gray); margin-top: 4px; }
+  .school-card.active .mark-meta { color: rgba(255,255,255,0.65); }
   td { padding: 6px 10px; border-bottom: 1px solid #eee; }
   tr:nth-child(even) td { background: #fafafa; }
   td.label { font-weight: 600; color: var(--navy); }
@@ -964,18 +969,6 @@ function wireCompliance() {
     localStorage.setItem(HIGHLIGHT_UPDATED_KEY, state.highlightUpdated);
     render();
   });
-  document.querySelectorAll('.mark-toggle').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const idx = +btn.dataset.schoolIdx;
-      const school = state.schools[idx];
-      if (!school) return;
-      school.manually_marked_at = isManuallyMarked(school) ? null : new Date().toISOString();
-      btn.disabled = true;
-      await saveSchool(school);
-      render();
-    });
-  });
 }
 
 function exportCompliance() {
@@ -1184,16 +1177,11 @@ function renderCompliance() {
   rows += `<tr>${totalCells}</tr>`;
 
   let headers = `<th>ESPN Minimum</th>`;
-  schools.forEach((s, idx) => {
+  schools.forEach(s => {
     const recent = isRecentlyUpdated(s);
     const cls = 'school-col' + (state.highlightUpdated && recent ? ' recently-updated' : '');
     const tip = formatUpdatedDate(s) + (recent ? ' (within ' + RECENT_UPDATE_DAYS + ' days)' : '');
-    const marked = isManuallyMarked(s);
-    const showToggle = state.isAdmin && !state.espnAccess;
-    const toggle = showToggle
-      ? `<button class="mark-toggle ${marked ? 'on' : ''}" data-school-idx="${idx}" title="${marked ? 'Clear admin mark' : 'Mark as recently updated'}">${marked ? '✓ Marked' : '○ Mark'}</button>`
-      : '';
-    headers += `<th class="${cls}" title="${escapeHtml(tip)}"><div>${escapeHtml(s.name)}</div>${toggle}</th>`;
+    headers += `<th class="${cls}" title="${escapeHtml(tip)}">${escapeHtml(s.name)}</th>`;
   });
 
   let lensItems = schools.map(s => `
@@ -1499,10 +1487,19 @@ function renderReference() {
 }
 
 function renderEditor() {
+  const showMarkToggle = state.isAdmin && !state.espnAccess;
   const cards = state.schools.map((s, i) => {
     const isActive = state.editingIdx === i || state.pendingEditIdx === i;
+    const marked = isManuallyMarked(s);
+    const recent = isRecentlyUpdated(s);
+    const toggle = showMarkToggle
+      ? `<button class="mark-toggle ${marked ? 'on' : ''}" data-mark-idx="${i}" title="${marked ? 'Clear admin mark' : 'Mark this school as recently updated'}">${marked ? '✓ Marked Updated' : '○ Mark as Updated'}</button>`
+      : '';
+    const metaLine = recent ? `<div class="mark-meta">${escapeHtml(formatUpdatedDate(s))}</div>` : '';
     return `<div class="school-card ${isActive ? 'active' : ''}" data-idx="${i}">
       <div class="name">${escapeHtml(s.name || 'Unnamed')}</div>
+      ${metaLine}
+      ${toggle}
     </div>`;
   }).join('');
 
@@ -1702,13 +1699,26 @@ function wireEditor() {
   }
 
   document.querySelectorAll('.school-card').forEach(card => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.mark-toggle')) return;
       if (!state.unlocked && !state.espnAccess) {
         state.pendingEditIdx = Number(card.dataset.idx);
         render();
         return;
       }
       state.editingIdx = Number(card.dataset.idx);
+      render();
+    });
+  });
+  document.querySelectorAll('.school-card .mark-toggle').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = +btn.dataset.markIdx;
+      const school = state.schools[idx];
+      if (!school) return;
+      school.manually_marked_at = isManuallyMarked(school) ? null : new Date().toISOString();
+      btn.disabled = true;
+      await saveSchool(school);
       render();
     });
   });

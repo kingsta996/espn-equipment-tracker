@@ -150,6 +150,32 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   thead { background: var(--navy); color: var(--white); position: sticky; top: 0; z-index: 10; }
   th { padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  thead .filter-row th {
+    background: #f0f2f5;
+    color: var(--navy);
+    padding: 5px 8px;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+    border-bottom: 2px solid var(--gray);
+  }
+  .filter-row input {
+    width: 100%;
+    min-width: 70px;
+    padding: 4px 6px;
+    border: 1px solid var(--gray);
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 400;
+    color: var(--navy);
+    background: #fff;
+  }
+  .filter-row input:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(0,181,226,0.2);
+  }
   td { padding: 9px 12px; border-bottom: 1px solid #eee; }
   tbody tr:hover { background: #f8f9fa; }
   tbody tr:nth-child(even) td { background: rgba(191,206,214,0.08); }
@@ -854,6 +880,8 @@
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
   }
 
+  let _dashboardRows = [];
+
   function renderDashboard() {
     const total = rawData.length;
     const totalV = rawData.reduce((s,r) => s+(r.UNIQUE_VIEWERS||0), 0);
@@ -873,18 +901,46 @@
       sportStats[sp].events++;
       sportStats[sp].viewers += r.UNIQUE_VIEWERS||0;
     });
-    const rows = Object.entries(sportStats)
+    _dashboardRows = Object.entries(sportStats)
       .map(([sp, st]) => ({ sp, events:st.events, viewers:st.viewers, avg:Math.round(st.viewers/st.events) }))
       .sort((a,b) => b.viewers - a.viewers);
 
     document.getElementById('dashboardTable').innerHTML = total ? `
-      <table><thead><tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers/Event</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td><strong>${r.sp}</strong></td>
-        <td class="number">${r.events.toLocaleString()}</td>
-        <td class="number">${r.viewers.toLocaleString()}</td>
-        <td class="number">${r.avg.toLocaleString()}</td></tr>`).join('')}
-      </tbody></table>` :
+      <table>
+        <thead>
+          <tr><th>Sport</th><th>Events</th><th>Total Viewers</th><th>Avg Viewers/Event</th></tr>
+          <tr class="filter-row">
+            <th><input type="text" id="dash-filter-sport" placeholder="Search…" oninput="filterDashboardTable()"></th>
+            <th><input type="number" id="dash-filter-events" placeholder="Min" min="0" oninput="filterDashboardTable()"></th>
+            <th><input type="number" id="dash-filter-viewers" placeholder="Min" min="0" oninput="filterDashboardTable()"></th>
+            <th><input type="number" id="dash-filter-avg" placeholder="Min" min="0" oninput="filterDashboardTable()"></th>
+          </tr>
+        </thead>
+        <tbody id="dashboard-tbody"></tbody>
+      </table>` :
       `<div class="empty-state"><h3>No data loaded</h3><p>Import an Excel file to get started</p></div>`;
+    if (total) filterDashboardTable();
+  }
+
+  function filterDashboardTable() {
+    const sport = document.getElementById('dash-filter-sport').value.toLowerCase().trim();
+    const minE = parseFloat(document.getElementById('dash-filter-events').value) || 0;
+    const minV = parseFloat(document.getElementById('dash-filter-viewers').value) || 0;
+    const minA = parseFloat(document.getElementById('dash-filter-avg').value) || 0;
+    let rows = _dashboardRows;
+    if (sport) rows = rows.filter(r => (r.sp||'').toLowerCase().includes(sport));
+    if (minE) rows = rows.filter(r => r.events >= minE);
+    if (minV) rows = rows.filter(r => r.viewers >= minV);
+    if (minA) rows = rows.filter(r => r.avg >= minA);
+    const tbody = document.getElementById('dashboard-tbody');
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:#999;">No sports match your filters</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `<tr><td><strong>${r.sp}</strong></td>
+      <td class="number">${r.events.toLocaleString()}</td>
+      <td class="number">${r.viewers.toLocaleString()}</td>
+      <td class="number">${r.avg.toLocaleString()}</td></tr>`).join('');
   }
 
   function renderSportTabs() {
@@ -906,71 +962,61 @@
           <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
         </div>
-        <div class="search-bar">
-          <div class="search-field"><label>Search Matchup</label><input type="text" id="${tabId}-search-matchup" placeholder="Team or matchup name…"></div>
-          <div class="search-field"><label>Filter by Date</label><input type="date" id="${tabId}-search-date"></div>
-          <div class="search-field"><label>Report Period</label><select id="${tabId}-search-period"><option value="">All Periods</option></select></div>
-          <div class="search-field"><label>Min Viewers</label><input type="number" id="${tabId}-search-viewers" placeholder="e.g. 500" min="0"></div>
-          <div class="search-field"><label>Min Total Min</label><input type="number" id="${tabId}-search-totalmin" placeholder="e.g. 1000" min="0"></div>
-          <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="${tabId}-search-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
-          <div style="display:flex;gap:8px;align-items:flex-end">
-            <button class="btn btn-import" onclick="filterSportTab('${tabId}','${sportName}')">🔍 Search</button>
-            <button class="btn btn-clear" onclick="clearSportFilter('${tabId}','${sportName}')">Clear</button>
-          </div>
-        </div>
-        <div class="table-container" id="${tabId}-table">
-          <table><thead><tr><th>#</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
-          <tbody>${games.map((g,i) => `<tr>
-            <td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${formatDate(g.DATE)}</td>
-            <td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
-            <td class="number">${(g.TOTAL_MINUTES||0).toLocaleString()}</td>
-            <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td>
-            <td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
-          </tbody></table>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th>
+              </tr>
+              <tr class="filter-row">
+                <th></th>
+                <th><input type="text" id="${tabId}-search-matchup" placeholder="Search…" oninput="filterSportTab('${tabId}','${sportName}')"></th>
+                <th><input type="date" id="${tabId}-search-date" onchange="filterSportTab('${tabId}','${sportName}')"></th>
+                <th><input type="number" id="${tabId}-search-viewers" placeholder="Min" min="0" oninput="filterSportTab('${tabId}','${sportName}')"></th>
+                <th><input type="number" id="${tabId}-search-totalmin" placeholder="Min" min="0" oninput="filterSportTab('${tabId}','${sportName}')"></th>
+                <th><input type="number" id="${tabId}-search-minviewer" placeholder="Min" min="0" step="0.1" oninput="filterSportTab('${tabId}','${sportName}')"></th>
+              </tr>
+            </thead>
+            <tbody id="${tabId}-tbody"></tbody>
+          </table>
+          <p id="${tabId}-count" style="padding:10px 12px;font-size:12px;color:#666;"></p>
         </div>`;
-      populatePeriodDropdown(tabId, games);
+      filterSportTab(tabId, sportName);
     });
   }
 
-  function populatePeriodDropdown(tabId, games) {
-    const periods = [...new Set(games.map(g => g.REPORT_PERIOD).filter(p => p))].sort();
-    const sel = document.getElementById(`${tabId}-search-period`);
-    if (sel) sel.innerHTML = '<option value="">All Periods</option>' + periods.map(p => `<option value="${p}">${p}</option>`).join('');
-  }
-
   function filterSportTab(tabId, sportName) {
-    const matchup = document.getElementById(`${tabId}-search-matchup`).value.toLowerCase().trim();
+    const matchupEl = document.getElementById(`${tabId}-search-matchup`);
+    if (!matchupEl) return;
+    const matchup = matchupEl.value.toLowerCase().trim();
     const date = document.getElementById(`${tabId}-search-date`).value;
-    const period = document.getElementById(`${tabId}-search-period`).value;
     const minViewers = parseFloat(document.getElementById(`${tabId}-search-viewers`).value) || 0;
     const minTotalMin = parseFloat(document.getElementById(`${tabId}-search-totalmin`).value) || 0;
     const minMinViewer = parseFloat(document.getElementById(`${tabId}-search-minviewer`).value) || 0;
-    let games = filterBySport(sportName);
+    const all = filterBySport(sportName);
+    let games = all;
     if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup) || (g.AWAY_TEAM||'').toLowerCase().includes(matchup) || (g.HOME_TEAM||'').toLowerCase().includes(matchup));
     if (date) games = games.filter(g => formatDateForFilter(g.DATE) === date);
-    if (period) games = games.filter(g => g.REPORT_PERIOD === period);
     if (minViewers) games = games.filter(g => (g.UNIQUE_VIEWERS||0) >= minViewers);
     if (minTotalMin) games = games.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
     if (minMinViewer) games = games.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
-    const container = document.getElementById(`${tabId}-table`);
-    if (!games.length) { container.innerHTML = `<div class="empty-state"><h3>No games match your search</h3></div>`; return; }
-    container.innerHTML = `
-      <table><thead><tr><th>#</th><th>Matchup</th><th>Date</th><th>Unique Viewers</th><th>Total Minutes</th><th>Min/Viewer</th><th>Report Period</th></tr></thead>
-      <tbody>${games.map((g,i) => `<tr><td class="rank">${i+1}</td><td>${g.AIRING_TITLE||'-'}</td><td>${formatDate(g.DATE)}</td>
-        <td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td><td class="number">${(g.TOTAL_MINUTES||0).toLocaleString()}</td>
-        <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td><td>${g.REPORT_PERIOD||'-'}</td></tr>`).join('')}
-      </tbody></table>
-      <p style="padding:10px 12px;font-size:12px;color:#666;">Showing ${games.length} of ${filterBySport(sportName).length} games</p>`;
-  }
 
-  function clearSportFilter(tabId, sportName) {
-    document.getElementById(`${tabId}-search-matchup`).value = '';
-    document.getElementById(`${tabId}-search-date`).value = '';
-    document.getElementById(`${tabId}-search-period`).value = '';
-    document.getElementById(`${tabId}-search-viewers`).value = '';
-    document.getElementById(`${tabId}-search-totalmin`).value = '';
-    document.getElementById(`${tabId}-search-minviewer`).value = '';
-    filterSportTab(tabId, sportName);
+    const tbody = document.getElementById(`${tabId}-tbody`);
+    const countEl = document.getElementById(`${tabId}-count`);
+    if (!games.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#999;">No games match your filters</td></tr>`;
+      countEl.textContent = `Showing 0 of ${all.length} games`;
+      return;
+    }
+    tbody.innerHTML = games.map((g,i) => `<tr>
+      <td class="rank">${i+1}</td>
+      <td>${g.AIRING_TITLE||'-'}</td>
+      <td>${formatDate(g.DATE)}</td>
+      <td class="number">${(g.UNIQUE_VIEWERS||0).toLocaleString()}</td>
+      <td class="number">${(g.TOTAL_MINUTES||0).toLocaleString()}</td>
+      <td class="number">${(g.MIN_PER_VIEWER||0).toFixed(1)}</td>
+    </tr>`).join('');
+    countEl.textContent = games.length === all.length ? `${games.length} games` : `Showing ${games.length} of ${all.length} games`;
   }
 
   function renderChampionships() {

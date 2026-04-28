@@ -766,15 +766,17 @@
       </div>
       <h4 style="color:var(--navy);margin:20px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">All Events</h4>
       <div class="search-bar">
+        <div class="search-field"><label>Search Matchup</label><input type="text" id="school-filter-matchup" placeholder="Team or matchup name…"></div>
         <div class="search-field"><label>Sport</label>
           <select id="school-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
         </div>
+        <div class="search-field"><label>Filter by Date</label><input type="date" id="school-filter-date"></div>
         <div class="search-field"><label>Report Period</label>
           <select id="school-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
         </div>
-        <div class="search-field"><label>Min Viewers</label>
-          <input type="number" id="school-filter-viewers" placeholder="e.g. 500" min="0">
-        </div>
+        <div class="search-field"><label>Min Viewers</label><input type="number" id="school-filter-viewers" placeholder="e.g. 500" min="0"></div>
+        <div class="search-field"><label>Min Total Min</label><input type="number" id="school-filter-totalmin" placeholder="e.g. 1000" min="0"></div>
+        <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="school-filter-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <button class="btn btn-import" onclick="filterSchoolEvents('${school}')">🔍 Filter</button>
           <button class="btn btn-clear" onclick="clearSchoolFilter('${school}')">Clear</button>
@@ -785,14 +787,22 @@
   }
 
   function filterSchoolEvents(school) {
+    const matchup = document.getElementById('school-filter-matchup').value.toLowerCase().trim();
     const sport = document.getElementById('school-filter-sport').value;
+    const date = document.getElementById('school-filter-date').value;
     const period = document.getElementById('school-filter-period').value;
     const minV = parseFloat(document.getElementById('school-filter-viewers').value) || 0;
+    const minTotalMin = parseFloat(document.getElementById('school-filter-totalmin').value) || 0;
+    const minMinViewer = parseFloat(document.getElementById('school-filter-minviewer').value) || 0;
     let data = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school)
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    if (matchup) data = data.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes(matchup) || (r.AWAY_TEAM||'').toLowerCase().includes(matchup) || (r.HOME_TEAM||'').toLowerCase().includes(matchup));
     if (sport) data = data.filter(r => r.SPORT === sport);
+    if (date) data = data.filter(r => formatDateForFilter(r.DATE) === date);
     if (period) data = data.filter(r => r.REPORT_PERIOD === period);
     if (minV) data = data.filter(r => (r.UNIQUE_VIEWERS||0) >= minV);
+    if (minTotalMin) data = data.filter(r => (r.TOTAL_MINUTES||0) >= minTotalMin);
+    if (minMinViewer) data = data.filter(r => (r.MIN_PER_VIEWER||0) >= minMinViewer);
     const total = rawData.filter(r => r.AWAY_TEAM === school || r.HOME_TEAM === school).length;
     const el = document.getElementById('schoolEventTable');
     if (!data.length) { el.innerHTML = `<div class="empty-state"><h3>No events match your filter</h3></div>`; return; }
@@ -812,9 +822,13 @@
   }
 
   function clearSchoolFilter(school) {
+    document.getElementById('school-filter-matchup').value = '';
     document.getElementById('school-filter-sport').value = '';
+    document.getElementById('school-filter-date').value = '';
     document.getElementById('school-filter-period').value = '';
     document.getElementById('school-filter-viewers').value = '';
+    document.getElementById('school-filter-totalmin').value = '';
+    document.getElementById('school-filter-minviewer').value = '';
     filterSchoolEvents(school);
   }
 
@@ -977,10 +991,13 @@
         <div class="search-field"><label>Sport</label>
           <select id="champ-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
         </div>
+        <div class="search-field"><label>Filter by Date</label><input type="date" id="champ-filter-date"></div>
         <div class="search-field"><label>Report Period</label>
           <select id="champ-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
         </div>
         <div class="search-field"><label>Min Viewers</label><input type="number" id="champ-filter-viewers" placeholder="e.g. 500" min="0"></div>
+        <div class="search-field"><label>Min Total Min</label><input type="number" id="champ-filter-totalmin" placeholder="e.g. 1000" min="0"></div>
+        <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="champ-filter-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <button class="btn btn-import" onclick="filterChampionships()">🔍 Search</button>
           <button class="btn btn-clear" onclick="clearChampionshipsFilter()">Clear</button>
@@ -993,14 +1010,20 @@
   function filterChampionships() {
     const matchup = document.getElementById('champ-filter-matchup').value.toLowerCase().trim();
     const sport = document.getElementById('champ-filter-sport').value;
+    const date = document.getElementById('champ-filter-date').value;
     const period = document.getElementById('champ-filter-period').value;
     const minV = parseFloat(document.getElementById('champ-filter-viewers').value) || 0;
+    const minTotalMin = parseFloat(document.getElementById('champ-filter-totalmin').value) || 0;
+    const minMinViewer = parseFloat(document.getElementById('champ-filter-minviewer').value) || 0;
     let games = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship'))
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (matchup) games = games.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(matchup));
     if (sport) games = games.filter(g => g.SPORT === sport);
+    if (date) games = games.filter(g => formatDateForFilter(g.DATE) === date);
     if (period) games = games.filter(g => g.REPORT_PERIOD === period);
     if (minV) games = games.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
+    if (minTotalMin) games = games.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
+    if (minMinViewer) games = games.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
     const total = rawData.filter(r => (r.AIRING_TITLE||'').toLowerCase().includes('championship')).length;
     const el = document.getElementById('champ-table');
     if (!games.length) { el.innerHTML = `<div class="empty-state"><h3>No championships match your filter</h3></div>`; return; }
@@ -1018,8 +1041,11 @@
   function clearChampionshipsFilter() {
     document.getElementById('champ-filter-matchup').value = '';
     document.getElementById('champ-filter-sport').value = '';
+    document.getElementById('champ-filter-date').value = '';
     document.getElementById('champ-filter-period').value = '';
     document.getElementById('champ-filter-viewers').value = '';
+    document.getElementById('champ-filter-totalmin').value = '';
+    document.getElementById('champ-filter-minviewer').value = '';
     filterChampionships();
   }
 
@@ -1042,10 +1068,13 @@
         <div class="search-field"><label>Sport</label>
           <select id="shows-filter-sport"><option value="">All Sports</option>${sports.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
         </div>
+        <div class="search-field"><label>Filter by Date</label><input type="date" id="shows-filter-date"></div>
         <div class="search-field"><label>Report Period</label>
           <select id="shows-filter-period"><option value="">All Periods</option>${periods.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
         </div>
         <div class="search-field"><label>Min Viewers</label><input type="number" id="shows-filter-viewers" placeholder="e.g. 500" min="0"></div>
+        <div class="search-field"><label>Min Total Min</label><input type="number" id="shows-filter-totalmin" placeholder="e.g. 1000" min="0"></div>
+        <div class="search-field"><label>Min Min/Viewer</label><input type="number" id="shows-filter-minviewer" placeholder="e.g. 20" min="0" step="0.1"></div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <button class="btn btn-import" onclick="filterShows()">🔍 Search</button>
           <button class="btn btn-clear" onclick="clearShowsFilter()">Clear</button>
@@ -1059,13 +1088,19 @@
     const isShow = r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); };
     const name = document.getElementById('shows-filter-show').value.toLowerCase().trim();
     const sport = document.getElementById('shows-filter-sport').value;
+    const date = document.getElementById('shows-filter-date').value;
     const period = document.getElementById('shows-filter-period').value;
     const minV = parseFloat(document.getElementById('shows-filter-viewers').value) || 0;
+    const minTotalMin = parseFloat(document.getElementById('shows-filter-totalmin').value) || 0;
+    const minMinViewer = parseFloat(document.getElementById('shows-filter-minviewer').value) || 0;
     let shows = rawData.filter(isShow).sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (name) shows = shows.filter(g => (g.AIRING_TITLE||'').toLowerCase().includes(name));
     if (sport) shows = shows.filter(g => g.SPORT === sport);
+    if (date) shows = shows.filter(g => formatDateForFilter(g.DATE) === date);
     if (period) shows = shows.filter(g => g.REPORT_PERIOD === period);
     if (minV) shows = shows.filter(g => (g.UNIQUE_VIEWERS||0) >= minV);
+    if (minTotalMin) shows = shows.filter(g => (g.TOTAL_MINUTES||0) >= minTotalMin);
+    if (minMinViewer) shows = shows.filter(g => (g.MIN_PER_VIEWER||0) >= minMinViewer);
     const total = rawData.filter(isShow).length;
     const el = document.getElementById('shows-table');
     if (!shows.length) { el.innerHTML = `<div class="empty-state"><h3>No shows match your filter</h3></div>`; return; }
@@ -1083,8 +1118,11 @@
   function clearShowsFilter() {
     document.getElementById('shows-filter-show').value = '';
     document.getElementById('shows-filter-sport').value = '';
+    document.getElementById('shows-filter-date').value = '';
     document.getElementById('shows-filter-period').value = '';
     document.getElementById('shows-filter-viewers').value = '';
+    document.getElementById('shows-filter-totalmin').value = '';
+    document.getElementById('shows-filter-minviewer').value = '';
     filterShows();
   }
 

@@ -674,14 +674,16 @@
     }
   }
 
-  function deleteSupabasePeriod(period) {
-    if (!_db) return;
-    _db.from('viewership_events').delete().eq('report_period', period);
+  async function deleteSupabasePeriod(period) {
+    if (!_db) return false;
+    try { const { error } = await _db.from('viewership_events').delete().eq('report_period', period); if (error) throw error; return true; }
+    catch (e) { console.error('Period delete failed:', e); return false; }
   }
 
-  function clearSupabase() {
-    if (!_db) return;
-    _db.from('viewership_events').delete().not('id', 'is', null);
+  async function clearSupabase() {
+    if (!_db) return false;
+    try { const { error } = await _db.from('viewership_events').delete().not('id', 'is', null); if (error) throw error; return true; }
+    catch (e) { console.error('Clear failed:', e); return false; }
   }
 
   /* ── CUSA-Produced filter ── */
@@ -1133,6 +1135,7 @@
       REPORT_PERIOD: period
     };
 
+    let savedToDatabase = false;
     if (_db) {
       try {
         // If editing existing AND key fields changed, delete the old row first
@@ -1151,9 +1154,10 @@
         const { error } = await _db.from('viewership_events')
           .upsert([rowToDb(newRow)], { onConflict: 'sport,airing_title,event_date' });
         if (error) throw error;
+        savedToDatabase = true;
       } catch (err) {
         console.error(err);
-        errEl.textContent = 'Save failed: ' + (err.message || err);
+        errEl.textContent = 'Database save failed: ' + (err.message || err);
         errEl.style.display = 'block';
         return;
       }
@@ -1177,7 +1181,13 @@
     saveToStorage();
     closeEditModal();
     renderAllTabs();
-    updateStatus(_editingEventRef ? '✓ Event updated' : '✓ Event added', 'saved-cloud');
+    const verb = _editingEventRef ? 'updated' : 'added';
+    updateStatus(
+      savedToDatabase
+        ? `☁️ Event ${verb} — saved to database`
+        : `💻 Event ${verb} locally only — Supabase not connected`,
+      savedToDatabase ? 'saved-cloud' : 'saved-local'
+    );
   }
 
   function escapeReconText(s) {
@@ -1540,7 +1550,7 @@
     document.getElementById('metaPeriodText').textContent = val || '—';
   }
 
-  function removeSelectedPeriod() {
+  async function removeSelectedPeriod() {
     const sel = document.getElementById('metaPeriodSelect');
     const period = sel.value;
     if (!period) return;
@@ -1549,10 +1559,15 @@
     rawData = rawData.filter(r => r.REPORT_PERIOD !== period);
     localStorage.removeItem(PERIOD_KEY);
     saveToStorage();
-    deleteSupabasePeriod(period);
+    const dbOk = await deleteSupabasePeriod(period);
     renderAllTabs();
     updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
-    updateStatus(`Removed period "${period}" — ${rawData.length} events remaining`);
+    updateStatus(
+      dbOk
+        ? `☁️ Removed period "${period}" from database — ${rawData.length} events remaining`
+        : `💻 Removed period "${period}" locally — Supabase delete failed`,
+      dbOk ? 'saved-cloud' : 'saved-local'
+    );
   }
 
   function updateMetaBar(meta) {
@@ -1594,13 +1609,16 @@
     } catch(e) {}
   }
 
-  function clearAllData() {
+  async function clearAllData() {
     if (!confirm('Clear all data? This cannot be undone.')) return;
     rawData = mergeProducedPlaceholders([]);
     localStorage.removeItem(STORAGE_KEY);
-    clearSupabase();
+    const dbOk = await clearSupabase();
     renderAllTabs();
-    updateStatus('All data cleared');
+    updateStatus(
+      dbOk ? '☁️ All data cleared from database' : '💻 All data cleared locally — Supabase delete failed or not connected',
+      dbOk ? 'saved-cloud' : 'saved-local'
+    );
   }
 
   function updateStatus(msg, cls) {

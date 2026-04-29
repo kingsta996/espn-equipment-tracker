@@ -285,6 +285,7 @@
   .ee-cancel { background: #eee; color: #555; }
   .ee-save { background: var(--green); color: var(--navy); }
   .ee-err { color: var(--espn-red); font-size: 12px; margin-top: 6px; display: none; }
+  .ee-matched { background: rgba(167,213,0,0.15); border: 1px solid var(--green); color: #4a6600; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; margin-bottom: 12px; }
 
   /* Master schedule indicator */
   .ms-tag { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; vertical-align: middle; }
@@ -386,6 +387,7 @@
 <div class="ee-overlay" id="eeOverlay">
   <div class="ee-modal">
     <h2 id="eeTitle">Edit Event</h2>
+    <div class="ee-matched" id="ee-matched" style="display:none">📊 <span id="ee-matched-text">Found existing viewership data — numbers pre-filled.</span></div>
     <div class="ee-row">
       <div>
         <label>Sport</label>
@@ -1074,6 +1076,45 @@
     return true;
   }
 
+  /* Look for an existing viewership row that already covers the produced event
+     so Confirm can pre-fill the user's numbers (and we update that row in
+     place instead of creating a duplicate). Returns the rawData row or null. */
+  function findMatchingViewershipRow(prodEvent, viewSportName) {
+    const targetDate = prodEvent.event_date;
+    if (!targetDate) return null;
+    const sameSlot = rawData.filter(r =>
+      !r._placeholder &&
+      r.SPORT === viewSportName &&
+      formatDateForFilter(r.DATE) === targetDate
+    );
+    if (!sameSlot.length) return null;
+    const sN = normalizeName(prodEvent.school);
+    const hN = normalizeName(prodEvent.home_team);
+    const aN = normalizeName(prodEvent.away_team);
+    let best = null, bestScore = 0;
+    for (const c of sameSlot) {
+      const cH = normalizeName(c.HOME_TEAM);
+      const cA = normalizeName(c.AWAY_TEAM);
+      const cT = normalizeName(c.AIRING_TITLE);
+      let score = 0;
+      if (sN) {
+        if (cH && (cH === sN || cH.includes(sN) || sN.includes(cH))) score += 3;
+        else if (cA && (cA === sN || cA.includes(sN) || sN.includes(cA))) score += 3;
+        else if (cT.includes(sN)) score += 1;
+      }
+      if (hN) {
+        if (cH && (cH === hN || cH.includes(hN) || hN.includes(cH))) score += 2;
+        else if (cT.includes(hN)) score += 1;
+      }
+      if (aN) {
+        if (cA && (cA === aN || cA.includes(aN) || aN.includes(cA))) score += 2;
+        else if (cT.includes(aN)) score += 1;
+      }
+      if (score > bestScore) { best = c; bestScore = score; }
+    }
+    return bestScore >= 3 ? best : null;
+  }
+
   /* ── Edit / Add Event modal ── */
   function openEditModal(opts) {
     opts = opts || {};
@@ -1085,6 +1126,8 @@
     document.getElementById('eeTitle').textContent = title;
 
     const set = (id, v) => { document.getElementById(id).value = v == null ? '' : v; };
+    const matchedBanner = document.getElementById('ee-matched');
+    if (matchedBanner) matchedBanner.style.display = 'none';
     if (_editingEventRef) {
       set('ee-sport', _editingEventRef.SPORT || 'NCAA Football');
       set('ee-airing', _editingEventRef.AIRING_TITLE || '');
@@ -1099,8 +1142,7 @@
       const p = _editingProdEvent;
       const sport = PROD_TO_VIEW_SPORT[p.sport] || opts.sportName || 'NCAA Football';
       // Use the canonical CUSA school name on whichever side the producing
-      // school is actually playing. Otherwise the row won't match its produced
-      // event in mergeProducedPlaceholders and the placeholder lingers.
+      // school is actually playing.
       const sN = normalizeName(p.school);
       const hN = normalizeName(p.home_team);
       const aN = normalizeName(p.away_team);
@@ -1111,20 +1153,45 @@
         home = p.home_team || '';
         away = p.school;
       } else {
-        // Default and homeIsSchool both end here — school is on home side
         home = p.school || p.home_team || '';
         away = p.away_team || '';
       }
       const t = (away && home) ? `${away} vs. ${home}` : (home || away);
-      set('ee-sport', sport);
-      set('ee-airing', t);
-      set('ee-date', p.event_date);
-      set('ee-period', getCurrentPeriod());
-      set('ee-away', away);
-      set('ee-home', home);
-      set('ee-viewers', 0);
-      set('ee-minutes', 0);
-      set('ee-mpv', '0.0');
+
+      // If raw data already has this event under an abbreviated name, pre-fill
+      // viewer numbers from it and switch the modal into Edit mode so Save
+      // updates that row instead of creating a duplicate.
+      const match = findMatchingViewershipRow(p, sport);
+      const banner = document.getElementById('ee-matched');
+      if (match) {
+        _editingEventRef = match;
+        _editingProdEvent = null;
+        document.getElementById('eeTitle').textContent = '✏ Confirm Event — existing viewership data found';
+        if (banner) {
+          banner.style.display = 'block';
+          document.getElementById('ee-matched-text').textContent = `Pulled ${(match.UNIQUE_VIEWERS||0).toLocaleString()} viewers / ${(match.TOTAL_MINUTES||0).toLocaleString()} min / ${(match.MIN_PER_VIEWER||0).toFixed(1)} mpv from the Raw Data row "${match.AIRING_TITLE || '(no title)'}". Save will update that row and apply the canonical school name.`;
+        }
+        set('ee-sport', sport);
+        set('ee-airing', match.AIRING_TITLE || t);
+        set('ee-date', formatDateForFilter(match.DATE) || p.event_date);
+        set('ee-period', match.REPORT_PERIOD || getCurrentPeriod());
+        set('ee-away', away);
+        set('ee-home', home);
+        set('ee-viewers', match.UNIQUE_VIEWERS || 0);
+        set('ee-minutes', match.TOTAL_MINUTES || 0);
+        set('ee-mpv', (match.MIN_PER_VIEWER || 0).toFixed(1));
+      } else {
+        if (banner) banner.style.display = 'none';
+        set('ee-sport', sport);
+        set('ee-airing', t);
+        set('ee-date', p.event_date);
+        set('ee-period', getCurrentPeriod());
+        set('ee-away', away);
+        set('ee-home', home);
+        set('ee-viewers', 0);
+        set('ee-minutes', 0);
+        set('ee-mpv', '0.0');
+      }
     } else {
       // Blank new event — pre-select sport if provided
       set('ee-sport', opts.sportName || 'NCAA Football');

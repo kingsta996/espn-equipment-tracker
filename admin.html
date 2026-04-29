@@ -505,6 +505,27 @@
     'MTSU': 'Middle Tennessee',
     'WKU': 'Western Kentucky'
   };
+  // Common abbreviations that show up in viewership rows where the canonical
+  // CUSA school name is expected. Used by mergeProducedPlaceholders so a row
+  // with HOME_TEAM = 'WKU' still counts as a match for school 'Western Kentucky'.
+  const CUSA_ALIAS = {
+    'FIU': 'Florida International',
+    'MTSU': 'Middle Tennessee',
+    'WKU': 'Western Kentucky',
+    'NMSU': 'New Mexico State',
+    'JSU': 'Jacksonville State',
+    'KSU': 'Kennesaw State',
+    'SHSU': 'Sam Houston',
+    'Sam Houston State': 'Sam Houston',
+    'Jax State': 'Jacksonville State',
+    'Mid Tenn': 'Middle Tennessee',
+    'Middle Tenn': 'Middle Tennessee'
+  };
+  function canonCusa(name) {
+    if (!name) return name;
+    const t = String(name).trim();
+    return CUSA_ALIAS[t] || t;
+  }
 
   /* Master Schedule (Google Sheets, scraped from school sites) */
   const MASTER_SCHEDULE_URL = 'https://docs.google.com/spreadsheets/d/1FyknP3xzkfHNAfzXo7gsqgQ5D84K7iUNl5sq-ecYs04/export?format=csv&gid=1847745486';
@@ -631,8 +652,10 @@
     viewership.forEach(v => {
       const d = formatDateForFilter(v.DATE);
       if (!d) return;
-      if (v.HOME_TEAM && cusaSet.has(v.HOME_TEAM)) haveKey.add(`${d}|${v.HOME_TEAM}`);
-      if (v.AWAY_TEAM && cusaSet.has(v.AWAY_TEAM)) haveKey.add(`${d}|${v.AWAY_TEAM}`);
+      const home = canonCusa(v.HOME_TEAM);
+      const away = canonCusa(v.AWAY_TEAM);
+      if (home && cusaSet.has(home)) haveKey.add(`${d}|${home}`);
+      if (away && cusaSet.has(away)) haveKey.add(`${d}|${away}`);
     });
     const placeholders = [];
     _producedEvents.forEach(p => {
@@ -1075,8 +1098,23 @@
     } else if (_editingProdEvent) {
       const p = _editingProdEvent;
       const sport = PROD_TO_VIEW_SPORT[p.sport] || opts.sportName || 'NCAA Football';
-      const home = p.home_team || p.school || '';
-      const away = p.away_team || '';
+      // Use the canonical CUSA school name on whichever side the producing
+      // school is actually playing. Otherwise the row won't match its produced
+      // event in mergeProducedPlaceholders and the placeholder lingers.
+      const sN = normalizeName(p.school);
+      const hN = normalizeName(p.home_team);
+      const aN = normalizeName(p.away_team);
+      const homeIsSchool = sN && hN && (hN === sN || sN.includes(hN) || hN.includes(sN));
+      const awayIsSchool = !homeIsSchool && sN && aN && (aN === sN || sN.includes(aN) || aN.includes(sN));
+      let home, away;
+      if (awayIsSchool) {
+        home = p.home_team || '';
+        away = p.school;
+      } else {
+        // Default and homeIsSchool both end here — school is on home side
+        home = p.school || p.home_team || '';
+        away = p.away_team || '';
+      }
       const t = (away && home) ? `${away} vs. ${home}` : (home || away);
       set('ee-sport', sport);
       set('ee-airing', t);
@@ -1846,7 +1884,7 @@
       <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>`;
 
     const sportStats = {};
-    data.forEach(r => {
+    real.forEach(r => {
       const sp = r.SPORT;
       if (!sportStats[sp]) sportStats[sp] = { events:0, viewers:0 };
       sportStats[sp].events++;
@@ -1913,7 +1951,7 @@
 
       container.innerHTML = `
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-label">Total Games</div><div class="stat-value">${games.length}</div></div>
+          <div class="stat-card"><div class="stat-label">Total Games</div><div class="stat-value">${realGames.length}</div></div>
           <div class="stat-card"><div class="stat-label">Total Viewers</div><div class="stat-value">${totalV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>

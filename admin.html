@@ -2541,6 +2541,12 @@
     if (!v) return '-';
     try {
       if (typeof v === 'string' && v.includes('/')) return v;
+      // ISO date-only 'YYYY-MM-DD' must be parsed as LOCAL midnight, not UTC,
+      // otherwise toLocaleDateString shifts to the previous day in negative-offset zones.
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        const [y, m, d] = v.split('-').map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString('en-US');
+      }
       const d = new Date(v);
       return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-US');
     } catch { return String(v); }
@@ -2549,12 +2555,18 @@
   function formatDateForFilter(v) {
     if (!v) return '';
     try {
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
       if (typeof v === 'string' && v.includes('/')) {
         const [m,d,y] = v.split('/');
         return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
       }
       const d = new Date(v);
-      return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+      if (isNaN(d.getTime())) return '';
+      // Use local-time components so an Excel-imported Date stays on the same day.
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yy}-${mm}-${dd}`;
     } catch { return ''; }
   }
 </script>

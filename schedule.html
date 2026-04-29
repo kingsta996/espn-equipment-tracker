@@ -601,6 +601,11 @@
     if (val == null || val === '') return '';
     if (col.type === 'date') {
       try {
+        // Treat YYYY-MM-DD as local-date so we don't shift a day in negative-offset zones.
+        if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+          const [y, m, d] = val.split('-').map(Number);
+          return new Date(y, m - 1, d).toLocaleDateString('en-US');
+        }
         const d = new Date(val);
         if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US');
       } catch {}

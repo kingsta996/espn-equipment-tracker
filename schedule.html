@@ -141,6 +141,18 @@
 
   .empty-msg { text-align: center; padding: 36px 16px; color: var(--navy); opacity: 0.6; font-size: 13px; }
 
+  .window-banner {
+    margin-bottom: 14px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .window-banner.open { background: rgba(167,213,0,0.15); border-color: var(--green); color: #4a6600; }
+  .window-banner.closed { background: rgba(239,64,53,0.12); border-color: var(--espn-red); color: #991b1b; }
+  .window-banner.mixed { background: var(--warn-bg); border-color: var(--warn-border); color: #92400e; }
+
   .toast {
     position: fixed; bottom: 24px; right: 24px;
     background: var(--navy); color: #fff;
@@ -190,9 +202,14 @@
   /* ── Constants ── */
   const SCHOOLS = [
     'Delaware', 'FIU', 'Jacksonville State', 'Kennesaw State',
-    'LA Tech', 'Liberty', 'Missouri State', 'MTSU',
-    'New Mexico State', 'Sam Houston', 'UTEP', 'Western Kentucky'
+    'Liberty', 'Missouri State', 'MTSU',
+    'New Mexico State', 'Sam Houston', 'Western Kentucky'
   ];
+  const SPORT_SEASON = {
+    'Football': 'Fall', 'Soccer': 'Fall', "Men's Soccer": 'Fall', "Women's Soccer": 'Fall', 'Volleyball': 'Fall', 'Field Hockey': 'Fall',
+    "Men's Basketball": 'Winter', "Women's Basketball": 'Winter', 'Women’s Basketball': 'Winter', "Men's Ice Hockey": 'Winter', "Women's Swim & Dive": 'Winter',
+    'Baseball': 'Spring', 'Softball': 'Spring', "Men's Lacrosse": 'Spring', "Women's Lacrosse": 'Spring', "Men's Tennis": 'Spring', "Women's Tennis": 'Spring', "Men's Volleyball": 'Spring'
+  };
   const SPORTS = [
     'Baseball', 'Field Hockey', 'Football',
     "Men's Basketball", "Men's Ice Hockey", "Men's Lacrosse", "Men's Soccer",
@@ -207,9 +224,11 @@
   const GRAPHICS = ['FULL GFX', 'C&S'];
   const YESNO = ['YES', 'NO'];
 
-  // SHA-256 of the default school password (same as compliance.html for consistency).
-  // Each school can edit when this password is entered. Admins use admin portal.
-  const SCHOOL_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  // Default password (matches compliance default). Used as fallback when a school
+  // hasn't set their own password yet. Schools change theirs in the Compliance editor.
+  const DEFAULT_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  const ADMIN_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  const ADMIN_UNLOCK_KEY = 'cusa_schedule_admin_pub';
 
   const COLUMNS = [
     { key: 'sport',           label: 'SPORT',                     type: 'select', options: SPORTS,      cls: 'colSport' },
@@ -239,6 +258,9 @@
   let _activeTab = 'master';
   let _unlockedSchools = JSON.parse(localStorage.getItem('cusa_schedule_unlocked') || '[]');
   let _pendingUnlock = null;
+  let _schoolPwHashes = {}; // school name → SHA-256 of pw_hash from schools table
+  let _adminUnlocked = localStorage.getItem(ADMIN_UNLOCK_KEY) === 'true';
+  let _settings = { active_year: '2025-26', fall_window: 'open', winter_window: 'open', spring_window: 'open' };
 
   /* ── Helpers ── */
   function escapeHtml(s) {
@@ -248,8 +270,11 @@
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
   }
-  function isUnlocked(school) { return _unlockedSchools.includes(school); }
+  function isUnlocked(school) { return _adminUnlocked || _unlockedSchools.includes(school); }
   function persistUnlocks() { localStorage.setItem('cusa_schedule_unlocked', JSON.stringify(_unlockedSchools)); }
+  function seasonOpen(season) { return (_settings[season.toLowerCase() + '_window'] || 'open') === 'open'; }
+  function seasonForSport(sport) { return SPORT_SEASON[sport] || ''; }
+  function canSubmitSeason(season) { return _adminUnlocked || seasonOpen(season); }
 
   function showToast(msg, kind) {
     const t = document.getElementById('toast');
@@ -304,10 +329,39 @@
       showToast('Failed to load schedule from database', 'warn');
     }
   }
+
+  async function loadSchoolPasswords() {
+    if (!_db) return;
+    try {
+      const { data, error } = await _db.from('schools').select('name, pw_hash');
+      if (error) throw error;
+      (data || []).forEach(s => { if (s.name && s.pw_hash) _schoolPwHashes[s.name] = s.pw_hash; });
+    } catch (e) {
+      console.warn('Schools pw_hash fetch failed (falling back to default):', e);
+    }
+  }
+
+  async function loadSettings() {
+    if (!_db) return;
+    try {
+      const { data, error } = await _db.from('schedule_settings').select('*').eq('id', 'singleton').maybeSingle();
+      if (error) throw error;
+      if (data) _settings = { ...(_settings || {}), ...data };
+    } catch (e) {
+      console.warn('Schedule settings fetch failed:', e);
+    }
+  }
   async function upsertEvent(row) {
     if (!_db) { showToast('Supabase not connected', 'warn'); return false; }
+    const season = seasonForSport(row.sport);
+    if (season && !canSubmitSeason(season)) {
+      showToast(`${season} submissions are closed — contact CUSA admin`, 'warn');
+      return false;
+    }
     try {
       const dbRow = rowToDb(row);
+      dbRow.season = season || dbRow.season || '';
+      dbRow.athletic_year = dbRow.athletic_year || _settings.active_year || '2025-26';
       let res;
       if (row.id) res = await _db.from('schedule_events').update(dbRow).eq('id', row.id).select().single();
       else res = await _db.from('schedule_events').insert(dbRow).select().single();
@@ -339,7 +393,13 @@
   /* ── Password modal ── */
   function openPwModal(school) {
     _pendingUnlock = school;
-    document.getElementById('pwTitle').textContent = `🔒 Sign in to edit: ${school}`;
+    if (school === '__admin__') {
+      document.getElementById('pwTitle').textContent = '🔑 Admin Sign-In';
+      document.getElementById('pwDesc').textContent = 'Admin password unlocks every school tab on this page.';
+    } else {
+      document.getElementById('pwTitle').textContent = `🔒 Sign in to edit: ${school}`;
+      document.getElementById('pwDesc').textContent = 'Use your school password (same as the Compliance editor) to add or edit events.';
+    }
     document.getElementById('pwInput').value = '';
     document.getElementById('pwErr').style.display = 'none';
     document.getElementById('pwOverlay').classList.add('open');
@@ -347,8 +407,24 @@
   }
   function closePwModal() { document.getElementById('pwOverlay').classList.remove('open'); _pendingUnlock = null; }
   async function submitSchoolUnlock() {
-    const h = await sha256(document.getElementById('pwInput').value);
-    if (h === SCHOOL_PW_HASH) {
+    const pw = document.getElementById('pwInput').value;
+    const h = await sha256(pw);
+    if (_pendingUnlock === '__admin__') {
+      if (h === ADMIN_PW_HASH) {
+        _adminUnlocked = true;
+        localStorage.setItem(ADMIN_UNLOCK_KEY, 'true');
+        closePwModal();
+        renderTabs();
+        switchTab(_activeTab);
+        showToast('Signed in as admin — all schools unlocked', 'success');
+      } else {
+        document.getElementById('pwErr').style.display = 'block';
+      }
+      return;
+    }
+    const expected = _schoolPwHashes[_pendingUnlock] || DEFAULT_PW_HASH;
+    // Admin hash always works on every school's tab
+    if (h === expected || h === ADMIN_PW_HASH) {
       if (!_unlockedSchools.includes(_pendingUnlock)) _unlockedSchools.push(_pendingUnlock);
       persistUnlocks();
       const tab = _pendingUnlock;
@@ -357,6 +433,14 @@
     } else {
       document.getElementById('pwErr').style.display = 'block';
     }
+  }
+
+  function adminSignOut() {
+    _adminUnlocked = false;
+    localStorage.removeItem(ADMIN_UNLOCK_KEY);
+    renderTabs();
+    switchTab(_activeTab);
+    showToast('Admin signed out', 'success');
   }
 
   /* ── Rendering ── */
@@ -385,16 +469,26 @@
     return _events.filter(e => e.school === school && !e.archived).sort((a,b) => (a.event_date || '').localeCompare(b.event_date || ''));
   }
 
+  function renderWindowBanner() {
+    const states = ['fall','winter','spring'].map(s => ({ s, open: seasonOpen(s) }));
+    const closed = states.filter(x => !x.open);
+    if (!closed.length) return `<div class="window-banner open">✅ All submission windows are <strong>OPEN</strong> — Fall, Winter, and Spring are accepting new events.</div>`;
+    if (closed.length === 3) return `<div class="window-banner closed">🔒 All submission windows are <strong>CLOSED</strong>. Submissions are locked. Contact CUSA admin to reopen.</div>`;
+    const closedNames = closed.map(x => x.s[0].toUpperCase() + x.s.slice(1)).join(', ');
+    return `<div class="window-banner mixed">⚠ Closed: <strong>${escapeHtml(closedNames)}</strong>. The other window${closed.length === 1 ? ' is' : 's are'} still open.</div>`;
+  }
+
   function renderSchool(school) {
     const rows = activeRows(school);
     const unlocked = isUnlocked(school);
     const html = `
+      ${renderWindowBanner()}
       <div class="toolbar">
         <div class="school-name">${escapeHtml(school)}</div>
-        <div class="lock-state ${unlocked ? 'unlocked' : ''}">${unlocked ? '🔓 Editable' : '🔒 Locked'}</div>
+        <div class="lock-state ${unlocked ? 'unlocked' : ''}">${unlocked ? (_adminUnlocked ? '🔑 Admin' : '🔓 Editable') : '🔒 Locked'}</div>
         ${unlocked
           ? `<button class="btn btn-green" id="addRowBtn">+ Add Event</button>
-             <button class="btn btn-outline" id="lockBtn">Lock</button>`
+             ${_adminUnlocked ? '' : '<button class="btn btn-outline" id="lockBtn">Lock</button>'}`
           : `<button class="btn btn-primary" id="unlockBtn">Sign in to edit</button>`}
         <button class="btn btn-navy" id="exportSchoolBtn">📤 Export ${escapeHtml(school)}</button>
         <span class="row-count">${rows.length} event${rows.length === 1 ? '' : 's'}</span>
@@ -404,7 +498,7 @@
     document.getElementById('content').innerHTML = html;
     if (unlocked) {
       document.getElementById('addRowBtn').addEventListener('click', () => addEmptyRow(school));
-      document.getElementById('lockBtn').addEventListener('click', () => { _unlockedSchools = _unlockedSchools.filter(s => s !== school); persistUnlocks(); renderTabs(); renderSchool(school); });
+      document.getElementById('lockBtn')?.addEventListener('click', () => { _unlockedSchools = _unlockedSchools.filter(s => s !== school); persistUnlocks(); renderTabs(); renderSchool(school); });
     } else {
       document.getElementById('unlockBtn').addEventListener('click', () => openPwModal(school));
     }
@@ -473,10 +567,14 @@
   function renderMaster() {
     const all = _events.filter(e => !e.archived).sort((a,b) => (a.event_date || '').localeCompare(b.event_date || ''));
     const html = `
+      ${renderWindowBanner()}
       <div class="toolbar">
         <div class="school-name">📋 Master Schedule</div>
         <span class="row-count">${all.length} event${all.length === 1 ? '' : 's'} across ${SCHOOLS.length} schools</span>
-        <button class="btn btn-navy" id="exportMasterBtn" style="margin-left:auto">📤 Export Master to Excel</button>
+        ${_adminUnlocked
+          ? `<button class="btn btn-outline" id="adminOutBtn" style="margin-left:auto">🔑 Admin signed in — sign out</button>`
+          : `<button class="btn btn-blue" id="adminInBtn" style="margin-left:auto">🔑 Sign in as Admin</button>`}
+        <button class="btn btn-navy" id="exportMasterBtn">📤 Export Master to Excel</button>
       </div>
       ${all.length ? `
         <div class="table-wrap">
@@ -489,6 +587,8 @@
     `;
     document.getElementById('content').innerHTML = html;
     document.getElementById('exportMasterBtn').addEventListener('click', exportMaster);
+    document.getElementById('adminInBtn')?.addEventListener('click', () => openPwModal('__admin__'));
+    document.getElementById('adminOutBtn')?.addEventListener('click', adminSignOut);
   }
 
   function formatCell(col, row) {
@@ -578,7 +678,7 @@
   /* ── Init ── */
   document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
-    await loadEvents();
+    await Promise.all([loadEvents(), loadSchoolPasswords(), loadSettings()]);
     renderTabs();
     switchTab('master');
   });

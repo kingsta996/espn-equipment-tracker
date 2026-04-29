@@ -157,6 +157,23 @@ alter table schedule_events enable row level security;
 create policy "public read schedule events"  on schedule_events for select using (true);
 create policy "public write schedule events" on schedule_events for all    using (true) with check (true);
 
+-- Single-row settings table for the schedule (active year + Fall/Winter/Spring window state)
+create table if not exists schedule_settings (
+  id text primary key default 'singleton',
+  active_year text default '2025-26',
+  fall_window text default 'open',     -- 'open' | 'closed'
+  winter_window text default 'open',
+  spring_window text default 'open',
+  fall_closed_at timestamptz,
+  winter_closed_at timestamptz,
+  spring_closed_at timestamptz,
+  updated_at timestamptz default now()
+);
+alter table schedule_settings enable row level security;
+create policy "public read schedule settings"  on schedule_settings for select using (true);
+create policy "public write schedule settings" on schedule_settings for all    using (true) with check (true);
+insert into schedule_settings (id) values ('singleton') on conflict do nothing;
+
 
 -- ── CUSA Production Tracker (drives 'CUSA Produced Only' filter) ──────────
 create table if not exists produced_events (

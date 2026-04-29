@@ -91,6 +91,17 @@
 
   .breakdown-table { font-size: 12px; }
   .breakdown-table th, .breakdown-table td { padding: 7px 8px; }
+
+  .activity-banner { background: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+  .activity-banner-head { font-weight: 700; color: #92400e; font-size: 13px; margin-bottom: 6px; }
+  .activity-list { margin: 0; padding: 0; list-style: none; font-size: 12px; max-height: 200px; overflow-y: auto; }
+  .activity-list li { padding: 3px 0; color: #555; border-bottom: 1px dashed #fde68a; }
+  .activity-list li:last-child { border-bottom: none; }
+
+  .window-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+  .win-chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.4px; }
+  .win-chip.win-open { background: rgba(167,213,0,0.18); color: #4a6600; border: 1px solid var(--green); }
+  .win-chip.win-closed { background: rgba(239,64,53,0.12); color: #991b1b; border: 1px solid var(--espn-red); }
 </style>
 </head>
 <body>
@@ -132,7 +143,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const SCHOOLS = ['Delaware','FIU','Jacksonville State','Kennesaw State','LA Tech','Liberty','Missouri State','MTSU','New Mexico State','Sam Houston','UTEP','Western Kentucky'];
+  const SCHOOLS = ['Delaware','FIU','Jacksonville State','Kennesaw State','Liberty','Missouri State','MTSU','New Mexico State','Sam Houston','Western Kentucky'];
   const SPORTS = ['Baseball','Field Hockey','Football',"Men's Basketball","Men's Ice Hockey","Men's Lacrosse","Men's Soccer","Men's Tennis","Men's Volleyball",'Soccer','Softball','Volleyball',"Women's Basketball","Women's Lacrosse","Women's Swim & Dive","Women's Tennis"];
   const ADMIN_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
   const UNLOCK_KEY = 'cusa_schedule_admin_unlocked';
@@ -170,7 +181,10 @@
   let _events = [];
   let _activeTab = 'master';
   let _filters = { school: '', sport: '', conference: '', production: '', from: '', to: '', search: '' };
+  let _settings = { active_year: '2025-26', fall_window: 'open', winter_window: 'open', spring_window: 'open' };
   let _athleticYear = localStorage.getItem(YEAR_KEY) || '2025-26';
+  let _lastSeen = localStorage.getItem('cusa_schedule_admin_last_seen') || '';
+  const SEASONS = ['Fall','Winter','Spring'];
 
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   async function sha256(s) { const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(''); }
@@ -234,6 +248,36 @@
     try { const { error } = await _db.from('schedule_events').delete().eq('id', id); if (error) throw error; _events = _events.filter(e => e.id !== id); return true; }
     catch (e) { showToast('Delete failed', 'warn'); return false; }
   }
+  async function loadSettings() {
+    if (!_db) return;
+    try {
+      const { data, error } = await _db.from('schedule_settings').select('*').eq('id', 'singleton').maybeSingle();
+      if (error) throw error;
+      if (data) {
+        _settings = { ...(_settings || {}), ...data };
+        if (data.active_year) _athleticYear = data.active_year;
+      }
+    } catch (e) { console.warn('Schedule settings load failed:', e); }
+  }
+  async function saveSettings(patch) {
+    if (!_db) { showToast('Supabase not connected', 'warn'); return false; }
+    try {
+      const body = { ...patch, updated_at: new Date().toISOString() };
+      const { data, error } = await _db.from('schedule_settings').upsert({ id: 'singleton', ...body }).select().single();
+      if (error) throw error;
+      _settings = { ...(_settings || {}), ...data };
+      if (data.active_year) { _athleticYear = data.active_year; localStorage.setItem(YEAR_KEY, _athleticYear); }
+      return true;
+    } catch (e) {
+      console.error('Save settings failed:', e);
+      const msg = /schedule_settings|schema cache/i.test(e.message || '')
+        ? 'schedule_settings table missing — run the SQL migration in Supabase'
+        : 'Save failed: ' + (e.message || e);
+      showToast(msg, 'warn');
+      return false;
+    }
+  }
+
   async function archiveYear(year) {
     if (!_db) return 0;
     const targets = _events.filter(e => e.athletic_year === year && !e.archived);
@@ -313,12 +357,48 @@
     });
   }
 
+  function recentUpdates() {
+    if (!_lastSeen) return [];
+    return _events.filter(e => (e.updated_at || '') > _lastSeen).sort((a,b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+  }
+  function markSeen() {
+    const now = new Date().toISOString();
+    _lastSeen = now;
+    localStorage.setItem('cusa_schedule_admin_last_seen', now);
+  }
+  function renderActivityBanner() {
+    const recent = recentUpdates();
+    if (!recent.length) return '';
+    const sample = recent.slice(0, 5);
+    const moreCount = recent.length - sample.length;
+    return `<div class="activity-banner">
+      <div class="activity-banner-head">🔔 ${recent.length} schedule update${recent.length === 1 ? '' : 's'} since your last visit</div>
+      <ul class="activity-list">
+        ${sample.map(e => `<li><strong>${escapeHtml(e.school)}</strong> — ${escapeHtml(e.sport || '?')} • ${escapeHtml(e.event_date || '')} • ${escapeHtml(e.away || '?')} @ ${escapeHtml(e.home || '?')} <span style="color:#888">(${escapeHtml(new Date(e.updated_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))})</span></li>`).join('')}
+        ${moreCount ? `<li style="color:#888">… and ${moreCount} more</li>` : ''}
+      </ul>
+      <button class="btn btn-outline" id="markSeenBtn" style="margin-top:8px">Mark all read</button>
+    </div>`;
+  }
+  function renderWindowStrip() {
+    return `<div class="window-strip">
+      ${SEASONS.map(s => {
+        const k = s.toLowerCase() + '_window';
+        const open = (_settings[k] || 'open') === 'open';
+        return `<span class="win-chip ${open ? 'win-open' : 'win-closed'}">${s}: ${open ? 'OPEN' : 'CLOSED'}</span>`;
+      }).join('')}
+    </div>`;
+  }
+
   /* ── List view (Master, Fall/Winter/Spring, Archive) ── */
-  function renderList(rows, title) {
+  function renderList(rows, title, opts = {}) {
+    const isMaster = title === 'Master Schedule';
     document.getElementById('content').innerHTML = `
+      ${isMaster ? renderActivityBanner() : ''}
       <div class="toolbar">
         <h2>${escapeHtml(title)}</h2>
         <span class="pill">Year: ${escapeHtml(_athleticYear)}</span>
+        ${renderWindowStrip()}
         <button class="btn btn-navy" id="exportBtn" style="margin-left:auto">📤 Export to Excel</button>
         <span class="row-count">${rows.length} event${rows.length === 1 ? '' : 's'}</span>
       </div>
@@ -328,6 +408,7 @@
     wireFilters();
     wireRowActions();
     document.getElementById('exportBtn').addEventListener('click', () => exportRows(rows, title));
+    document.getElementById('markSeenBtn')?.addEventListener('click', () => { markSeen(); switchTab(_activeTab); });
   }
 
   function renderTable(rows, opts = {}) {
@@ -395,23 +476,74 @@
     wireRowActions();
   }
 
-  /* ── Settings (year update, archive year) ── */
+  /* ── Settings (year, season windows, archive year) ── */
+  async function importSeasonOnClose(season) {
+    // Stamp every Active-Year event for that season with season label so the
+    // admin tab definitively reflects what was submitted while the window was open.
+    if (!_db) return 0;
+    const targets = _events.filter(e =>
+      !e.archived && e.athletic_year === _athleticYear &&
+      ((SPORT_SEASON[e.sport] || '').toLowerCase() === season.toLowerCase()) &&
+      (e.season || '').toLowerCase() !== season.toLowerCase()
+    );
+    if (!targets.length) return 0;
+    const ids = targets.map(t => t.id).filter(Boolean);
+    if (!ids.length) return 0;
+    const { error } = await _db.from('schedule_events').update({ season }).in('id', ids);
+    if (error) { console.error(error); return 0; }
+    targets.forEach(t => { t.season = season; });
+    return targets.length;
+  }
+  async function setSeasonWindow(season, open) {
+    const key = season.toLowerCase() + '_window';
+    const closedKey = season.toLowerCase() + '_closed_at';
+    const patch = { [key]: open ? 'open' : 'closed' };
+    patch[closedKey] = open ? null : new Date().toISOString();
+    const ok = await saveSettings(patch);
+    if (!ok) return;
+    let imported = 0;
+    if (!open) imported = await importSeasonOnClose(season);
+    showToast(open ? `${season} window opened` : `${season} window closed${imported ? ` — imported ${imported} event${imported === 1 ? '' : 's'} into the ${season} tab` : ''}`, 'success');
+    renderSettings();
+  }
   function renderSettings() {
     const allYears = [...new Set(_events.map(e => e.athletic_year).filter(Boolean))].sort();
+    const winRows = SEASONS.map(s => {
+      const k = s.toLowerCase() + '_window';
+      const open = (_settings[k] || 'open') === 'open';
+      const closedAt = _settings[s.toLowerCase() + '_closed_at'];
+      const counts = _events.filter(e => !e.archived && e.athletic_year === _athleticYear && (SPORT_SEASON[e.sport] || '').toLowerCase() === s.toLowerCase()).length;
+      return `<tr>
+        <td><strong>${s}</strong></td>
+        <td><span class="win-chip ${open ? 'win-open' : 'win-closed'}">${open ? 'OPEN' : 'CLOSED'}</span></td>
+        <td>${counts}</td>
+        <td style="color:#888;font-size:11px">${closedAt ? 'Closed ' + new Date(closedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—'}</td>
+        <td>${open
+          ? `<button class="btn btn-gray" data-season="${s}" data-action="close">Close window</button>`
+          : `<button class="btn btn-green" data-season="${s}" data-action="open">Reopen window</button>`}
+        </td>
+      </tr>`;
+    }).join('');
     document.getElementById('content').innerHTML = `
-      <div class="toolbar">
-        <h2>⚙ Settings</h2>
-      </div>
+      <div class="toolbar"><h2>⚙ Settings</h2></div>
       <div class="filters" style="grid-template-columns: 1fr;">
         <div>
           <label>Active Athletic Year</label>
           <input type="text" id="year-input" value="${escapeHtml(_athleticYear)}" placeholder="e.g. 2025-26" style="max-width:200px">
           <button class="btn btn-primary" id="year-save" style="margin-left:8px">Save Year</button>
-          <p style="font-size:11px;color:#666;margin-top:8px">All season tabs and Master view filter to this athletic year. New events submitted from the public page also default to this year.</p>
+          <p style="font-size:11px;color:#666;margin-top:8px">All season tabs and Master view filter to this athletic year. Persists in Supabase so every admin browser sees the same active year.</p>
         </div>
         <div>
           <label>Years on file</label>
           <div style="font-size:12px;color:#333">${allYears.length ? allYears.map(y => `<span class="pill" style="margin-right:6px">${escapeHtml(y)}</span>`).join('') : '<em style="color:#888">No years on file yet.</em>'}</div>
+        </div>
+        <div>
+          <label>Submission Windows — ${escapeHtml(_athleticYear)}</label>
+          <div class="table-wrap" style="max-width:780px"><table class="sched">
+            <thead><tr><th>SEASON</th><th>STATUS</th><th>EVENTS</th><th>LAST CLOSED</th><th>ACTION</th></tr></thead>
+            <tbody>${winRows}</tbody>
+          </table></div>
+          <p style="font-size:11px;color:#666;margin-top:8px">Closing a window blocks new public submissions for that season AND imports every existing submission into the season tab in this admin portal (stamps the <code>season</code> field). Reopening it re-allows public submissions; previously imported events stay tagged.</p>
         </div>
         <div>
           <label>Archive a Year</label>
@@ -421,13 +553,14 @@
         </div>
       </div>
     `;
-    document.getElementById('year-save').addEventListener('click', () => {
+    document.getElementById('year-save').addEventListener('click', async () => {
       const v = document.getElementById('year-input').value.trim();
       if (!v) return;
-      _athleticYear = v;
-      localStorage.setItem(YEAR_KEY, v);
-      showToast('Active year updated', 'success');
-      renderSettings();
+      const ok = await saveSettings({ active_year: v });
+      if (ok) { showToast('Active year updated', 'success'); renderSettings(); }
+    });
+    document.querySelectorAll('button[data-season]').forEach(b => {
+      b.addEventListener('click', () => setSeasonWindow(b.dataset.season, b.dataset.action === 'open'));
     });
     document.getElementById('archive-year-btn').addEventListener('click', async () => {
       const y = document.getElementById('archive-year-select').value;
@@ -622,7 +755,12 @@
   /* ── Init ── */
   async function initPortal() {
     initSupabase();
-    await loadEvents();
+    await Promise.all([loadEvents(), loadSettings()]);
+    if (!_lastSeen) {
+      // First visit: bootstrap so we don't flood with "all events updated"
+      _lastSeen = new Date(Date.now() - 1000*60*60*24*7).toISOString();
+      localStorage.setItem('cusa_schedule_admin_last_seen', _lastSeen);
+    }
     document.querySelectorAll('.tab-bar button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
     switchTab('master');
   }

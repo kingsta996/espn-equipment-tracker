@@ -142,6 +142,52 @@ alter table schedule_events enable row level security;
 create policy "public read schedule events"  on schedule_events for select using (true);
 create policy "public write schedule events" on schedule_events for all    using (true) with check (true);
 
+-- ── Admin users + activity log ────────────────────────────────────────────
+-- Per-user admin accounts (email + SHA-256 of password). Used by admin.html,
+-- compliance.html, schedule-admin.html for sign-in. Replaces the single
+-- shared admin password.
+create table if not exists admin_users (
+  id uuid primary key default gen_random_uuid(),
+  email text unique not null,
+  pw_hash text not null,
+  display_name text,
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
+alter table admin_users enable row level security;
+drop policy if exists "public read admin users"  on admin_users;
+drop policy if exists "public write admin users" on admin_users;
+create policy "public read admin users"  on admin_users for select using (true);
+create policy "public write admin users" on admin_users for all    using (true) with check (true);
+
+-- Append-only activity log: who logged in, who modified what, when.
+create table if not exists admin_activity_log (
+  id bigserial primary key,
+  email text not null,
+  display_name text,
+  app text,             -- 'viewership' | 'compliance' | 'schedule' | 'auth'
+  action text not null, -- 'login' | 'sign-out' | 'add' | 'edit' | 'delete' | 'import' | 'archive' | etc.
+  target text,          -- 'school:Liberty' | 'event:abc-123' | 'period:Aug-Oct 2025' | etc.
+  details text,
+  occurred_at timestamptz default now()
+);
+alter table admin_activity_log enable row level security;
+drop policy if exists "public read activity log"   on admin_activity_log;
+drop policy if exists "public insert activity log" on admin_activity_log;
+create policy "public read activity log"   on admin_activity_log for select using (true);
+create policy "public insert activity log" on admin_activity_log for insert with check (true);
+
+-- Seed two admin accounts. Keith keeps his existing hash so his current
+-- password still works; Carney's row has SHA-256('C0nferenceUSA!').
+insert into admin_users (email, pw_hash, display_name) values
+  ('keithmkingjr@gmail.com',     '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2', 'Keith King'),
+  ('kcarney@conferenceusa.com',  '8b0bc1004fe02329dc00733a3be4ee41e8539e929ec9f7d1e858906a676f4f47', 'K Carney')
+on conflict (email) do update set
+  pw_hash = excluded.pw_hash,
+  display_name = excluded.display_name,
+  is_active = true;
+
+
 -- ── Realtime broadcasts ──────────────────────────────────────────────────
 -- Add the tables we want live-syncing across admin browsers to the
 -- supabase_realtime publication. Safe to re-run.
@@ -162,6 +208,9 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 do $$ begin
   alter publication supabase_realtime add table school_audit_log;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table admin_activity_log;
 exception when duplicate_object then null; end $$;
 
 

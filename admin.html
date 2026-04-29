@@ -341,6 +341,7 @@
   <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
        onerror="this.style.display='none'">
   <h1>ESPN+ Viewership — Admin Portal <span id="liveBadge" class="live-badge" style="display:none">Live</span></h1>
+  <span id="currentUser" style="color:rgba(255,255,255,0.8);font-size:11px;font-weight:600"></span>
   <button id="lockBtn" onclick="lockViewer()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">🔒 Sign Out</button>
   <a href="viewership.html">← Public View</a>
 </div>
@@ -349,12 +350,13 @@
 <div class="pw-overlay" id="pwOverlay">
   <div class="pw-box">
     <h2>🔒 Admin Portal</h2>
-    <p>Enter the admin password to access this portal</p>
-    <input class="pw-input" id="pwInput" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitPw()">
-    <div class="pw-err" id="pwErr">Incorrect password. Try again.</div>
+    <p>Sign in with your admin email and password</p>
+    <input class="pw-input" id="pwEmail" type="email" placeholder="you@example.com" autocomplete="email" style="text-align:left;letter-spacing:0">
+    <input class="pw-input" id="pwInput" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr">Incorrect email or password.</div>
     <div class="pw-actions">
       <button onclick="window.location.href='viewership.html'" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
-      <button onclick="submitPw()" style="background:var(--espn-red);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Unlock</button>
+      <button onclick="submitPw()" style="background:var(--espn-red);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Sign In</button>
     </div>
   </div>
 </div>
@@ -453,6 +455,7 @@
   <button data-tab="championships">Championships</button>
   <button data-tab="shows">Shows</button>
   <button data-tab="rawdata">Raw Data</button>
+  <button data-tab="activity">📋 Activity Log</button>
 </div>
 
 <!-- Tab content -->
@@ -474,6 +477,7 @@
   <div id="championships" class="tab-content" style="display:none"></div>
   <div id="shows"         class="tab-content" style="display:none"></div>
   <div id="rawdata"       class="tab-content" style="display:none"></div>
+  <div id="activity"      class="tab-content" style="display:none"></div>
 
 </div>
 
@@ -485,6 +489,8 @@
   const PERIOD_KEY = 'cusa_tracker_period';
   const VW_UNLOCK_KEY = 'cusa_viewer_unlocked';
   const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  const CURRENT_USER_KEY = 'cusa_admin_current_user';
+  let _currentUser = null; // { email, display_name }
   const PROTECTED_TABS = new Set(['dashboard','football','volleyball','soccer','baseball','softball','mbb','wbb','championships','shows','rawdata']);
   let adminUnlocked = localStorage.getItem(VW_UNLOCK_KEY) === 'true';
   let pendingTab = null;
@@ -567,19 +573,47 @@
     pendingTab = null;
   }
   async function submitPw() {
-    const h = await hashPw(document.getElementById('pwInput').value);
-    if (h === VW_PW_HASH) {
-      adminUnlocked = true;
-      localStorage.setItem(VW_UNLOCK_KEY, 'true');
-      closePwModal();
-      await initAdminPortal();
-    } else {
-      document.getElementById('pwErr').style.display = 'block';
+    const email = (document.getElementById('pwEmail').value || '').trim().toLowerCase();
+    const pw = document.getElementById('pwInput').value;
+    if (!email || !pw) { document.getElementById('pwErr').textContent = 'Email and password are required.'; document.getElementById('pwErr').style.display = 'block'; return; }
+    const h = await hashPw(pw);
+    // Need a Supabase client to look up the user — create a temporary one if needed
+    let tmpDb = _db;
+    if (!tmpDb && typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      tmpDb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
     }
+    let user = null;
+    if (tmpDb) {
+      try {
+        const { data } = await tmpDb.from('admin_users').select('email, pw_hash, display_name, is_active').eq('email', email).maybeSingle();
+        if (data && data.is_active && data.pw_hash === h) user = { email: data.email, display_name: data.display_name || data.email };
+      } catch (e) { console.warn('admin_users lookup failed:', e); }
+    }
+    // Legacy fallback: shared admin hash still works for any email so existing
+    // bookmarks keep functioning if the admin_users table isn't seeded yet.
+    if (!user && h === VW_PW_HASH) {
+      user = { email: email || 'legacy-admin', display_name: 'Legacy Admin' };
+    }
+    if (!user) { document.getElementById('pwErr').textContent = 'Incorrect email or password.'; document.getElementById('pwErr').style.display = 'block'; return; }
+    _currentUser = user;
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    adminUnlocked = true;
+    localStorage.setItem(VW_UNLOCK_KEY, 'true');
+    closePwModal();
+    await initAdminPortal();
+    logActivity('login', null, `Signed in to Viewership admin`);
   }
   function lockViewer() {
+    if (_currentUser) logActivity('sign-out', null, 'Signed out of Viewership admin');
     localStorage.removeItem(VW_UNLOCK_KEY);
+    localStorage.removeItem(CURRENT_USER_KEY);
     window.location.href = 'viewership.html';
+  }
+  function loadCurrentUser() {
+    try { _currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); }
+    catch { _currentUser = null; }
+    const el = document.getElementById('currentUser');
+    if (el) el.textContent = _currentUser ? `Signed in as ${_currentUser.display_name || _currentUser.email}` : '';
   }
   function updateTabLocks() { /* no-op — admin portal is fully gated */ }
 
@@ -589,6 +623,24 @@
       _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
     }
   }
+
+  /* Append an activity-log row. Fire-and-forget — never blocks the UI. */
+  function logActivity(action, target, details) {
+    if (!_db) return;
+    const u = _currentUser;
+    const row = {
+      email: u?.email || 'unknown',
+      display_name: u?.display_name || null,
+      app: 'viewership',
+      action,
+      target: target || null,
+      details: details || null
+    };
+    _db.from('admin_activity_log').insert(row).then(({error}) => {
+      if (error) console.warn('logActivity failed:', error);
+    });
+  }
+  function currentUserEmail() { return _currentUser?.email || null; }
 
   function rowToDb(r) {
     return {
@@ -808,6 +860,7 @@
         rawData = mergeProducedPlaceholders(rawData.filter(r => !r._placeholder));
         renderAllTabs();
         updateStatus(`☁️ Imported ${events.length} produced events from Production Tracker`, 'saved-cloud');
+        logActivity('import', 'produced_events', `Imported ${events.length} rows from Production Tracker`);
         event.target.value = '';
       } catch (err) {
         console.error(err);
@@ -1064,6 +1117,7 @@
 
     if (supabaseOk) {
       updateStatus('☁️ Produced event removed (database)', 'saved-cloud');
+      logActivity('delete', `produced:${prodKey.event_date}|${prodKey.school}`, `Removed ${prodKey.away_team || '?'} @ ${prodKey.home_team || '?'} (${prodKey.school})`);
     } else {
       const tableMissing = supabaseErr && /produced_events|schema cache/i.test(supabaseErr.message || '');
       updateStatus(
@@ -1297,6 +1351,7 @@
         : `💻 Event ${verb} locally only — Supabase not connected`,
       savedToDatabase ? 'saved-cloud' : 'saved-local'
     );
+    if (savedToDatabase) logActivity(verb === 'updated' ? 'edit' : 'add', `event:${sport}|${airing}|${date}`, `${airing} on ${date} (${viewers.toLocaleString()} viewers)`);
   }
 
   function escapeReconText(s) {
@@ -1371,6 +1426,7 @@
 
   async function initAdminPortal() {
     initSupabase();
+    loadCurrentUser();
     await loadProducedEvents();
     updateProducedToggleUI();
     const dbLoaded = await loadFromSupabase();
@@ -1426,6 +1482,12 @@
       });
     _db.channel('admin-produced-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'produced_events' }, resyncProd)
+      .subscribe();
+    _db.channel('admin-activity-sync')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admin_activity_log' }, () => {
+        flashLiveBadge();
+        if (document.querySelector('.tab-bar button[data-tab="activity"].active')) renderActivityLog();
+      })
       .subscribe();
   }
 
@@ -1770,6 +1832,7 @@
       dbOk ? '☁️ All data cleared from database' : '💻 All data cleared locally — Supabase delete failed or not connected',
       dbOk ? 'saved-cloud' : 'saved-local'
     );
+    if (dbOk) logActivity('clear', 'viewership_events', 'Cleared all viewership events');
   }
 
   function updateStatus(msg, cls) {
@@ -1782,6 +1845,7 @@
   function switchTab(name) {
     document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = c.id === name ? 'block' : 'none');
+    if (name === 'activity') renderActivityLog();
   }
 
   function renderAllTabs() {
@@ -1790,6 +1854,62 @@
     renderChampionships();
     renderShows();
     renderRawData();
+    if (document.querySelector('.tab-bar button[data-tab="activity"].active')) renderActivityLog();
+  }
+
+  async function renderActivityLog() {
+    const container = document.getElementById('activity');
+    if (!_db) {
+      container.innerHTML = `<div class="empty-state"><h3>Database not connected</h3></div>`;
+      return;
+    }
+    container.innerHTML = `<div class="empty-state"><h3>Loading activity log…</h3></div>`;
+    try {
+      const { data, error } = await _db.from('admin_activity_log')
+        .select('*').order('occurred_at', { ascending: false }).limit(500);
+      if (error) throw error;
+      const rows = data || [];
+      const fmtTime = iso => {
+        try { return new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }); }
+        catch { return iso; }
+      };
+      const actionPill = a => {
+        const colors = {
+          login: 'rgba(167,213,0,0.2)', 'sign-out': '#eef2f7', add: 'rgba(0,181,226,0.2)',
+          edit: 'rgba(255,193,7,0.2)', delete: 'rgba(239,64,53,0.2)',
+          import: 'rgba(99,102,241,0.2)', archive: '#eef2f7'
+        };
+        return `<span style="background:${colors[a] || '#eef2f7'};padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px">${escapeReconText(a)}</span>`;
+      };
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <h3 style="color:var(--navy);font-size:15px;margin:0">📋 Activity Log</h3>
+          <span style="font-size:11px;color:#666">Last 500 events across every admin portal — most recent first.</span>
+          <button class="btn btn-toggle" id="refreshActivity" style="margin-left:auto">🔄 Refresh</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>WHEN</th><th>USER</th><th>APP</th><th>ACTION</th><th>TARGET</th><th>DETAILS</th></tr></thead>
+            <tbody>
+              ${rows.length ? rows.map(r => `
+                <tr>
+                  <td style="white-space:nowrap;color:#555">${escapeReconText(fmtTime(r.occurred_at))}</td>
+                  <td>${escapeReconText(r.display_name || r.email)}</td>
+                  <td style="color:#888">${escapeReconText(r.app || '')}</td>
+                  <td>${actionPill(r.action || '')}</td>
+                  <td>${escapeReconText(r.target || '')}</td>
+                  <td style="color:#444">${escapeReconText(r.details || '')}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="6" style="text-align:center;padding:30px;color:#999">No activity yet</td></tr>`}
+            </tbody>
+          </table>
+        </div>`;
+      document.getElementById('refreshActivity').addEventListener('click', renderActivityLog);
+    } catch (err) {
+      console.error(err);
+      const tableMissing = /admin_activity_log|schema cache/i.test(err.message || '');
+      container.innerHTML = `<div class="empty-state"><h3>${tableMissing ? 'admin_activity_log table missing — run the SQL migration' : 'Failed to load activity log'}</h3><p>${escapeReconText(err.message || '')}</p></div>`;
+    }
   }
 
   function populateSchoolDropdown() {

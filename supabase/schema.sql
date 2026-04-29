@@ -142,6 +142,29 @@ alter table schedule_events enable row level security;
 create policy "public read schedule events"  on schedule_events for select using (true);
 create policy "public write schedule events" on schedule_events for all    using (true) with check (true);
 
+-- ── Realtime broadcasts ──────────────────────────────────────────────────
+-- Add the tables we want live-syncing across admin browsers to the
+-- supabase_realtime publication. Safe to re-run.
+do $$ begin
+  alter publication supabase_realtime add table viewership_events;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table produced_events;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table schedule_events;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table schedule_settings;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table schools;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table school_audit_log;
+exception when duplicate_object then null; end $$;
+
+
 -- Single-row settings table for the schedule (active year + Fall/Winter/Spring window state)
 create table if not exists schedule_settings (
   id text primary key default 'singleton',

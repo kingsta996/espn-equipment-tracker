@@ -68,6 +68,10 @@
   .btn-toggle { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
   .btn-toggle.active { background: var(--green); color: var(--navy); border-color: var(--green); }
   .btn-toggle[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .live-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: rgba(167,213,0,0.2); color: #4a6600; border: 1px solid var(--green); border-radius: 12px; font-size: 10px; font-weight: 700; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .live-badge::before { content: ''; width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: live-pulse 1.6s ease-in-out infinite; }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+  .live-badge.flash { background: var(--green); color: var(--navy); transition: background 0.4s, color 0.4s; }
   .file-input-wrapper { position: relative; display: inline-block; }
   .file-input-wrapper input[type=file] { position: absolute; left: -9999px; }
   .status {
@@ -335,7 +339,7 @@
 <div class="header">
   <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
        onerror="this.style.display='none'">
-  <h1>ESPN+ Viewership — Admin Portal</h1>
+  <h1>ESPN+ Viewership — Admin Portal <span id="liveBadge" class="live-badge" style="display:none">Live</span></h1>
   <button id="lockBtn" onclick="lockViewer()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">🔒 Sign Out</button>
   <a href="viewership.html">← Public View</a>
 </div>
@@ -1275,7 +1279,49 @@
       loadFromStorage();
     }
     setupEventListeners();
+    setupRealtime();
     if (rawData.length > 0) renderAllTabs();
+  }
+
+  /* ── Live Sync (Supabase Realtime) ── */
+  let _liveBadgeTimer = null;
+  function flashLiveBadge() {
+    const el = document.getElementById('liveBadge');
+    if (!el) return;
+    el.classList.add('flash');
+    clearTimeout(_liveBadgeTimer);
+    _liveBadgeTimer = setTimeout(() => el.classList.remove('flash'), 700);
+  }
+  function setupRealtime() {
+    if (!_db) return;
+    let viewT = null;
+    const resyncView = () => {
+      clearTimeout(viewT);
+      viewT = setTimeout(async () => {
+        await loadFromSupabase();
+        renderAllTabs();
+        flashLiveBadge();
+      }, 600);
+    };
+    let prodT = null;
+    const resyncProd = () => {
+      clearTimeout(prodT);
+      prodT = setTimeout(async () => {
+        await loadProducedEvents();
+        rawData = mergeProducedPlaceholders(rawData.filter(r => !r._placeholder));
+        renderAllTabs();
+        flashLiveBadge();
+      }, 600);
+    };
+    _db.channel('admin-viewership-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'viewership_events' }, resyncView)
+      .subscribe(status => {
+        const el = document.getElementById('liveBadge');
+        if (el && status === 'SUBSCRIBED') el.style.display = 'inline-flex';
+      });
+    _db.channel('admin-produced-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'produced_events' }, resyncProd)
+      .subscribe();
   }
 
   async function loadLastModified() {

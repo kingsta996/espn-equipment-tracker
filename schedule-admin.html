@@ -102,13 +102,18 @@
   .win-chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.4px; }
   .win-chip.win-open { background: rgba(167,213,0,0.18); color: #4a6600; border: 1px solid var(--green); }
   .win-chip.win-closed { background: rgba(239,64,53,0.12); color: #991b1b; border: 1px solid var(--espn-red); }
+
+  .live-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: rgba(167,213,0,0.2); color: #4a6600; border: 1px solid var(--green); border-radius: 12px; font-size: 10px; font-weight: 700; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .live-badge::before { content: ''; width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: live-pulse 1.6s ease-in-out infinite; }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+  .live-badge.flash { background: var(--green); color: var(--navy); transition: background 0.4s, color 0.4s; }
 </style>
 </head>
 <body>
 
 <div class="header">
   <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN" onerror="this.style.display='none'">
-  <h1>ESPN Schedule — Admin Portal</h1>
+  <h1>ESPN Schedule — Admin Portal <span id="liveBadge" class="live-badge" style="display:none">Live</span></h1>
   <button class="lock-btn" id="lockBtn" onclick="signOut()">🔒 Sign Out</button>
   <a href="schedule.html">← Public View</a>
   <a href="index.html">Hub</a>
@@ -752,6 +757,38 @@
     showToast('Production Tracker exported', 'success');
   }
 
+  /* ── Live Sync (Supabase Realtime) ── */
+  let _liveBadgeTimer = null;
+  function flashLiveBadge() {
+    const el = document.getElementById('liveBadge');
+    if (!el) return;
+    el.classList.add('flash');
+    clearTimeout(_liveBadgeTimer);
+    _liveBadgeTimer = setTimeout(() => el.classList.remove('flash'), 700);
+  }
+  function setupRealtime() {
+    if (!_db) return;
+    let evtT = null;
+    const resyncEvents = () => {
+      clearTimeout(evtT);
+      evtT = setTimeout(async () => { await loadEvents(); switchTab(_activeTab); flashLiveBadge(); }, 500);
+    };
+    let setT = null;
+    const resyncSettings = () => {
+      clearTimeout(setT);
+      setT = setTimeout(async () => { await loadSettings(); switchTab(_activeTab); flashLiveBadge(); }, 500);
+    };
+    _db.channel('schedule-admin-events')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_events' }, resyncEvents)
+      .subscribe(status => {
+        const el = document.getElementById('liveBadge');
+        if (el && status === 'SUBSCRIBED') el.style.display = 'inline-flex';
+      });
+    _db.channel('schedule-admin-settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_settings' }, resyncSettings)
+      .subscribe();
+  }
+
   /* ── Init ── */
   async function initPortal() {
     initSupabase();
@@ -762,6 +799,7 @@
       localStorage.setItem('cusa_schedule_admin_last_seen', _lastSeen);
     }
     document.querySelectorAll('.tab-bar button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+    setupRealtime();
     switchTab('master');
   }
   document.addEventListener('DOMContentLoaded', async () => {

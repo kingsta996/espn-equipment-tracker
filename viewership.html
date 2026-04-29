@@ -645,6 +645,26 @@
     updateStatus(`Exported ${schoolData.length} events for ${school}`);
   }
 
+  /* ── Live Sync (Supabase Realtime) ── */
+  function setupRealtime() {
+    if (!_db) return;
+    let t = null;
+    const resync = () => {
+      clearTimeout(t);
+      t = setTimeout(async () => {
+        await loadFromSupabase();
+        const lastMod = await loadLastModified();
+        updateMetaBar(lastMod);
+        // Refresh the currently-displayed school search if one is open
+        const active = document.getElementById('schoolSelect')?.value;
+        if (active && document.getElementById('schoolResults')?.children?.length) performSchoolSearch();
+      }, 600);
+    };
+    _db.channel('viewership-public-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'viewership_events' }, resync)
+      .subscribe();
+  }
+
   /* ── Init ── */
   document.addEventListener('DOMContentLoaded', async () => {
     populateSchoolDropdown();
@@ -659,6 +679,7 @@
       updateStatus('No data available yet. Please ask the admin to import the latest report.');
       updateMetaBar(null);
     }
+    setupRealtime();
   });
 </script>
 

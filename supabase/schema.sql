@@ -76,10 +76,12 @@ create policy "admin deletes schools"
   on schools for delete
   using (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com');
 
--- Authenticated users can read audit log
-create policy "authenticated read audit log"
-  on school_audit_log for select
-  using (auth.role() = 'authenticated');
+-- Audit log: public read + public insert so the trigger can write rows
+-- regardless of how the user authenticated (password gate or anon).
+create policy "public read audit log"
+  on school_audit_log for select using (true);
+create policy "public insert audit log"
+  on school_audit_log for insert with check (true);
 
 -- ── Audit Trigger ──────────────────────────────────────────────────────────
 create or replace function log_school_changes()

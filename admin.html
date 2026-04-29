@@ -455,6 +455,7 @@
   <button data-tab="shows">Shows</button>
   <button data-tab="rawdata">Raw Data</button>
   <button data-tab="activity">📋 Activity Log</button>
+  <button data-tab="schools">🏫 Schools</button>
 </div>
 
 <!-- Tab content -->
@@ -477,6 +478,7 @@
   <div id="shows"         class="tab-content" style="display:none"></div>
   <div id="rawdata"       class="tab-content" style="display:none"></div>
   <div id="activity"      class="tab-content" style="display:none"></div>
+  <div id="schools"       class="tab-content" style="display:none"></div>
 
 </div>
 
@@ -507,7 +509,9 @@
     'Baseball': 'NCAA Baseball',
     'Softball': 'NCAA Softball'
   };
-  const PROD_SCHOOL_MAP = {
+  // Default lists used as a fallback if the conference_schools table can't be
+  // reached. Kept in sync with the seed in supabase/migrations/conference_schools.sql.
+  let PROD_SCHOOL_MAP = {
     'FIU': 'Florida International',
     'MTSU': 'Middle Tennessee',
     'WKU': 'Western Kentucky',
@@ -516,7 +520,7 @@
   // Common abbreviations that show up in viewership rows where the canonical
   // CUSA school name is expected. Used by mergeProducedPlaceholders so a row
   // with HOME_TEAM = 'WKU' still counts as a match for school 'Western Kentucky'.
-  const CUSA_ALIAS = {
+  let CUSA_ALIAS = {
     'FIU': 'Florida International',
     'MTSU': 'Middle Tennessee',
     'WKU': 'Western Kentucky',
@@ -1407,7 +1411,7 @@
     return rank > 0 ? `#${rank} of ${sorted.length}` : '—';
   }
 
-  const CUSA_SCHOOLS = [
+  let CUSA_SCHOOLS = [
     'Dallas Baptist','Delaware','Florida International','Jacksonville State','Kennesaw State',
     'Liberty','Louisiana Tech','Middle Tennessee','Missouri State','New Mexico State',
     'Sam Houston','UTEP','Western Kentucky'
@@ -1435,6 +1439,7 @@
   async function initAdminPortal() {
     initSupabase();
     loadCurrentUser();
+    await loadConferenceSchools();
     await loadProducedEvents();
     updateProducedToggleUI();
     const dbLoaded = await loadFromSupabase();
@@ -1497,6 +1502,18 @@
         if (document.querySelector('.tab-bar button[data-tab="activity"].active')) renderActivityLog();
       })
       .subscribe();
+    let schoolsT = null;
+    _db.channel('admin-schools-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conference_schools' }, () => {
+        clearTimeout(schoolsT);
+        schoolsT = setTimeout(async () => {
+          await loadConferenceSchools();
+          if (document.querySelector('.tab-bar button[data-tab="schools"].active')) renderSchoolsTab();
+          renderAllTabs();
+          flashLiveBadge();
+        }, 400);
+      })
+      .subscribe();
   }
 
   async function loadLastModified() {
@@ -1528,6 +1545,15 @@
         if (exportBtn.dataset.action === 'export-current') exportCurrentTab();
         else exportAllData();
         return;
+      }
+
+      // ── Schools tab actions ──
+      const schoolBtn = e.target.closest('button[data-action="save-school"], button[data-action="remove-school"], button[data-action="add-school"]');
+      if (schoolBtn) {
+        e.stopPropagation();
+        if (schoolBtn.dataset.action === 'save-school')   return saveSchoolRow(schoolBtn);
+        if (schoolBtn.dataset.action === 'remove-school') return removeSchoolRow(schoolBtn);
+        if (schoolBtn.dataset.action === 'add-school')    return addNewSchool(schoolBtn);
       }
 
       const btn = e.target.closest('.row-edit-btn');
@@ -1880,6 +1906,7 @@
     document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = c.id === name ? 'block' : 'none');
     if (name === 'activity') renderActivityLog();
+    if (name === 'schools') renderSchoolsTab();
   }
 
   function renderAllTabs() {
@@ -1943,6 +1970,147 @@
       console.error(err);
       const tableMissing = /admin_activity_log|schema cache/i.test(err.message || '');
       container.innerHTML = `<div class="empty-state"><h3>${tableMissing ? 'admin_activity_log table missing — run the SQL migration' : 'Failed to load activity log'}</h3><p>${escapeReconText(err.message || '')}</p></div>`;
+    }
+  }
+
+  /* ── Conference Schools (loaded from Supabase, drives CUSA rankings + filters) ── */
+  async function loadConferenceSchools() {
+    if (!_db) return false;
+    try {
+      const { data, error } = await _db.from('conference_schools')
+        .select('id, name, aliases').order('name', { ascending: true });
+      if (error) throw error;
+      const list = data || [];
+      if (!list.length) return false; // table empty → keep hardcoded fallback
+      CUSA_SCHOOLS = list.map(s => s.name);
+      const aliasMap = {};
+      list.forEach(s => (s.aliases || []).forEach(a => { if (a && a.trim()) aliasMap[a.trim()] = s.name; }));
+      CUSA_ALIAS = aliasMap;
+      PROD_SCHOOL_MAP = { ...aliasMap };
+      return true;
+    } catch (err) {
+      console.warn('loadConferenceSchools failed — using hardcoded fallback:', err);
+      return false;
+    }
+  }
+
+  async function renderSchoolsTab() {
+    const container = document.getElementById('schools');
+    if (!_db) {
+      container.innerHTML = `<div class="empty-state"><h3>Database not connected</h3></div>`;
+      return;
+    }
+    container.innerHTML = `<div class="empty-state"><h3>Loading schools…</h3></div>`;
+    try {
+      const { data, error } = await _db.from('conference_schools')
+        .select('*').order('name', { ascending: true });
+      if (error) throw error;
+      const schools = data || [];
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+          <h3 style="color:var(--navy);font-size:15px;margin:0">🏫 Conference Schools</h3>
+          <span style="font-size:11px;color:#666">${schools.length} school${schools.length === 1 ? '' : 's'}</span>
+        </div>
+        <p class="muted" style="font-size:12px;color:#666;margin:0 0 14px">Schools listed here drive viewership rankings, the School Search dropdown, and the CUSA-Produced Only filter. Aliases let alternate spellings (e.g., <code>FIU</code> → <code>Florida International</code>) count toward the same school. Changes apply to every admin browser within seconds.</p>
+        <div class="table-container">
+          <table>
+            <thead><tr>
+              <th style="width:25%">School Name</th>
+              <th>Aliases <span style="font-weight:400;color:#888">(comma-separated)</span></th>
+              <th style="width:200px">Actions</th>
+            </tr></thead>
+            <tbody>
+              ${schools.length ? schools.map(s => `
+                <tr data-school-id="${escapeReconText(s.id)}">
+                  <td><input type="text" value="${escapeReconText(s.name)}" data-field="name" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:4px"></td>
+                  <td><input type="text" value="${escapeReconText((s.aliases||[]).join(', '))}" data-field="aliases" placeholder="e.g., MTSU, Mid Tenn" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:4px"></td>
+                  <td>
+                    <button class="row-edit-btn add" data-action="save-school" style="padding:6px 10px;font-size:11px">💾 Save</button>
+                    <button class="row-edit-btn remove" data-action="remove-school" style="padding:6px 10px;font-size:11px">🗑 Remove</button>
+                  </td>
+                </tr>
+              `).join('') : `<tr><td colspan="3" style="text-align:center;padding:24px;color:#999">No schools yet — add one below.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-top:14px">
+          <h4 style="margin:0 0 10px;font-size:13px;color:var(--navy)">+ Add a School</h4>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="newSchoolName" placeholder="School name (e.g., Texas State)" style="flex:1;min-width:200px;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+            <input type="text" id="newSchoolAliases" placeholder="Aliases, comma-separated (optional)" style="flex:2;min-width:240px;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+            <button class="btn btn-import" data-action="add-school" style="padding:8px 14px">+ Add School</button>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      console.error(err);
+      const tableMissing = /conference_schools|schema cache/i.test(err.message || '');
+      container.innerHTML = `<div class="empty-state"><h3>${tableMissing ? 'conference_schools table missing — run the SQL migration' : 'Failed to load schools'}</h3><p>${escapeReconText(err.message || '')}</p></div>`;
+    }
+  }
+
+  async function saveSchoolRow(btn) {
+    const tr = btn.closest('tr');
+    if (!tr) return;
+    const id = tr.dataset.schoolId;
+    const name = tr.querySelector('[data-field="name"]').value.trim();
+    const aliases = tr.querySelector('[data-field="aliases"]').value
+      .split(',').map(a => a.trim()).filter(Boolean);
+    if (!name) { alert('School name is required.'); return; }
+    btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Saving…';
+    try {
+      const { error } = await _db.from('conference_schools')
+        .update({ name, aliases, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      btn.textContent = '✓ Saved';
+      await loadConferenceSchools();
+      renderAllTabs();
+      logActivity('edit', `school:${name}`, `Updated school: ${name} (aliases: ${aliases.join(', ') || 'none'})`);
+      setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1500);
+    } catch (err) {
+      alert('Save failed: ' + (err.message || err));
+      btn.textContent = old; btn.disabled = false;
+    }
+  }
+
+  async function removeSchoolRow(btn) {
+    const tr = btn.closest('tr');
+    if (!tr) return;
+    const id = tr.dataset.schoolId;
+    const name = (tr.querySelector('[data-field="name"]').value || '').trim();
+    if (!confirm(`Remove "${name}" from the conference schools list?\n\nViewership rows for this school stay in the database — they just stop appearing in CUSA rankings, School Search, and the Produced Only filter.`)) return;
+    btn.disabled = true;
+    try {
+      const { error } = await _db.from('conference_schools').delete().eq('id', id);
+      if (error) throw error;
+      await loadConferenceSchools();
+      renderSchoolsTab();
+      renderAllTabs();
+      logActivity('delete', `school:${name}`, `Removed school: ${name}`);
+    } catch (err) {
+      alert('Remove failed: ' + (err.message || err));
+      btn.disabled = false;
+    }
+  }
+
+  async function addNewSchool(btn) {
+    const nameInput = document.getElementById('newSchoolName');
+    const aliasInput = document.getElementById('newSchoolAliases');
+    const name = (nameInput?.value || '').trim();
+    if (!name) { alert('School name is required.'); nameInput?.focus(); return; }
+    const aliases = (aliasInput?.value || '')
+      .split(',').map(a => a.trim()).filter(Boolean);
+    btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Adding…';
+    try {
+      const { error } = await _db.from('conference_schools').insert([{ name, aliases }]);
+      if (error) throw error;
+      await loadConferenceSchools();
+      renderSchoolsTab();
+      renderAllTabs();
+      logActivity('add', `school:${name}`, `Added school: ${name} (aliases: ${aliases.join(', ') || 'none'})`);
+    } catch (err) {
+      alert('Add failed: ' + (err.message || err));
+      btn.textContent = old; btn.disabled = false;
     }
   }
 

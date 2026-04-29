@@ -858,7 +858,11 @@
         if (!events.length) { alert('No produced events found in this file (looking for STATUS = "Produced" rows in Fall/Winter/Spring sheets)'); event.target.value = ''; return; }
         if (!_db) { alert('Supabase not connected — cannot save Production Tracker'); event.target.value = ''; return; }
         updateStatus('Uploading Production Tracker…');
-        // Replace all rows: delete then insert
+        // Replace all rows: delete then insert. The xlsx legitimately contains
+        // doubleheaders (e.g. softball Delaware vs Georgetown 2026-02-14 12:00
+        // PM + 2:30 PM), so we keep them as separate rows. The old
+        // (sport,school,event_date,home_team,away_team) unique constraint on
+        // produced_events must be dropped — see the SQL migration.
         const del = await _db.from('produced_events').delete().not('sport', 'is', null);
         if (del.error) throw del.error;
         for (let i = 0; i < events.length; i += 500) {

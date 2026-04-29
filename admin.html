@@ -510,7 +510,8 @@
   const PROD_SCHOOL_MAP = {
     'FIU': 'Florida International',
     'MTSU': 'Middle Tennessee',
-    'WKU': 'Western Kentucky'
+    'WKU': 'Western Kentucky',
+    'LA Tech': 'Louisiana Tech'
   };
   // Common abbreviations that show up in viewership rows where the canonical
   // CUSA school name is expected. Used by mergeProducedPlaceholders so a row
@@ -526,7 +527,14 @@
     'Sam Houston State': 'Sam Houston',
     'Jax State': 'Jacksonville State',
     'Mid Tenn': 'Middle Tennessee',
-    'Middle Tenn': 'Middle Tennessee'
+    'Middle Tenn': 'Middle Tennessee',
+    'LA Tech': 'Louisiana Tech',
+    'Louisiana Tech University': 'Louisiana Tech',
+    'Texas El Paso': 'UTEP',
+    'Texas-El Paso': 'UTEP',
+    'University of Texas at El Paso': 'UTEP',
+    'DBU': 'Dallas Baptist',
+    'Dallas Baptist University': 'Dallas Baptist'
   };
   function canonCusa(name) {
     if (!name) return name;
@@ -1400,8 +1408,9 @@
   }
 
   const CUSA_SCHOOLS = [
-    'Delaware','Florida International','Jacksonville State','Kennesaw State',
-    'Liberty','Middle Tennessee','Missouri State','New Mexico State','Sam Houston','Western Kentucky'
+    'Dallas Baptist','Delaware','Florida International','Jacksonville State','Kennesaw State',
+    'Liberty','Louisiana Tech','Middle Tennessee','Missouri State','New Mexico State',
+    'Sam Houston','UTEP','Western Kentucky'
   ];
 
   const SPORT_MAP = {

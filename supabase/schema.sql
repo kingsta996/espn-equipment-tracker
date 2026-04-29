@@ -118,6 +118,46 @@ create or replace trigger school_audit_trigger
   for each row execute function log_school_changes();
 
 
+-- ── ESPN Broadcast Schedule Submissions ───────────────────────────────────
+-- Public form-driven schedule submissions, one row per event.
+-- Used by /schedule.html (public school submission) and /schedule-admin.html.
+create table if not exists schedule_events (
+  id uuid primary key default gen_random_uuid(),
+  school text not null,
+  athletic_year text default '2025-26',
+  season text default '',
+  archived boolean default false,
+  archived_at timestamptz,
+  -- 19 columns from ESPN Broadcast Schedule template:
+  sport text,
+  event_date text,
+  event_time text,
+  duration text,
+  network text,
+  away text,
+  home text,
+  conference text,
+  round_text text,
+  production text,
+  ad_serve text,
+  site text,
+  manned_cameras int,
+  lock_off_cameras int,
+  graphics text,
+  replay text,
+  talent text,
+  transmission text,
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  updated_by text
+);
+
+alter table schedule_events enable row level security;
+create policy "public read schedule events"  on schedule_events for select using (true);
+create policy "public write schedule events" on schedule_events for all    using (true) with check (true);
+
+
 -- ── CUSA Production Tracker (drives 'CUSA Produced Only' filter) ──────────
 create table if not exists produced_events (
   id uuid primary key default gen_random_uuid(),

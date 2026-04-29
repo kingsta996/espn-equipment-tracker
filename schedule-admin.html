@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA ESPN Schedule — Admin Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+    --light: #f0f2f5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; background: var(--light); min-height: 100vh; color: #222; padding-bottom: 40px; }
+
+  .header { background: var(--navy); padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 3px solid var(--espn-red); }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .header button.lock-btn { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+  .tab-bar { background: #fff; border-bottom: 3px solid var(--espn-red); display: flex; flex-wrap: wrap; padding: 0 12px; }
+  .tab-bar button { padding: 11px 16px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; background: transparent; color: var(--navy); border-bottom: 3px solid transparent; margin-bottom: -3px; font-family: inherit; }
+  .tab-bar button.active { background: var(--espn-red); color: #fff; }
+  .tab-bar button:hover:not(.active) { background: #f5f5f5; }
+
+  .content { max-width: 1600px; margin: 0 auto; padding: 24px 20px; }
+
+  .toolbar { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar h2 { font-size: 17px; color: var(--navy); margin-right: 8px; }
+  .toolbar .pill { font-size: 11px; padding: 3px 9px; border-radius: 4px; background: #eef2f7; color: var(--navy); font-weight: 600; }
+  .toolbar .row-count { margin-left: auto; font-size: 11px; color: #555; }
+
+  .filters { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 14px; align-items: end; }
+  .filters label { display: block; font-size: 10px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+  .filters select, .filters input { width: 100%; padding: 6px 9px; border: 1px solid var(--gray); border-radius: 5px; font-family: inherit; font-size: 12px; }
+  .filters select:focus, .filters input:focus { outline: none; border-color: var(--blue); }
+
+  .btn { padding: 7px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700; font-family: inherit; color: #fff; }
+  .btn:hover { filter: brightness(0.92); }
+  .btn-primary { background: var(--espn-red); }
+  .btn-blue { background: var(--blue); color: var(--navy); }
+  .btn-navy { background: var(--navy); }
+  .btn-green { background: var(--green); color: var(--navy); }
+  .btn-gray { background: #888; }
+  .btn-outline { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+
+  .table-wrap { background: #fff; border: 1px solid #ddd; border-radius: 8px; overflow-x: auto; }
+  table.sched { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.sched thead { background: var(--navy); color: #fff; }
+  table.sched th { padding: 8px 6px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; white-space: normal; line-height: 1.2; vertical-align: bottom; }
+  table.sched td { padding: 6px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+  table.sched tbody tr:nth-child(even) td { background: rgba(191,206,214,0.08); }
+  table.sched tbody tr.archived td { opacity: 0.55; font-style: italic; }
+  table.sched tbody tr:hover td { background: #fff7ed; }
+  table.sched .row-actions button { border: none; background: transparent; cursor: pointer; padding: 2px 4px; font-size: 13px; color: #888; }
+  table.sched .row-actions button:hover { color: var(--espn-red); }
+
+  .pw-overlay { display:none; position:fixed; inset:0; background:rgba(0,38,58,0.7); z-index:200; align-items:center; justify-content:center; padding:20px; }
+  .pw-overlay.open { display:flex; }
+  .pw-box { background:#fff; border-radius:12px; padding:32px; max-width:380px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.3); text-align: center; }
+  .pw-box h2 { font-size:17px; color:var(--navy); margin-bottom:6px; }
+  .pw-box p { font-size:12px; color:#666; margin-bottom:18px; }
+  .pw-box input { width:100%; padding:10px 14px; border:2px solid #ddd; border-radius:8px; font-size:14px; font-family: inherit; margin-bottom:10px; text-align:center; letter-spacing:2px; }
+  .pw-box input:focus { outline:none; border-color:var(--blue); }
+  .pw-err { color:var(--espn-red); font-size:12px; margin-bottom:10px; display:none; }
+  .pw-actions { display:flex; gap:8px; justify-content:center; }
+
+  .empty-msg { text-align: center; padding: 36px 16px; color: var(--navy); opacity: 0.6; font-size: 13px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--navy); color: #fff; padding: 10px 16px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); font-size: 12px; font-weight: 600; z-index: 300; transition: opacity 0.3s; opacity: 0; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.warn { background: var(--warn-border, #f59e0b); color: var(--navy); }
+  .toast.success { background: var(--green); color: var(--navy); }
+
+  /* Production tracker tab specific */
+  .pt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .pt-card { background: var(--navy); color: #fff; padding: 14px 16px; border-radius: 8px; }
+  .pt-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.75; font-weight: 700; }
+  .pt-card .value { font-size: 26px; font-weight: 700; color: var(--espn-red); margin-top: 4px; }
+  .pt-card .pct { font-size: 12px; color: var(--green); margin-top: 2px; }
+
+  .breakdown-table { font-size: 12px; }
+  .breakdown-table th, .breakdown-table td { padding: 7px 8px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN" onerror="this.style.display='none'">
+  <h1>ESPN Schedule — Admin Portal</h1>
+  <button class="lock-btn" id="lockBtn" onclick="signOut()">🔒 Sign Out</button>
+  <a href="schedule.html">← Public View</a>
+  <a href="index.html">Hub</a>
+</div>
+
+<div class="tab-bar">
+  <button class="active" data-tab="master">Master</button>
+  <button data-tab="fall">Fall</button>
+  <button data-tab="winter">Winter</button>
+  <button data-tab="spring">Spring</button>
+  <button data-tab="production">Production Tracker</button>
+  <button data-tab="archive">Archive</button>
+  <button data-tab="settings">⚙ Settings</button>
+</div>
+
+<div class="content" id="content"></div>
+
+<!-- Password gate -->
+<div class="pw-overlay open" id="pwOverlay">
+  <div class="pw-box">
+    <h2>🔒 Schedule Admin Portal</h2>
+    <p>Enter the admin password</p>
+    <input type="password" id="pwInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr">Incorrect password.</div>
+    <div class="pw-actions">
+      <button class="btn btn-outline" onclick="window.location.href='schedule.html'">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPw()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SCHOOLS = ['Delaware','FIU','Jacksonville State','Kennesaw State','LA Tech','Liberty','Missouri State','MTSU','New Mexico State','Sam Houston','UTEP','Western Kentucky'];
+  const SPORTS = ['Baseball','Field Hockey','Football',"Men's Basketball","Men's Ice Hockey","Men's Lacrosse","Men's Soccer","Men's Tennis","Men's Volleyball",'Soccer','Softball','Volleyball',"Women's Basketball","Women's Lacrosse","Women's Swim & Dive","Women's Tennis"];
+  const ADMIN_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  const UNLOCK_KEY = 'cusa_schedule_admin_unlocked';
+  const YEAR_KEY = 'cusa_schedule_athletic_year';
+
+  const COLUMNS = [
+    { key: 'sport', label: 'SPORT' },
+    { key: 'event_date', label: 'DATE' },
+    { key: 'event_time', label: 'TIME ET' },
+    { key: 'duration', label: 'DURATION' },
+    { key: 'network', label: 'NETWORK' },
+    { key: 'away', label: 'AWAY' },
+    { key: 'home', label: 'HOME' },
+    { key: 'conference', label: 'CONFERENCE' },
+    { key: 'round_text', label: 'ROUND' },
+    { key: 'production', label: 'PRODUCTION' },
+    { key: 'ad_serve', label: 'AD SERVE' },
+    { key: 'site', label: 'SITE' },
+    { key: 'manned_cameras', label: 'MANNED CAMS' },
+    { key: 'lock_off_cameras', label: 'LOCK CAMS' },
+    { key: 'graphics', label: 'GRAPHICS' },
+    { key: 'replay', label: 'REPLAY' },
+    { key: 'talent', label: 'TALENT' },
+    { key: 'transmission', label: 'TRANSMISSION' },
+    { key: 'notes', label: 'NOTES' }
+  ];
+  // Sport → Season mapping for Production Tracker breakdown
+  const SPORT_SEASON = {
+    'Football': 'Fall', 'Soccer': 'Fall', "Men's Soccer": 'Fall', "Women's Soccer": 'Fall', 'Volleyball': 'Fall', 'Field Hockey': 'Fall',
+    "Men's Basketball": 'Winter', "Women's Basketball": 'Winter', 'Women’s Basketball': 'Winter', "Men's Ice Hockey": 'Winter', "Women's Swim & Dive": 'Winter',
+    'Baseball': 'Spring', 'Softball': 'Spring', "Men's Lacrosse": 'Spring', "Women's Lacrosse": 'Spring', "Men's Tennis": 'Spring', "Women's Tennis": 'Spring', "Men's Volleyball": 'Spring'
+  };
+
+  let _db = null;
+  let _events = [];
+  let _activeTab = 'master';
+  let _filters = { school: '', sport: '', conference: '', production: '', from: '', to: '', search: '' };
+  let _athleticYear = localStorage.getItem(YEAR_KEY) || '2025-26';
+
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  async function sha256(s) { const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(''); }
+  function showToast(msg, kind) { const t = document.getElementById('toast'); t.className = 'toast show' + (kind ? ' ' + kind : ''); t.textContent = msg; clearTimeout(showToast._t); showToast._t = setTimeout(() => t.classList.remove('show'), 2400); }
+
+  function rowFromDb(r) {
+    return {
+      id: r.id, school: r.school, athletic_year: r.athletic_year, season: r.season, archived: !!r.archived,
+      sport: r.sport, event_date: r.event_date, event_time: r.event_time, duration: r.duration,
+      network: r.network, away: r.away, home: r.home, conference: r.conference, round_text: r.round_text,
+      production: r.production, ad_serve: r.ad_serve, site: r.site,
+      manned_cameras: r.manned_cameras, lock_off_cameras: r.lock_off_cameras,
+      graphics: r.graphics, replay: r.replay, talent: r.talent,
+      transmission: r.transmission, notes: r.notes
+    };
+  }
+
+  /* ── Password gate ── */
+  function isUnlocked() { return localStorage.getItem(UNLOCK_KEY) === 'true'; }
+  function signOut() { localStorage.removeItem(UNLOCK_KEY); window.location.href = 'schedule.html'; }
+  async function submitPw() {
+    const h = await sha256(document.getElementById('pwInput').value);
+    if (h === ADMIN_PW_HASH) {
+      localStorage.setItem(UNLOCK_KEY, 'true');
+      document.getElementById('pwOverlay').classList.remove('open');
+      await initPortal();
+    } else {
+      document.getElementById('pwErr').style.display = 'block';
+    }
+  }
+
+  /* ── Supabase ── */
+  function initSupabase() {
+    if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+  }
+  async function loadEvents() {
+    if (!_db) return;
+    try {
+      const { data, error } = await _db.from('schedule_events').select('*').order('event_date');
+      if (error) throw error;
+      _events = (data || []).map(rowFromDb);
+    } catch (e) {
+      console.error('Schedule load error:', e);
+      showToast('Failed to load schedule', 'warn');
+    }
+  }
+  async function updateEvent(id, patch) {
+    if (!_db) return false;
+    try {
+      const { data, error } = await _db.from('schedule_events').update(patch).eq('id', id).select().single();
+      if (error) throw error;
+      const idx = _events.findIndex(e => e.id === id);
+      if (idx !== -1) _events[idx] = rowFromDb(data);
+      return true;
+    } catch (e) { console.error(e); showToast('Update failed', 'warn'); return false; }
+  }
+  async function deleteEvent(id) {
+    if (!_db) return false;
+    try { const { error } = await _db.from('schedule_events').delete().eq('id', id); if (error) throw error; _events = _events.filter(e => e.id !== id); return true; }
+    catch (e) { showToast('Delete failed', 'warn'); return false; }
+  }
+  async function archiveYear(year) {
+    if (!_db) return 0;
+    const targets = _events.filter(e => e.athletic_year === year && !e.archived);
+    if (!targets.length) return 0;
+    const ids = targets.map(e => e.id);
+    const { error } = await _db.from('schedule_events').update({ archived: true, archived_at: new Date().toISOString() }).in('id', ids);
+    if (error) { console.error(error); return 0; }
+    targets.forEach(e => { e.archived = true; });
+    return targets.length;
+  }
+
+  /* ── Filtering ── */
+  function getFiltered(includeArchived) {
+    return _events.filter(e => {
+      if (!includeArchived && e.archived) return false;
+      if (includeArchived === 'only' && !e.archived) return false;
+      if (e.athletic_year !== _athleticYear) return false;
+      if (_filters.school && e.school !== _filters.school) return false;
+      if (_filters.sport && (e.sport || '') !== _filters.sport) return false;
+      if (_filters.conference && (e.conference || '') !== _filters.conference) return false;
+      if (_filters.production && (e.production || '') !== _filters.production) return false;
+      if (_filters.from && (e.event_date || '') < _filters.from) return false;
+      if (_filters.to && (e.event_date || '') > _filters.to) return false;
+      if (_filters.search) {
+        const q = _filters.search.toLowerCase();
+        const blob = `${e.school || ''} ${e.sport || ''} ${e.away || ''} ${e.home || ''} ${e.site || ''} ${e.notes || ''}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    }).sort((a,b) => (a.event_date || '').localeCompare(b.event_date || ''));
+  }
+
+  /* ── Tab dispatch ── */
+  function switchTab(name) {
+    _activeTab = name;
+    document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    if (name === 'master') renderList(getFiltered(false), 'Master Schedule');
+    else if (name === 'fall' || name === 'winter' || name === 'spring') renderSeason(name);
+    else if (name === 'production') renderProductionTracker();
+    else if (name === 'archive') renderArchive();
+    else if (name === 'settings') renderSettings();
+  }
+
+  /* ── Filter bar ── */
+  function renderFilterBar() {
+    const seasons = ['Fall','Winter','Spring'];
+    return `<div class="filters">
+      <div><label>Search</label><input type="text" id="f-search" placeholder="School, team, site…" value="${escapeHtml(_filters.search)}"></div>
+      <div><label>School</label><select id="f-school"><option value="">All schools</option>${SCHOOLS.map(s => `<option ${_filters.school === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}</select></div>
+      <div><label>Sport</label><select id="f-sport"><option value="">All sports</option>${SPORTS.map(s => `<option ${_filters.sport === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}</select></div>
+      <div><label>Conference</label><input type="text" id="f-conference" placeholder="e.g. Conference USA" value="${escapeHtml(_filters.conference)}"></div>
+      <div><label>Production</label><select id="f-production"><option value="">Any</option>${['School','Conference','RSN','ESPN'].map(p => `<option ${_filters.production === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}</select></div>
+      <div><label>From</label><input type="date" id="f-from" value="${escapeHtml(_filters.from)}"></div>
+      <div><label>To</label><input type="date" id="f-to" value="${escapeHtml(_filters.to)}"></div>
+      <div><label>&nbsp;</label><button class="btn btn-outline" id="f-clear">Clear filters</button></div>
+    </div>`;
+  }
+  function wireFilters() {
+    const ids = ['f-search','f-school','f-sport','f-conference','f-production','f-from','f-to'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', () => {
+        _filters.search = document.getElementById('f-search').value.trim();
+        _filters.school = document.getElementById('f-school').value;
+        _filters.sport = document.getElementById('f-sport').value;
+        _filters.conference = document.getElementById('f-conference').value.trim();
+        _filters.production = document.getElementById('f-production').value;
+        _filters.from = document.getElementById('f-from').value;
+        _filters.to = document.getElementById('f-to').value;
+        switchTab(_activeTab);
+      });
+    });
+    document.getElementById('f-clear')?.addEventListener('click', () => {
+      _filters = { school: '', sport: '', conference: '', production: '', from: '', to: '', search: '' };
+      switchTab(_activeTab);
+    });
+  }
+
+  /* ── List view (Master, Fall/Winter/Spring, Archive) ── */
+  function renderList(rows, title) {
+    document.getElementById('content').innerHTML = `
+      <div class="toolbar">
+        <h2>${escapeHtml(title)}</h2>
+        <span class="pill">Year: ${escapeHtml(_athleticYear)}</span>
+        <button class="btn btn-navy" id="exportBtn" style="margin-left:auto">📤 Export to Excel</button>
+        <span class="row-count">${rows.length} event${rows.length === 1 ? '' : 's'}</span>
+      </div>
+      ${renderFilterBar()}
+      ${rows.length ? renderTable(rows) : '<div class="empty-msg">No events match your filters.</div>'}
+    `;
+    wireFilters();
+    wireRowActions();
+    document.getElementById('exportBtn').addEventListener('click', () => exportRows(rows, title));
+  }
+
+  function renderTable(rows, opts = {}) {
+    const head = `<tr><th>SCHOOL</th>${COLUMNS.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}<th></th></tr>`;
+    const body = rows.map(r => `<tr data-id="${r.id || ''}" class="${r.archived ? 'archived' : ''}">
+      <td><strong>${escapeHtml(r.school)}</strong></td>
+      ${COLUMNS.map(c => `<td>${escapeHtml(formatCell(c, r))}</td>`).join('')}
+      <td class="row-actions">
+        ${r.archived
+          ? `<button data-action="unarchive" title="Unarchive">↺</button>`
+          : `<button data-action="archive" title="Archive">📦</button>`}
+        <button data-action="del" title="Delete">🗑</button>
+      </td>
+    </tr>`).join('');
+    return `<div class="table-wrap"><table class="sched"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  function formatCell(col, row) {
+    const v = row[col.key];
+    if (v == null || v === '') return '';
+    if (col.key === 'event_date') { try { const d = new Date(v); if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US'); } catch {} }
+    return String(v);
+  }
+
+  function wireRowActions() {
+    const tbody = document.querySelector('#content tbody');
+    if (!tbody) return;
+    tbody.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const tr = btn.closest('tr');
+      const id = tr.dataset.id;
+      if (!id) return;
+      if (btn.dataset.action === 'del') {
+        if (!confirm('Delete this event?')) return;
+        const ok = await deleteEvent(id);
+        if (ok) { showToast('Deleted', 'success'); switchTab(_activeTab); }
+      } else if (btn.dataset.action === 'archive') {
+        const ok = await updateEvent(id, { archived: true, archived_at: new Date().toISOString() });
+        if (ok) { showToast('Archived', 'success'); switchTab(_activeTab); }
+      } else if (btn.dataset.action === 'unarchive') {
+        const ok = await updateEvent(id, { archived: false, archived_at: null });
+        if (ok) { showToast('Unarchived', 'success'); switchTab(_activeTab); }
+      }
+    });
+  }
+
+  /* ── Season tabs ── */
+  function renderSeason(season) {
+    const seasonName = season[0].toUpperCase() + season.slice(1);
+    const rows = getFiltered(false).filter(e => (SPORT_SEASON[e.sport] || '').toLowerCase() === season || (e.season || '').toLowerCase() === season);
+    renderList(rows, `${seasonName} Schedule`);
+  }
+
+  /* ── Archive ── */
+  function renderArchive() {
+    const rows = _events.filter(e => e.archived).sort((a,b) => (a.event_date || '').localeCompare(b.event_date || ''));
+    document.getElementById('content').innerHTML = `
+      <div class="toolbar">
+        <h2>📦 Archived Events</h2>
+        <span class="row-count">${rows.length} archived event${rows.length === 1 ? '' : 's'}</span>
+      </div>
+      ${rows.length ? renderTable(rows) : '<div class="empty-msg">No archived events.</div>'}
+    `;
+    wireRowActions();
+  }
+
+  /* ── Settings (year update, archive year) ── */
+  function renderSettings() {
+    const allYears = [...new Set(_events.map(e => e.athletic_year).filter(Boolean))].sort();
+    document.getElementById('content').innerHTML = `
+      <div class="toolbar">
+        <h2>⚙ Settings</h2>
+      </div>
+      <div class="filters" style="grid-template-columns: 1fr;">
+        <div>
+          <label>Active Athletic Year</label>
+          <input type="text" id="year-input" value="${escapeHtml(_athleticYear)}" placeholder="e.g. 2025-26" style="max-width:200px">
+          <button class="btn btn-primary" id="year-save" style="margin-left:8px">Save Year</button>
+          <p style="font-size:11px;color:#666;margin-top:8px">All season tabs and Master view filter to this athletic year. New events submitted from the public page also default to this year.</p>
+        </div>
+        <div>
+          <label>Years on file</label>
+          <div style="font-size:12px;color:#333">${allYears.length ? allYears.map(y => `<span class="pill" style="margin-right:6px">${escapeHtml(y)}</span>`).join('') : '<em style="color:#888">No years on file yet.</em>'}</div>
+        </div>
+        <div>
+          <label>Archive a Year</label>
+          <select id="archive-year-select" style="max-width:200px"><option value="">— pick a year —</option>${allYears.map(y => `<option>${escapeHtml(y)}</option>`).join('')}</select>
+          <button class="btn btn-gray" id="archive-year-btn" style="margin-left:8px">Archive Selected Year</button>
+          <p style="font-size:11px;color:#666;margin-top:8px">Marks every event in that athletic year as archived. They stay queryable in the Archive tab.</p>
+        </div>
+      </div>
+    `;
+    document.getElementById('year-save').addEventListener('click', () => {
+      const v = document.getElementById('year-input').value.trim();
+      if (!v) return;
+      _athleticYear = v;
+      localStorage.setItem(YEAR_KEY, v);
+      showToast('Active year updated', 'success');
+      renderSettings();
+    });
+    document.getElementById('archive-year-btn').addEventListener('click', async () => {
+      const y = document.getElementById('archive-year-select').value;
+      if (!y) return;
+      if (!confirm(`Archive every event from ${y}?`)) return;
+      const n = await archiveYear(y);
+      showToast(`${n} event${n === 1 ? '' : 's'} archived`, 'success');
+      renderSettings();
+    });
+  }
+
+  /* ── Production Tracker tab ── */
+  function renderProductionTracker() {
+    const live = _events.filter(e => !e.archived && e.athletic_year === _athleticYear);
+    const total = live.length;
+    const produced = live.filter(e => (e.production || '').toLowerCase() === 'school').length;
+    const remaining = total - produced;
+    const pct = total ? Math.round((produced/total)*100) : 0;
+
+    // Per-school breakdown
+    const bySchool = {};
+    SCHOOLS.forEach(s => bySchool[s] = { total: 0, produced: 0 });
+    live.forEach(e => {
+      if (!bySchool[e.school]) bySchool[e.school] = { total: 0, produced: 0 };
+      bySchool[e.school].total++;
+      if ((e.production || '').toLowerCase() === 'school') bySchool[e.school].produced++;
+    });
+
+    // Per-season breakdown
+    const seasons = ['Fall','Winter','Spring'];
+    const seasonStats = {};
+    seasons.forEach(s => seasonStats[s] = { total: 0, produced: 0 });
+    live.forEach(e => {
+      const sn = SPORT_SEASON[e.sport] || e.season || 'Other';
+      if (!seasonStats[sn]) seasonStats[sn] = { total: 0, produced: 0 };
+      seasonStats[sn].total++;
+      if ((e.production || '').toLowerCase() === 'school') seasonStats[sn].produced++;
+    });
+
+    document.getElementById('content').innerHTML = `
+      <div class="toolbar">
+        <h2>📋 Production Tracker</h2>
+        <span class="pill">Year: ${escapeHtml(_athleticYear)}</span>
+        <button class="btn btn-navy" id="exportPtBtn" style="margin-left:auto">📤 Export Production Tracker</button>
+        <button class="btn btn-green" id="syncPtBtn">☁ Sync to Viewership Cross-check</button>
+      </div>
+
+      <div class="pt-grid">
+        <div class="pt-card"><div class="label">Total Events</div><div class="value">${total.toLocaleString()}</div></div>
+        <div class="pt-card"><div class="label">Produced (School)</div><div class="value">${produced.toLocaleString()}</div><div class="pct">${pct}% of total</div></div>
+        <div class="pt-card"><div class="label">Remaining</div><div class="value">${remaining.toLocaleString()}</div></div>
+        <div class="pt-card"><div class="label">Schools Reporting</div><div class="value">${Object.values(bySchool).filter(s => s.total > 0).length} / ${SCHOOLS.length}</div></div>
+      </div>
+
+      <h3 style="font-size:14px;color:var(--navy);margin:14px 0 8px">By Season</h3>
+      <div class="table-wrap" style="margin-bottom:24px"><table class="sched breakdown-table">
+        <thead><tr><th>SEASON</th><th>TOTAL</th><th>PRODUCED</th><th>REMAINING</th><th>% DONE</th></tr></thead>
+        <tbody>${seasons.map(s => {
+          const st = seasonStats[s];
+          const p = st.total ? Math.round((st.produced/st.total)*100) : 0;
+          return `<tr><td><strong>${s}</strong></td><td>${st.total}</td><td>${st.produced}</td><td>${st.total - st.produced}</td><td>${p}%</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+
+      <h3 style="font-size:14px;color:var(--navy);margin:14px 0 8px">By School</h3>
+      <div class="table-wrap"><table class="sched breakdown-table">
+        <thead><tr><th>SCHOOL</th><th>TOTAL</th><th>PRODUCED</th><th>REMAINING</th><th>% DONE</th></tr></thead>
+        <tbody>${SCHOOLS.map(s => {
+          const st = bySchool[s] || { total: 0, produced: 0 };
+          const p = st.total ? Math.round((st.produced/st.total)*100) : 0;
+          return `<tr><td><strong>${escapeHtml(s)}</strong></td><td>${st.total}</td><td>${st.produced}</td><td>${st.total - st.produced}</td><td>${p}%</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    `;
+    document.getElementById('exportPtBtn').addEventListener('click', exportProductionTracker);
+    document.getElementById('syncPtBtn').addEventListener('click', syncToViewershipProducedEvents);
+  }
+
+  async function syncToViewershipProducedEvents() {
+    if (!_db) { showToast('Supabase not connected', 'warn'); return; }
+    const live = _events.filter(e =>
+      !e.archived && e.athletic_year === _athleticYear &&
+      (e.production || '').toLowerCase() === 'school' &&
+      e.sport && e.event_date && e.school
+    );
+    if (!live.length) { showToast('No "School"-produced events for this year to sync', 'warn'); return; }
+    if (!confirm(`Sync ${live.length} School-produced events into produced_events for the Viewership cross-check?`)) return;
+    try {
+      // Wipe current rows and insert fresh
+      const del = await _db.from('produced_events').delete().not('sport', 'is', null);
+      if (del.error) throw del.error;
+      const rows = live.map(e => ({
+        sport: (e.sport || '').replace(/^Women['’]s /, ''),
+        school: e.school,
+        event_date: e.event_date,
+        home_team: e.home || '',
+        away_team: e.away || ''
+      }));
+      for (let i = 0; i < rows.length; i += 500) {
+        const ins = await _db.from('produced_events').insert(rows.slice(i, i + 500));
+        if (ins.error) throw ins.error;
+      }
+      showToast(`Synced ${rows.length} produced events to viewership cross-check`, 'success');
+    } catch (err) {
+      console.error(err);
+      const msg = /produced_events|schema cache/i.test(err.message || '')
+        ? 'produced_events table missing — run the SQL migration in Supabase'
+        : ('Sync failed: ' + (err.message || err));
+      showToast(msg, 'warn');
+    }
+  }
+
+  /* ── Excel export ── */
+  const EX_NAVY = '062538';
+  const EX_FONT = 'Arial Narrow';
+  function exHeaderStyle() { return { font: { name: EX_FONT, sz: 11, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: EX_NAVY } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borderAll() }; }
+  function exDataStyle() { return { font: { name: EX_FONT, sz: 10 }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll('CCCCCC') }; }
+  function borderAll(rgb = '062538') { const s = { style: 'thin', color: { rgb } }; return { top: s, bottom: s, left: s, right: s }; }
+
+  const COL_LABELS_EXCEL = ['SPORT','DATE\nMM/DD/YYYY','TIME IN ET\nHH:MM AM/PM','DURATION','NETWORK','AWAY','HOME','CONFERENCE\n(e.g. MAC, ASUN, Sun Belt)','ROUND','PRODUCTION\n(i.e. RSN, School, Conference)','AD SERVE','SITE (FACILITY NAME)','# OF MANNED CAMERAS','# OF LOCK OFF CAMERAS','GRAPIHCS (C&S/FULL GFX)','REPLAY (YES/NO)','TALENT                                   (YES/NO)','TRANSMISSION PATH/NAME','NOTES'];
+  function buildSheet(rows, includeSchoolColumn) {
+    const headers = (includeSchoolColumn ? ['SCHOOL'] : []).concat(COL_LABELS_EXCEL);
+    const aoa = [headers];
+    rows.forEach(r => {
+      const cells = (includeSchoolColumn ? [r.school || ''] : []).concat(COLUMNS.map(c => {
+        const v = r[c.key];
+        if (c.key === 'event_date' && v) { try { const d = new Date(v); if (!isNaN(d.getTime())) return d; } catch {} }
+        return v == null ? '' : v;
+      }));
+      aoa.push(cells);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const ncols = headers.length;
+    for (let c = 0; c < ncols; c++) { const a = XLSX.utils.encode_cell({ r: 0, c }); if (ws[a]) ws[a].s = exHeaderStyle(); }
+    for (let r = 1; r <= rows.length; r++) {
+      for (let c = 0; c < ncols; c++) {
+        const a = XLSX.utils.encode_cell({ r, c });
+        if (!ws[a]) ws[a] = { v: '' };
+        ws[a].s = exDataStyle();
+        if ((includeSchoolColumn && c === 2) || (!includeSchoolColumn && c === 1)) ws[a].z = 'mm/dd/yyyy';
+      }
+    }
+    ws['!cols'] = headers.map((h, i) => ({ wch: i === 0 && includeSchoolColumn ? 16 : 14 }));
+    ws['!rows'] = [{ hpt: 36 }].concat(rows.map(() => ({ hpt: 16 })));
+    return ws;
+  }
+
+  function exportRows(rows, title) {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, buildSheet(rows, true), title.substring(0, 31) || 'Schedule');
+    SCHOOLS.forEach(s => {
+      const sub = rows.filter(r => r.school === s);
+      if (sub.length) XLSX.utils.book_append_sheet(wb, buildSheet(sub, false), s.substring(0, 31));
+    });
+    XLSX.writeFile(wb, `CUSA_ESPN_${title.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('Exported', 'success');
+  }
+
+  function exportProductionTracker() {
+    const live = _events.filter(e => !e.archived && e.athletic_year === _athleticYear);
+    const seasons = { Fall: [], Winter: [], Spring: [] };
+    live.forEach(e => {
+      const sn = SPORT_SEASON[e.sport] || e.season || '';
+      if (seasons[sn]) seasons[sn].push(e);
+    });
+    const wb = XLSX.utils.book_new();
+    // Dashboard summary
+    const total = live.length;
+    const produced = live.filter(e => (e.production || '').toLowerCase() === 'school').length;
+    const summaryAoa = [
+      ['CUSA ESPN PRODUCTION TRACKER'],
+      [`Athletic Year: ${_athleticYear}  •  ${live.length} events  •  ${produced} produced (${total ? Math.round(produced/total*100) : 0}%)`],
+      [],
+      ['SEASON','TOTAL','PRODUCED','REMAINING','% DONE']
+    ];
+    Object.keys(seasons).forEach(s => {
+      const rows = seasons[s];
+      const p = rows.filter(e => (e.production || '').toLowerCase() === 'school').length;
+      summaryAoa.push([s, rows.length, p, rows.length - p, rows.length ? Math.round(p/rows.length*100)/100 : 0]);
+    });
+    const dash = XLSX.utils.aoa_to_sheet(summaryAoa);
+    dash['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, dash, 'Dashboard');
+    Object.keys(seasons).forEach(s => {
+      if (!seasons[s].length) return;
+      XLSX.utils.book_append_sheet(wb, buildSheet(seasons[s], true), `${s} Data`);
+    });
+    XLSX.writeFile(wb, `CUSA_ESPN_Production_Tracker_${_athleticYear.replace('/','_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('Production Tracker exported', 'success');
+  }
+
+  /* ── Init ── */
+  async function initPortal() {
+    initSupabase();
+    await loadEvents();
+    document.querySelectorAll('.tab-bar button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+    switchTab('master');
+  }
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (isUnlocked()) {
+      document.getElementById('pwOverlay').classList.remove('open');
+      await initPortal();
+    } else {
+      setTimeout(() => document.getElementById('pwInput').focus(), 80);
+    }
+  });
+</script>
+
+</body>
+</html>

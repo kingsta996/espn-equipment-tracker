@@ -64,6 +64,7 @@
   .btn-append { background: var(--blue); color: var(--white); }
   .btn-export { background: var(--navy); color: var(--white); }
   .btn-clear { background: #888; color: var(--white); }
+  .btn-archive { background: #b45309; color: var(--white); }
   .btn-save { background: var(--green); color: var(--navy); }
   .btn-toggle { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
   .btn-toggle.active { background: var(--green); color: var(--navy); border-color: var(--green); }
@@ -379,9 +380,7 @@
   </div>
   <button class="btn" id="msFetchBtn" title="Fetch and parse the Master Schedule from Google Sheets" style="background:#6366f1;color:#fff">🌐 Cross-check Master Schedule</button>
   <button class="btn" id="dbDiagBtn" title="Test the Supabase connection and show table status" style="background:#94a3b8;color:#fff">🔍 Diagnose DB</button>
-  <button class="btn btn-export" id="exportBtn">📤 Export Current Tab</button>
-  <button class="btn btn-export" id="exportAllBtn">📥 Export All Data</button>
-  <button class="btn btn-clear" id="clearBtn">🗑 Clear All Data</button>
+  <button class="btn btn-archive" id="archiveBtn" title="Download a full Excel backup, then clear the database to start a new athletic year">📦 Archive Year</button>
   <div class="status" id="status">No data loaded</div>
 </div>
 
@@ -1511,8 +1510,17 @@
     document.getElementById('msFetchBtn').addEventListener('click', loadMasterSchedule);
     document.getElementById('dbDiagBtn').addEventListener('click', diagnoseDatabase);
 
-    // Delegated click handler for Edit / Confirm / Remove buttons (rendered into tab content)
+    // Delegated click handler for buttons rendered into tab content
     document.querySelector('.content').addEventListener('click', async (e) => {
+      // ── In-tab Export buttons (rendered per sport) ──
+      const exportBtn = e.target.closest('button[data-action="export-current"], button[data-action="export-all"]');
+      if (exportBtn) {
+        e.stopPropagation();
+        if (exportBtn.dataset.action === 'export-current') exportCurrentTab();
+        else exportAllData();
+        return;
+      }
+
       const btn = e.target.closest('.row-edit-btn');
       if (!btn) return;
       e.stopPropagation();
@@ -1568,9 +1576,7 @@
     document.querySelectorAll('.tab-bar button').forEach(btn => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
-    document.getElementById('exportBtn').addEventListener('click', exportCurrentTab);
-    document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
-    document.getElementById('clearBtn').addEventListener('click', clearAllData);
+    document.getElementById('archiveBtn').addEventListener('click', archiveYearData);
     document.getElementById('saveBtn').addEventListener('click', saveData);
   }
 
@@ -1798,6 +1804,60 @@
       dbOk ? 'saved-cloud' : 'saved-local'
     );
     if (dbOk) logActivity('clear', 'viewership_events', 'Cleared all viewership events');
+  }
+
+  /* Archive the current athletic year: download a complete xlsx backup,
+     then clear the database so the next year starts fresh. */
+  async function archiveYearData() {
+    const real = rawData.filter(r => !r._placeholder);
+    if (!real.length) { alert('Nothing to archive — no viewership events loaded.'); return; }
+
+    // Default the year label to the current US athletic year (Aug → Jul).
+    const now = new Date();
+    const startYr = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+    const defaultLabel = `${startYr}-${String((startYr + 1) % 100).padStart(2, '0')}`;
+
+    const label = (prompt(
+      `Archive ${real.length.toLocaleString()} viewership events?\n\n` +
+      `Step 1 — An Excel backup downloads to your computer.\n` +
+      `Step 2 — The database clears so you can start a new year.\n\n` +
+      `Label this archive (e.g., 2024-25):`,
+      defaultLabel
+    ) || '').trim();
+    if (!label) return;
+
+    // Step 1: Download backup — bypass the CUSA-Produced-Only filter so the
+    // archive captures every event in the database, and include per-period
+    // tabs alongside the standard sport / championships / shows aggregates.
+    const wasProducedOnly = _producedOnly;
+    if (wasProducedOnly) _producedOnly = false;
+    try {
+      exportAllData(`CUSA_Viewership_Archive_${label}.xlsx`, { byPeriod: true });
+    } finally {
+      _producedOnly = wasProducedOnly;
+    }
+
+    // Step 2: Confirm before destroying
+    if (!confirm(
+      `✓ Backup downloaded as CUSA_Viewership_Archive_${label}.xlsx\n\n` +
+      `Keep that file safe — it is the only copy.\n\n` +
+      `Click OK to clear the database and start a new athletic year.`
+    )) {
+      updateStatus(`📦 Backup downloaded — database NOT cleared`, 'saved-local');
+      return;
+    }
+
+    const dbOk = await clearSupabase();
+    if (!dbOk) {
+      updateStatus(`⚠ Backup downloaded but database clear failed — try Diagnose DB`, 'saved-local');
+      return;
+    }
+    rawData = mergeProducedPlaceholders([]);
+    localStorage.removeItem(STORAGE_KEY);
+    renderAllTabs();
+    updateMetaBar({ modified: null, period: null });
+    updateStatus(`📦 Archived ${real.length.toLocaleString()} events as ${label} — database cleared`, 'saved-cloud');
+    logActivity('archive', `period:${label}`, `Archived ${real.length} viewership events as ${label}`);
   }
 
   function updateStatus(msg, cls) {
@@ -2108,8 +2168,10 @@
           <div class="stat-card"><div class="stat-label">Avg Viewers/Game</div><div class="stat-value">${avgV.toLocaleString()}</div></div>
           <div class="stat-card"><div class="stat-label">Avg Min/Viewer</div><div class="stat-value">${avgMin}</div></div>
         </div>
-        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:12px;gap:8px">
-          <span style="font-size:11px;color:#666">Need to add an event that's not in the list?</span>
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-export" data-action="export-current" style="padding:10px 16px;font-size:12px" title="Download this sport tab as Excel">📤 Export Current Tab</button>
+          <button class="btn btn-export" data-action="export-all" style="padding:10px 16px;font-size:12px" title="Download the complete viewership tracker as Excel">📥 Export All Data</button>
+          <span style="font-size:11px;color:#666;margin-left:8px">Need to add an event that's not in the list?</span>
           <button class="row-edit-btn add" data-add-sport="${escapeReconText(sportName)}" style="padding:10px 20px;font-size:13px">+ Add New Event</button>
         </div>
         ${renderReconciliation(sportName)}
@@ -2379,7 +2441,7 @@
     updateStatus(`Exported ${count} rows`);
   }
 
-  function exportAllData() {
+  function exportAllData(filename, opts = {}) {
     if (!rawData.length) { alert('No data to export'); return; }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, buildDashboardSheet(), 'Dashboard');
@@ -2396,9 +2458,34 @@
     const shows = activeData().filter(r => { const t=(r.AIRING_TITLE||'').toLowerCase(); return t.includes('kickoff')||t.includes('tip off'); })
       .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     if (shows.length) XLSX.utils.book_append_sheet(wb, buildShowsSheet(shows), 'Shows');
+
+    // Per-reporting-period sheets (only requested by Archive — keeps the
+    // standard Export All workbook compact).
+    if (opts.byPeriod) {
+      const real = rawData.filter(r => !r._placeholder && (r.REPORT_PERIOD || '').trim());
+      const periods = [...new Set(real.map(r => r.REPORT_PERIOD))].sort();
+      const usedTabNames = new Set(wb.SheetNames.map(n => n.toLowerCase()));
+      periods.forEach(p => {
+        const events = real.filter(r => r.REPORT_PERIOD === p)
+          .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+        if (!events.length) return;
+        // Excel tab names: max 31 chars, no / \ ? * [ ]
+        let tab = p.replace(/[\/\\?*\[\]]/g, '-').substring(0, 31);
+        let i = 2;
+        while (usedTabNames.has(tab.toLowerCase())) {
+          const suffix = ` (${i++})`;
+          tab = p.replace(/[\/\\?*\[\]]/g, '-').substring(0, 31 - suffix.length) + suffix;
+        }
+        usedTabNames.add(tab.toLowerCase());
+        XLSX.utils.book_append_sheet(wb,
+          buildAllEventsSheet(events, `📊  ${p.toUpperCase()} — ALL EVENTS`),
+          tab);
+      });
+    }
+
     const sortedAll = [...activeData()].sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
     XLSX.utils.book_append_sheet(wb, buildAllEventsSheet(sortedAll), 'All Events');
-    XLSX.writeFile(wb, `CUSA_Complete_Tracker_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, filename || `CUSA_Complete_Tracker_${new Date().toISOString().split('T')[0]}.xlsx`);
     updateStatus(`Exported complete tracker with ${wb.SheetNames.length} sheets`);
   }
 
@@ -2635,13 +2722,13 @@
     });
   }
 
-  function buildAllEventsSheet(events) {
+  function buildAllEventsSheet(events, titleOverride) {
     const total = events.length;
     const totalViewers = events.reduce((s,g) => s + (g.UNIQUE_VIEWERS||0), 0);
     const avgViewers = total ? Math.round(totalViewers / total) : 0;
     const avgMpv = total ? +(events.reduce((s,g) => s + (g.MIN_PER_VIEWER||0), 0) / total).toFixed(1) : 0;
     return buildFormattedSheet({
-      title:    '📊  ALL EVENTS — RAW DATA',
+      title:    titleOverride || '📊  ALL EVENTS — RAW DATA',
       subtitle: SUBTITLE,
       summary: {
         labels:  ['TOTAL EVENTS', 'TOTAL VIEWERS', 'AVG VIEWERS/EVENT', 'AVG MIN/VIEWER'],

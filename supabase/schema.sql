@@ -52,29 +52,12 @@ create table if not exists school_audit_log (
 alter table schools enable row level security;
 alter table school_audit_log enable row level security;
 
--- Anyone can read schools (compliance/sports views don't require Supabase auth)
-create policy "public read schools"
-  on schools for select using (true);
-
--- School contacts can update only their own row
-create policy "school updates own row"
-  on schools for update
-  using (auth.jwt() ->> 'email' = auth_email);
-
--- Admin can update any row
-create policy "admin updates any school"
-  on schools for update
-  using (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com');
-
--- Admin can insert new schools
-create policy "admin inserts schools"
-  on schools for insert
-  with check (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com');
-
--- Admin can delete schools
-create policy "admin deletes schools"
-  on schools for delete
-  using (auth.jwt() ->> 'email' = 'keithmkingjr@gmail.com');
+-- The app uses a password gate (not Supabase Auth) so we cannot rely on
+-- auth.jwt() in policies. Treat the schools table the same as the other
+-- write-from-anon tables: public read + public write. Access control lives
+-- in the app's password gate.
+create policy "public read schools"  on schools for select using (true);
+create policy "public write schools" on schools for all    using (true) with check (true);
 
 -- Audit log: public read + public insert so the trigger can write rows
 -- regardless of how the user authenticated (password gate or anon).

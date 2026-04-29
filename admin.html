@@ -727,7 +727,7 @@
       const sportName = PROD_TO_VIEW_SPORT[p.sport];
       if (!sportName) return;
       if (!p.event_date) return;
-      if (haveKey.has(`${p.event_date}|${p.school}`)) return;
+      if (haveKey.has(`${p.event_date}|${canonCusa(p.school)}`)) return;
       const home = p.home_team || p.school || '';
       const away = p.away_team || '';
       const title = (away && home) ? `${away} vs. ${home}` : (home || away || `${p.school} (produced)`);
@@ -801,7 +801,7 @@
       } catch(e) { console.warn('Static produced_events.json not available:', e); }
     }
     _producedEvents = applyRemovedFilter(events || []);
-    _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
+    _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${canonCusa(e.school)}`));
     const btn = document.getElementById('producedToggle');
     if (btn) btn.disabled = !_producedEvents.length;
   }
@@ -908,24 +908,29 @@
     const missing = [];
 
     prodEvents.forEach(p => {
+      // Canonicalize so 'LA Tech' and 'Louisiana Tech' (and other aliases)
+      // collapse to one name on both sides of the comparison.
+      const pSchool = canonCusa(p.school);
       const candidates = [];
       viewEvents.forEach((v, idx) => {
         if (claimed.has(idx)) return;
         const d = formatDateForFilter(v.DATE);
         if (d !== p.event_date) return;
-        const isHome = v.HOME_TEAM === p.school;
-        const isAway = v.AWAY_TEAM === p.school;
+        const vHome = canonCusa(v.HOME_TEAM);
+        const vAway = canonCusa(v.AWAY_TEAM);
+        const isHome = vHome === pSchool;
+        const isAway = vAway === pSchool;
         if (!isHome && !isAway) return;
         candidates.push({ idx, v, isHome });
       });
       if (!candidates.length) { missing.push(p); return; }
       if (candidates.length === 1) { claimed.add(candidates[0].idx); return; }
       // Multiple candidates → match by opponent name
-      const prodOppA = normalizeName(p.away_team);
-      const prodOppH = normalizeName(p.home_team);
+      const prodOppA = normalizeName(canonCusa(p.away_team));
+      const prodOppH = normalizeName(canonCusa(p.home_team));
       let chosen = candidates.find(c => {
         const opp = c.isHome ? c.v.AWAY_TEAM : c.v.HOME_TEAM;
-        const oppN = normalizeName(opp);
+        const oppN = normalizeName(canonCusa(opp));
         const titleN = normalizeName(c.v.AIRING_TITLE);
         if (!oppN) return false;
         if (prodOppA && (oppN.includes(prodOppA) || prodOppA.includes(oppN))) return true;
@@ -1122,7 +1127,7 @@
         && (p.home_team || '') === (prodKey.home_team || '')
         && (p.away_team || '') === (prodKey.away_team || ''))
     );
-    _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${e.school}`));
+    _producedSet = new Set(_producedEvents.map(e => `${e.event_date}|${canonCusa(e.school)}`));
     rawData = mergeProducedPlaceholders(rawData.filter(r => !r._placeholder));
     renderAllTabs();
 
@@ -1153,13 +1158,13 @@
       formatDateForFilter(r.DATE) === targetDate
     );
     if (!sameSlot.length) return null;
-    const sN = normalizeName(prodEvent.school);
-    const hN = normalizeName(prodEvent.home_team);
-    const aN = normalizeName(prodEvent.away_team);
+    const sN = normalizeName(canonCusa(prodEvent.school));
+    const hN = normalizeName(canonCusa(prodEvent.home_team));
+    const aN = normalizeName(canonCusa(prodEvent.away_team));
     let best = null, bestScore = 0;
     for (const c of sameSlot) {
-      const cH = normalizeName(c.HOME_TEAM);
-      const cA = normalizeName(c.AWAY_TEAM);
+      const cH = normalizeName(canonCusa(c.HOME_TEAM));
+      const cA = normalizeName(canonCusa(c.AWAY_TEAM));
       const cT = normalizeName(c.AIRING_TITLE);
       let score = 0;
       if (sN) {
@@ -1373,8 +1378,8 @@
     if (!_producedSet.size) return false;
     const d = formatDateForFilter(r.DATE);
     if (!d) return false;
-    if (r.HOME_TEAM && _producedSet.has(`${d}|${r.HOME_TEAM}`)) return true;
-    if (r.AWAY_TEAM && _producedSet.has(`${d}|${r.AWAY_TEAM}`)) return true;
+    if (r.HOME_TEAM && _producedSet.has(`${d}|${canonCusa(r.HOME_TEAM)}`)) return true;
+    if (r.AWAY_TEAM && _producedSet.has(`${d}|${canonCusa(r.AWAY_TEAM)}`)) return true;
     return false;
   }
 

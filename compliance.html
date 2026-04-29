@@ -315,8 +315,6 @@
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: var(--green);
-    color: var(--navy);
     padding: 8px 16px;
     border-radius: 6px;
     font-size: 12px;
@@ -324,8 +322,12 @@
     opacity: 0;
     transition: opacity 0.3s;
     pointer-events: none;
+    background: var(--green);
+    color: var(--navy);
+    border: 1px solid var(--green);
   }
   .save-indicator.show { opacity: 1; }
+  .save-indicator.local { background: #fffbeb; color: #92400e; border-color: #f59e0b; }
 </style>
 </head>
 <body>
@@ -347,7 +349,7 @@
 
 <div class="content" id="content"></div>
 
-<div class="save-indicator" id="save-indicator">Saved ✓</div>
+<div class="save-indicator" id="save-indicator">☁️ Saved to database ✓</div>
 
 <script>
 /* ── ESPN logo (transparent PNG) ── */
@@ -582,17 +584,27 @@ function loadSchools() {
 }
 
 function saveSchools() {
+  // Local-only fallback (no Supabase). Used when called outside the saveSchool flow.
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools));
-    showSaved();
+    showSaved('local');
   } catch(e) {}
 }
 
-function showSaved() {
+function showSaved(target) {
+  // target: 'cloud' (default) → ☁️ Saved to database
+  //         'local'           → 💻 Saved locally only (no database connection)
   const el = document.getElementById('save-indicator');
+  if (target === 'local') {
+    el.textContent = '💻 Saved locally only (offline)';
+    el.classList.add('local');
+  } else {
+    el.textContent = '☁️ Saved to database ✓';
+    el.classList.remove('local');
+  }
   el.classList.add('show');
   clearTimeout(showSaved._t);
-  showSaved._t = setTimeout(() => el.classList.remove('show'), 1500);
+  showSaved._t = setTimeout(() => el.classList.remove('show'), 2400);
 }
 
 /* ── Password protection ── */
@@ -666,13 +678,14 @@ async function saveSchool(school) {
       console.error('Supabase save error:', result.error);
       showToast('⚠ Supabase save failed: ' + (result.error.message || result.error.code), true);
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {}
+      showSaved('local');
       return false;
     }
-    showSaved();
+    showSaved('cloud');
     return true;
   } else {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.schools)); } catch(e) {}
-    showSaved();
+    showSaved('local');
     return true;
   }
 }

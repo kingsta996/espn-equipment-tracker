@@ -1,3 +1,7 @@
 [build]
   command = "bash build.sh"
   publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Melt Archive</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A; --gray: #BFCED6; --white: #FFFFFF;
+    --red: #E40046; --blue: #00B5E2; --green: #A7D500;
+    --espn-red: #EF4035; --light: #f4f6f8; --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--light); font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; min-height: 100vh; color: #222; }
+
+  .header {
+    background: var(--navy); padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .hdr-fallback { color: var(--white); font-weight: 900; letter-spacing: -0.5px; font-size: 18px; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 22px; }
+
+  section {
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    padding: 22px; margin-bottom: 20px;
+  }
+  section h2 {
+    color: var(--navy); font-size: 16px; font-weight: 700;
+    margin-bottom: 6px; letter-spacing: -0.2px;
+  }
+  section .desc {
+    color: #666; font-size: 12px; margin-bottom: 16px; line-height: 1.55;
+  }
+  section .desc code {
+    background: #f0f3f6; padding: 1px 6px; border-radius: 3px;
+    font-family: 'Courier New', monospace; font-size: 11px; color: var(--navy);
+  }
+
+  /* Cascading dropdowns */
+  .cascade {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px; margin-bottom: 14px;
+  }
+  .field label {
+    display: block; margin-bottom: 5px; font-weight: 700;
+    font-size: 11px; color: var(--navy);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .field select, .field input, .field textarea {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--gray); border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: #fff;
+  }
+  .field select:focus, .field input:focus, .field textarea:focus {
+    outline: none; border-color: var(--blue);
+  }
+  .field select:disabled { opacity: 0.5; cursor: not-allowed; background: #f7f8fa; }
+  .field .hint { font-size: 10px; color: #888; margin-top: 3px; }
+
+  .selection-summary {
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35);
+    border-radius: 8px; padding: 14px; margin-top: 4px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .selection-summary .label {
+    font-size: 11px; color: #92400e; text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 700;
+  }
+  .selection-summary .game {
+    font-size: 14px; font-weight: 700; color: var(--navy); flex: 1; min-width: 200px;
+  }
+  .selection-summary .request-btn {
+    background: var(--amber); color: #fff; border: 0;
+    padding: 9px 18px; border-radius: 6px; font-weight: 700; font-size: 13px;
+    cursor: pointer; font-family: inherit;
+  }
+  .selection-summary .request-btn:hover { background: #d97706; }
+
+  /* Form (modal-style) */
+  .form-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px; margin-bottom: 14px;
+  }
+  .form-grid .field.full { grid-column: 1 / -1; }
+  .ack {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px; background: #f9fafb; border-radius: 6px;
+    margin: 14px 0;
+  }
+  .ack input { margin-top: 2px; }
+  .ack label { font-size: 12px; color: #444; cursor: pointer; }
+
+  /* Buttons */
+  .btn {
+    padding: 9px 18px; border-radius: 6px; border: 0;
+    font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: var(--navy); color: #fff; }
+  .btn-primary:hover { background: #001f30; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-cancel { background: #eee; color: #555; }
+  .btn-cancel:hover { background: #ddd; }
+  .btn-amber { background: var(--amber); color: #fff; }
+  .btn-amber:hover { background: #d97706; }
+
+  /* Code unlock */
+  .unlock-row {
+    display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap;
+  }
+  .unlock-row input {
+    flex: 1; min-width: 200px; padding: 12px 14px;
+    border: 2px solid var(--gray); border-radius: 6px;
+    font-size: 16px; font-family: 'Courier New', monospace;
+    text-align: center; letter-spacing: 2px; text-transform: uppercase;
+  }
+  .unlock-row input:focus { outline: none; border-color: var(--blue); }
+  .unlock-row button { padding: 12px 24px; }
+
+  /* Status messages */
+  .msg {
+    padding: 10px 14px; border-radius: 6px; font-size: 12px;
+    margin-top: 10px; display: none;
+  }
+  .msg.show { display: block; }
+  .msg.ok  { background: #d1fae5; color: #065f46; }
+  .msg.err { background: #fee2e2; color: #991b1b; }
+
+  /* Box embed */
+  .embed-wrap {
+    margin-top: 14px; border: 1px solid #e5e7eb; border-radius: 8px;
+    overflow: hidden; background: #fff;
+  }
+  .embed-wrap iframe { display: block; width: 100%; height: 600px; border: 0; }
+  .embed-meta {
+    background: #fafbfc; border-bottom: 1px solid #e5e7eb;
+    padding: 10px 14px; font-size: 12px; color: #555;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  }
+  .embed-meta strong { color: var(--navy); }
+  .embed-meta .expires { color: #92400e; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,38,58,0.55); z-index: 100;
+    align-items: center; justify-content: center; padding: 20px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 28px;
+    max-width: 720px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { color: var(--navy); font-size: 16px; margin-bottom: 6px; }
+  .modal .desc { font-size: 12px; color: #666; margin-bottom: 14px; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>🗂 Melt Archive</h1>
+  <a href="archive-admin.html">🔒 Admin Portal</a>
+  <a href="index.html">← Hub</a>
+</div>
+
+<main>
+
+  <!-- ── Browse + request ── -->
+  <section>
+    <h2>Find your melt</h2>
+    <p class="desc">
+      Drill down through the live Box archive — <strong id="treeStats">loading…</strong>.
+      Folder names are shown exactly as they sit in Box (across nine seasons of varying conventions). When you find your match, click <strong>Request Access</strong> and submit the form.
+      You'll receive an access code by email once approved.
+    </p>
+
+    <div class="cascade">
+      <div class="field">
+        <label for="selYear">Year</label>
+        <select id="selYear"><option value="">— Select year —</option></select>
+      </div>
+      <div class="field">
+        <label for="selSport">Sport</label>
+        <select id="selSport" disabled><option value="">—</option></select>
+      </div>
+      <div class="field">
+        <label for="selSchool">School</label>
+        <select id="selSchool" disabled><option value="">—</option></select>
+      </div>
+      <div class="field">
+        <label for="selGame">Game</label>
+        <select id="selGame" disabled><option value="">—</option></select>
+      </div>
+    </div>
+
+    <div class="selection-summary" id="selectionSummary" style="display:none">
+      <span class="label">Selected:</span>
+      <span class="game" id="selectedGameLabel"></span>
+      <button class="request-btn" id="requestBtn">📨 Request Access</button>
+    </div>
+  </section>
+
+  <!-- ── Code unlock ── -->
+  <section>
+    <h2>Already have an access code?</h2>
+    <p class="desc">
+      Enter the code we emailed you. Codes are valid for the duration set at approval (default 14 days). The folder will load below for browsing and download.
+    </p>
+    <div class="unlock-row">
+      <input type="text" id="unlockCode" placeholder="ENTER CODE" autocomplete="off" maxlength="20">
+      <button class="btn btn-primary" id="unlockBtn">Unlock</button>
+    </div>
+    <div class="msg" id="unlockMsg"></div>
+    <div id="embedContainer"></div>
+  </section>
+
+</main>
+
+<!-- ── Request modal ── -->
+<div class="modal-overlay" id="requestOverlay">
+  <div class="modal">
+    <h3>Request Access</h3>
+    <p class="desc" id="requestSummary">—</p>
+
+    <form id="requestForm" autocomplete="on">
+      <div class="form-grid">
+        <div class="field">
+          <label for="reqFullName">Full Name <span style="color:#c00">*</span></label>
+          <input type="text" id="reqFullName" required>
+        </div>
+        <div class="field">
+          <label for="reqEmail">Email <span style="color:#c00">*</span></label>
+          <input type="email" id="reqEmail" required>
+        </div>
+        <div class="field">
+          <label for="reqCompany">Company</label>
+          <input type="text" id="reqCompany">
+        </div>
+        <div class="field">
+          <label for="reqPhone">Phone</label>
+          <input type="tel" id="reqPhone">
+        </div>
+        <div class="field">
+          <label for="reqProject">Project Name</label>
+          <input type="text" id="reqProject">
+        </div>
+        <div class="field">
+          <label for="reqUse">Intended Use</label>
+          <select id="reqUse">
+            <option value="">— Select —</option>
+            <option>Broadcast</option>
+            <option>Social cut</option>
+            <option>Archival</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reqDeadline">Air Date / Deadline</label>
+          <input type="date" id="reqDeadline">
+        </div>
+        <div class="field full">
+          <label for="reqNotes">Notes</label>
+          <textarea id="reqNotes" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="ack">
+        <input type="checkbox" id="reqAck" required>
+        <label for="reqAck">
+          I acknowledge that the requested melt will only be used for the purpose stated above and will not be re-distributed without written permission from Conference USA.
+        </label>
+      </div>
+
+      <div class="msg" id="requestMsg"></div>
+
+      <div class="actions">
+        <button type="button" class="btn btn-cancel" onclick="closeRequestModal()">Cancel</button>
+        <button type="submit" class="btn btn-amber" id="submitRequestBtn">Submit Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+let _db = null;
+let _tree = null;
+let _selection = { year: '', sport: '', school: '', gameName: '', folderId: '' };
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initSupabase();
+  await loadTree();
+  wireDropdowns();
+  wireRequestFlow();
+  wireUnlockFlow();
+});
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+async function loadTree() {
+  try {
+    const res = await fetch('melt_archive_tree.json', { cache: 'force-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    _tree = await res.json();
+    document.getElementById('treeStats').textContent =
+      `${_tree.total_game_folders.toLocaleString()} game folders across ${_tree.years_count} season${_tree.years_count === 1 ? '' : 's'}`;
+    populateYears();
+  } catch (e) {
+    document.getElementById('treeStats').textContent = `failed to load archive tree: ${e.message}`;
+  }
+}
+
+function populateYears() {
+  const sel = document.getElementById('selYear');
+  const years = Object.keys(_tree.years || {}).sort().reverse();  // newest first
+  sel.innerHTML = '<option value="">— Select year —</option>' +
+    years.map(y => `<option value="${y}">${y}</option>`).join('');
+}
+
+function wireDropdowns() {
+  const ySel = document.getElementById('selYear');
+  const spSel = document.getElementById('selSport');
+  const scSel = document.getElementById('selSchool');
+  const gSel = document.getElementById('selGame');
+
+  ySel.addEventListener('change', () => {
+    _selection = { year: ySel.value, sport: '', school: '', gameName: '', folderId: '' };
+    populateSports();
+    spSel.disabled = !_selection.year;
+    scSel.disabled = true; gSel.disabled = true;
+    scSel.innerHTML = '<option value="">—</option>';
+    gSel.innerHTML  = '<option value="">—</option>';
+    updateSelectionSummary();
+  });
+  spSel.addEventListener('change', () => {
+    _selection.sport = spSel.value;
+    _selection.school = ''; _selection.gameName = ''; _selection.folderId = '';
+    populateSchools();
+    scSel.disabled = !_selection.sport;
+    gSel.disabled = true; gSel.innerHTML = '<option value="">—</option>';
+    updateSelectionSummary();
+  });
+  scSel.addEventListener('change', () => {
+    _selection.school = scSel.value;
+    _selection.gameName = ''; _selection.folderId = '';
+    populateGames();
+    gSel.disabled = !_selection.school;
+    updateSelectionSummary();
+  });
+  gSel.addEventListener('change', () => {
+    const opt = gSel.options[gSel.selectedIndex];
+    _selection.gameName = opt.value || '';
+    _selection.folderId = opt.dataset.folderId || '';
+    updateSelectionSummary();
+  });
+}
+
+function populateSports() {
+  const yr = _selection.year; const sel = document.getElementById('selSport');
+  if (!yr || !_tree.years[yr]) { sel.innerHTML = '<option value="">—</option>'; return; }
+  const sports = Object.keys(_tree.years[yr].sports || {}).sort();
+  sel.innerHTML = '<option value="">— Select sport —</option>' +
+    sports.map(s => `<option value="${escAttr(s)}">${escHtml(s)}</option>`).join('');
+}
+function populateSchools() {
+  const sel = document.getElementById('selSchool');
+  const node = _tree.years[_selection.year]?.sports?.[_selection.sport];
+  if (!node) { sel.innerHTML = '<option value="">—</option>'; return; }
+  const schools = Object.keys(node.schools || {}).sort();
+  sel.innerHTML = '<option value="">— Select school —</option>' +
+    schools.map(s => `<option value="${escAttr(s)}">${escHtml(s)}</option>`).join('');
+}
+function populateGames() {
+  const sel = document.getElementById('selGame');
+  const node = _tree.years[_selection.year]?.sports?.[_selection.sport]?.schools?.[_selection.school];
+  if (!node) { sel.innerHTML = '<option value="">—</option>'; return; }
+  const games = (node.games || []).slice().sort((a,b) => a.name.localeCompare(b.name));
+  if (!games.length) {
+    sel.innerHTML = '<option value="">— No game folders in this school yet —</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">— Select game —</option>' +
+    games.map(g => `<option value="${escAttr(g.name)}" data-folder-id="${escAttr(g.id)}">${escHtml(g.name)}</option>`).join('');
+}
+
+function updateSelectionSummary() {
+  const wrap = document.getElementById('selectionSummary');
+  if (_selection.gameName && _selection.folderId) {
+    document.getElementById('selectedGameLabel').textContent =
+      `${_selection.year} · ${_selection.sport} · ${_selection.school} · ${_selection.gameName}`;
+    wrap.style.display = 'flex';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+/* ── Request flow ── */
+function wireRequestFlow() {
+  document.getElementById('requestBtn').addEventListener('click', openRequestModal);
+  document.getElementById('requestForm').addEventListener('submit', submitRequest);
+}
+
+function openRequestModal() {
+  if (!_selection.folderId) return;
+  document.getElementById('requestSummary').innerHTML =
+    `<strong>${escHtml(_selection.year)}</strong> · ${escHtml(_selection.sport)} · ${escHtml(_selection.school)}<br>` +
+    `<span style="font-family:'Courier New',monospace;color:#444">${escHtml(_selection.gameName)}</span>`;
+  document.getElementById('requestMsg').className = 'msg';
+  document.getElementById('requestMsg').textContent = '';
+  document.getElementById('requestOverlay').classList.add('open');
+}
+function closeRequestModal() {
+  document.getElementById('requestOverlay').classList.remove('open');
+}
+
+async function submitRequest(e) {
+  e.preventDefault();
+  if (!_db) { showMsg('requestMsg', 'Database not connected — try again later.', 'err'); return; }
+
+  const btn = document.getElementById('submitRequestBtn');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Submitting…';
+
+  const payload = {
+    full_name: document.getElementById('reqFullName').value.trim(),
+    email:     document.getElementById('reqEmail').value.trim(),
+    company:   document.getElementById('reqCompany').value.trim() || null,
+    phone:     document.getElementById('reqPhone').value.trim() || null,
+    project_name:  document.getElementById('reqProject').value.trim() || null,
+    intended_use:  document.getElementById('reqUse').value || null,
+    deadline:      document.getElementById('reqDeadline').value || null,
+    notes:         document.getElementById('reqNotes').value.trim() || null,
+    selected_year:   _selection.year,
+    selected_sport:  _selection.sport,
+    selected_school: _selection.school,
+    selected_game:   _selection.gameName,
+    box_folder_id:   _selection.folderId,
+    status: 'Pending'
+  };
+
+  try {
+    const { error } = await _db.from('melt_archive_requests').insert(payload);
+    if (error) throw error;
+    showMsg('requestMsg', `✓ Request submitted. We'll email you at ${payload.email} when an access code is ready.`, 'ok');
+    setTimeout(() => { closeRequestModal(); document.getElementById('requestForm').reset(); }, 2000);
+  } catch (err) {
+    showMsg('requestMsg', `Submission failed: ${err.message || err}`, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+/* ── Code unlock ── */
+function wireUnlockFlow() {
+  document.getElementById('unlockBtn').addEventListener('click', tryUnlock);
+  document.getElementById('unlockCode').addEventListener('keydown', e => {
+    if (e.key === 'Enter') tryUnlock();
+  });
+}
+
+async function tryUnlock() {
+  const code = (document.getElementById('unlockCode').value || '').trim();
+  if (!code) { showMsg('unlockMsg', 'Enter your access code.', 'err'); return; }
+  if (!_db)  { showMsg('unlockMsg', 'Database not connected — try again later.', 'err'); return; }
+
+  const btn = document.getElementById('unlockBtn');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Unlocking…';
+
+  try {
+    const { data, error } = await _db.rpc('unlock_archive_code', { p_code: code });
+    if (error) throw error;
+    if (!data || !data.length || !data[0].shared_link_url) {
+      showMsg('unlockMsg', 'Invalid, expired, or revoked code. If you believe this is an error, submit a new request.', 'err');
+      document.getElementById('embedContainer').innerHTML = '';
+      return;
+    }
+    const row = data[0];
+    showMsg('unlockMsg', '✓ Access granted', 'ok');
+    renderEmbed(row.shared_link_url, row.folder_display_name, row.expires_at);
+  } catch (err) {
+    showMsg('unlockMsg', `Unlock failed: ${err.message || err}`, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+function renderEmbed(sharedLinkUrl, displayName, expiresAt) {
+  const embedUrl = sharedLinkUrl.includes('/embed/')
+    ? sharedLinkUrl
+    : sharedLinkUrl.replace('https://app.box.com/s/', 'https://app.box.com/embed/s/');
+  const exp = expiresAt ? new Date(expiresAt) : null;
+  const expStr = exp ? exp.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
+  document.getElementById('embedContainer').innerHTML = `
+    <div class="embed-wrap">
+      <div class="embed-meta">
+        <strong>${escHtml(displayName || 'Folder')}</strong>
+        <span class="expires">Expires: ${escHtml(expStr)}</span>
+        <a href="${escAttr(sharedLinkUrl)}" target="_blank" rel="noopener" style="margin-left:auto;color:var(--blue)">Open in Box ↗</a>
+      </div>
+      <iframe src="${escAttr(embedUrl)}" allowfullscreen webkitallowfullscreen></iframe>
+    </div>
+  `;
+}
+
+/* ── Helpers ── */
+function showMsg(id, text, kind) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg show ' + (kind || '');
+}
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+</script>
+</body>
+</html>

@@ -130,37 +130,50 @@
   /* ── Constants ── */
   const MASTER_ROSTER_SHEET_ID = '1NpjMZH0p70pYAnZ_BkqxevJ5XoZDoeucZq4nF1cAw50';
 
-  // "Pull from URL" backend. Default is a public CORS proxy that fetches the
-  // school's roster page so we can parse the HTML in the browser. If a
-  // specific school ever blocks the proxy, an admin can opt into the
-  // Apps-Script fallback by running this in the browser console:
+  // "Pull from URL" backend. Default tries a chain of public CORS proxies —
+  // many SideArm-powered college athletics sites (UAB, etc.) block one or
+  // more proxies, so we fall through the list until one works. If every
+  // proxy fails for a specific school, an admin can opt into the Apps-Script
+  // fallback by running this in the browser console:
   //   localStorage.setItem('cusa_roster_use_apps_script', 'true')
   //   localStorage.setItem('cusa_roster_scraper_url', '<APPS SCRIPT URL>')
   // (See apps-script/roster-scraper.gs for the script + deploy steps.)
-  const CORS_PROXY = 'https://corsproxy.io/?';
+  const CORS_PROXIES = [
+    { name: 'corsproxy.io',       build: u => 'https://corsproxy.io/?' + encodeURIComponent(u) },
+    { name: 'allorigins.win',     build: u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u) },
+    { name: 'codetabs.com',       build: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u) }
+  ];
   const APPS_SCRIPT_FLAG = 'cusa_roster_use_apps_script';
   const APPS_SCRIPT_URL_KEY = 'cusa_roster_scraper_url';
 
-  // Map a wide variety of school-roster header names → the canonical 8-key
-  // shape we already use for the Master Roster source. Anything not in this
-  // map is dropped from the row, so adding aliases is the way to support a
-  // weird school that uses, say, "Yr/Cl".
-  const SCRAPED_HEADER_MAP = {
-    '#': '#', 'no.': '#', 'no': '#', 'number': '#', 'jersey': '#', 'jersey #': '#',
-    'full name': 'name', 'name': 'name', 'player': 'name', 'player name': 'name',
-    'position': 'position', 'pos': 'position', 'pos.': 'position',
-    'height': 'height', 'ht': 'height', 'ht.': 'height',
-    'weight': 'weight', 'wt': 'weight', 'wt.': 'weight', 'lbs': 'weight',
-    'class': 'class', 'year': 'class', 'yr': 'class', 'yr.': 'class', 'cl': 'class', 'cl.': 'class',
-    'hometown': 'hometown', 'hometown/high school': 'hometown', 'hometown / high school': 'hometown',
-    'hometown/last school': 'hometown', 'hometown / last school': 'hometown',
-    'hometown/previous school': 'hometown', 'hometown / previous school': 'hometown',
-    'high school': 'hometown',
-    'previous school': 'previous school', 'last school': 'previous school',
-    'previous': 'previous school', 'transfer': 'previous school',
-    'bats': 'bats', 'b': 'bats',
-    'throws': 'throws', 't': 'throws', 'b/t': 'bats_throws'
-  };
+  // Map school-roster header names → the canonical 8-key shape we use
+  // internally. We try patterns in order and pick the first match — this
+  // means a school that surfaces a brand-new header like "Acad. Yr." or
+  // "Eligibility" gets recognized without code changes. Anchors (^…$) keep
+  // unrelated columns ("Years / at UAB") from being misidentified.
+  const HEADER_PATTERNS = [
+    { re: /^(#|no\.?|number|jersey(\s*#)?)$/i,                                                  key: '#' },
+    { re: /^(full\s*name|name|player(\s+name)?)$/i,                                             key: 'name' },
+    { re: /^(pos\.?|position)$/i,                                                               key: 'position' },
+    { re: /^(height|ht\.?)$/i,                                                                  key: 'height' },
+    { re: /^(weight|wt\.?|lbs?)$/i,                                                             key: 'weight' },
+    { re: /^(class|yr\.?|cl\.?|year|academic\s+year|acad\.?\s*yr\.?|acad\.?\s*year|eligibility)$/i, key: 'class' },
+    { re: /^hometown(\s*\/\s*(high\s*school|previous\s*school|last\s*school))?$/i,             key: 'hometown' },
+    { re: /^high\s*school$/i,                                                                   key: 'hometown' },
+    { re: /^(previous(\s+school)?|last\s+school|transfer(\s+from)?|prev\.?)$/i,                key: 'previous school' },
+    { re: /^(bats|b)$/i,                                                                        key: 'bats' },
+    { re: /^(throws|t)$/i,                                                                      key: 'throws' },
+    { re: /^b\s*\/\s*t$/i,                                                                      key: 'bats_throws' }
+  ];
+
+  function detectHeader(header) {
+    const norm = String(header || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!norm) return null;
+    for (const p of HEADER_PATTERNS) {
+      if (p.re.test(norm)) return p.key;
+    }
+    return null;
+  }
   // The Master Roster sheet has one data tab; School + Sport columns identify
   // each row. We fetch the whole tab once per Load Roster click and filter
   // client-side. Cheap (~3500 rows total) and avoids depending on whoever
@@ -597,14 +610,14 @@
       const useAppsScript = localStorage.getItem(APPS_SCRIPT_FLAG) === 'true';
       const scraped = useAppsScript ? await fetchViaAppsScript(url) : await fetchViaCorsProxy(url);
 
-      // Map scraped headers → our canonical 8-key shape, then run through
-      // the sport's existing fromSource mapper (same one used by the
-      // Master Roster path, so all the position/year/hometown handling
-      // is shared).
-      const canonKeys = scraped.headers.map(h => {
-        const k = String(h || '').trim().toLowerCase();
-        return SCRAPED_HEADER_MAP[k] || null;
-      });
+      // Map scraped headers → our canonical 8-key shape via pattern detection.
+      // Track which columns couldn't be matched so we can surface them in the
+      // status line — that way an admin notices when a school's site uses a
+      // header we haven't accounted for.
+      const canonKeys = scraped.headers.map(detectHeader);
+      const unmapped = scraped.headers.filter((h, i) => !canonKeys[i] && String(h || '').trim() !== '');
+      if (unmapped.length) console.warn('[roster] Unmapped headers:', unmapped);
+
       const sourceRows = scraped.rows.map(row => {
         const obj = {};
         canonKeys.forEach((k, i) => {
@@ -632,8 +645,11 @@
       _currentSport = sport;
       renderTable();
       document.getElementById('downloadBtn').disabled = !_rows.length;
+      const unmappedNote = unmapped.length
+        ? ` (skipped: ${unmapped.map(h => `"${h}"`).join(', ')})`
+        : '';
       setStatus(
-        `Loaded ${_rows.length} player${_rows.length === 1 ? '' : 's'} from URL (table ${scraped.tableNum}).`,
+        `Loaded ${_rows.length} player${_rows.length === 1 ? '' : 's'} from URL (table ${scraped.tableNum})${unmappedNote}.`,
         'ok'
       );
     } catch (err) {
@@ -648,11 +664,39 @@
   /* CORS-proxy path: fetch the page raw, parse with DOMParser, walk every
      <table> in document order until one matches. Document order = the same
      numbering IMPORTHTML uses for its "table N" parameter, so a roster the
-     user previously found at table 3 will report tableNum=3 here too. */
+     user previously found at table 3 will report tableNum=3 here too.
+
+     Tries each proxy in CORS_PROXIES in order; the first successful fetch
+     wins. School athletics sites often block one or two proxies but rarely
+     all three. */
+  async function fetchHtmlViaProxies(url) {
+    const failures = [];
+    for (const proxy of CORS_PROXIES) {
+      try {
+        setStatus(`Scraping ${url} (via ${proxy.name})…`);
+        const res = await fetch(proxy.build(url));
+        if (!res.ok) {
+          failures.push(`${proxy.name}: HTTP ${res.status}`);
+          continue;
+        }
+        const html = await res.text();
+        if (html.length < 200) {
+          failures.push(`${proxy.name}: empty response`);
+          continue;
+        }
+        return html;
+      } catch (err) {
+        failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);
+      }
+    }
+    throw new Error(
+      'All CORS proxies failed:\n  · ' + failures.join('\n  · ') +
+      '\n\nThe school site may be blocking proxies. See apps-script/roster-scraper.gs to enable the Apps Script fallback.'
+    );
+  }
+
   async function fetchViaCorsProxy(url) {
-    const res = await fetch(CORS_PROXY + encodeURIComponent(url));
-    if (!res.ok) throw new Error(`CORS proxy returned HTTP ${res.status}`);
-    const html = await res.text();
+    const html = await fetchHtmlViaProxies(url);
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const tables = doc.querySelectorAll('table');
     if (!tables.length) throw new Error('No <table> elements found on the page.');

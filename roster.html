@@ -108,9 +108,14 @@
     <select id="schoolSel"></select>
     <label for="sportSel">Sport</label>
     <select id="sportSel"></select>
-    <button id="loadBtn" class="btn-primary">📥 Load Roster</button>
+    <button id="loadBtn" class="btn-primary">📥 Load from Master Roster</button>
     <button id="downloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
-    <span class="status" id="status">Pick a school and sport, then click Load Roster.</span>
+    <span class="status" id="status">Pick a school and sport, then load the roster (from Master Roster or a school URL).</span>
+  </div>
+  <div class="controls" style="margin-top:0">
+    <label for="rosterUrl">Or pull from URL</label>
+    <input type="url" id="rosterUrl" placeholder="https://fiusports.com/sports/baseball/roster" style="flex:1;min-width:260px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+    <button id="pullBtn" class="btn-primary">🌐 Pull from URL</button>
   </div>
 
   <div id="content" class="table-wrap">
@@ -124,6 +129,38 @@
 <script>
   /* ── Constants ── */
   const MASTER_ROSTER_SHEET_ID = '1NpjMZH0p70pYAnZ_BkqxevJ5XoZDoeucZq4nF1cAw50';
+
+  // "Pull from URL" backend. Default is a public CORS proxy that fetches the
+  // school's roster page so we can parse the HTML in the browser. If a
+  // specific school ever blocks the proxy, an admin can opt into the
+  // Apps-Script fallback by running this in the browser console:
+  //   localStorage.setItem('cusa_roster_use_apps_script', 'true')
+  //   localStorage.setItem('cusa_roster_scraper_url', '<APPS SCRIPT URL>')
+  // (See apps-script/roster-scraper.gs for the script + deploy steps.)
+  const CORS_PROXY = 'https://corsproxy.io/?';
+  const APPS_SCRIPT_FLAG = 'cusa_roster_use_apps_script';
+  const APPS_SCRIPT_URL_KEY = 'cusa_roster_scraper_url';
+
+  // Map a wide variety of school-roster header names → the canonical 8-key
+  // shape we already use for the Master Roster source. Anything not in this
+  // map is dropped from the row, so adding aliases is the way to support a
+  // weird school that uses, say, "Yr/Cl".
+  const SCRAPED_HEADER_MAP = {
+    '#': '#', 'no.': '#', 'no': '#', 'number': '#', 'jersey': '#', 'jersey #': '#',
+    'full name': 'name', 'name': 'name', 'player': 'name', 'player name': 'name',
+    'position': 'position', 'pos': 'position', 'pos.': 'position',
+    'height': 'height', 'ht': 'height', 'ht.': 'height',
+    'weight': 'weight', 'wt': 'weight', 'wt.': 'weight', 'lbs': 'weight',
+    'class': 'class', 'year': 'class', 'yr': 'class', 'yr.': 'class', 'cl': 'class', 'cl.': 'class',
+    'hometown': 'hometown', 'hometown/high school': 'hometown', 'hometown / high school': 'hometown',
+    'hometown/last school': 'hometown', 'hometown / last school': 'hometown',
+    'hometown/previous school': 'hometown', 'hometown / previous school': 'hometown',
+    'high school': 'hometown',
+    'previous school': 'previous school', 'last school': 'previous school',
+    'previous': 'previous school', 'transfer': 'previous school',
+    'bats': 'bats', 'b': 'bats',
+    'throws': 'throws', 't': 'throws', 'b/t': 'bats_throws'
+  };
   // The Master Roster sheet has one data tab; School + Sport columns identify
   // each row. We fetch the whole tab once per Load Roster click and filter
   // client-side. Cheap (~3500 rows total) and avoids depending on whoever
@@ -531,7 +568,129 @@
     });
     document.getElementById('loadBtn').addEventListener('click', loadRoster);
     document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
+    document.getElementById('pullBtn').addEventListener('click', pullFromURL);
+    document.getElementById('rosterUrl').addEventListener('keydown', e => {
+      if (e.key === 'Enter') pullFromURL();
+    });
   });
+
+  /* ── Pull from URL ─────────────────────────────────────────────────────
+     Default backend: a public CORS proxy that fetches the school's roster
+     page so we can parse the HTML and find the table whose headers contain
+     '#' + 'Full Name'. The Apps Script script in apps-script/roster-scraper.gs
+     is kept as a fallback you can opt into per browser via localStorage.
+  */
+  async function pullFromURL() {
+    const url = (document.getElementById('rosterUrl').value || '').trim();
+    const sport = document.getElementById('sportSel').value;
+    const school = document.getElementById('schoolSel').value;
+    const cfg = SPORT_CONFIG[sport];
+    if (!url) { setStatus('Paste a roster URL first.', 'err'); return; }
+    if (!cfg) { setStatus(`${sport} isn't wired up.`, 'err'); return; }
+    if (!/^https?:\/\//i.test(url)) { setStatus('URL must start with http:// or https://.', 'err'); return; }
+
+    setStatus(`Scraping ${url}…`);
+    document.getElementById('pullBtn').disabled = true;
+    document.getElementById('loadBtn').disabled = true;
+
+    try {
+      const useAppsScript = localStorage.getItem(APPS_SCRIPT_FLAG) === 'true';
+      const scraped = useAppsScript ? await fetchViaAppsScript(url) : await fetchViaCorsProxy(url);
+
+      // Map scraped headers → our canonical 8-key shape, then run through
+      // the sport's existing fromSource mapper (same one used by the
+      // Master Roster path, so all the position/year/hometown handling
+      // is shared).
+      const canonKeys = scraped.headers.map(h => {
+        const k = String(h || '').trim().toLowerCase();
+        return SCRAPED_HEADER_MAP[k] || null;
+      });
+      const sourceRows = scraped.rows.map(row => {
+        const obj = {};
+        canonKeys.forEach((k, i) => {
+          if (!k) return;
+          if (k === 'bats_throws') {
+            // Some pages combine "Bats/Throws" as one column like "R/R"
+            const parts = String(row[i] || '').split('/');
+            obj['bats']   = (parts[0] || '').trim();
+            obj['throws'] = (parts[1] || '').trim();
+          } else {
+            obj[k] = row[i];
+          }
+        });
+        return obj;
+      }).filter(r => (r['name'] || '').toString().trim() !== '');
+
+      if (!sourceRows.length) {
+        throw new Error('Found a matching table but no usable rows.');
+      }
+
+      _rows = sourceRows.map(cfg.fromSource);
+      sortByJersey(_rows);
+      _config = cfg;
+      _currentSchool = school;
+      _currentSport = sport;
+      renderTable();
+      document.getElementById('downloadBtn').disabled = !_rows.length;
+      setStatus(
+        `Loaded ${_rows.length} player${_rows.length === 1 ? '' : 's'} from URL (table ${scraped.tableNum}).`,
+        'ok'
+      );
+    } catch (err) {
+      console.error(err);
+      setStatus('Pull failed: ' + (err.message || err), 'err');
+    } finally {
+      document.getElementById('pullBtn').disabled = false;
+      document.getElementById('loadBtn').disabled = false;
+    }
+  }
+
+  /* CORS-proxy path: fetch the page raw, parse with DOMParser, walk every
+     <table> in document order until one matches. Document order = the same
+     numbering IMPORTHTML uses for its "table N" parameter, so a roster the
+     user previously found at table 3 will report tableNum=3 here too. */
+  async function fetchViaCorsProxy(url) {
+    const res = await fetch(CORS_PROXY + encodeURIComponent(url));
+    if (!res.ok) throw new Error(`CORS proxy returned HTTP ${res.status}`);
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const tables = doc.querySelectorAll('table');
+    if (!tables.length) throw new Error('No <table> elements found on the page.');
+
+    for (let i = 0; i < tables.length; i++) {
+      const trs = Array.from(tables[i].querySelectorAll('tr'));
+      if (!trs.length) continue;
+      const headerCells = Array.from(trs[0].querySelectorAll('th, td'));
+      const headers = headerCells.map(c => normalizeText(c.textContent));
+      const lower = headers.map(h => h.toLowerCase());
+      const hasNum  = lower.includes('#') || lower.includes('no.') || lower.includes('jersey');
+      const hasName = lower.some(h => h === 'full name' || h === 'name' || h === 'player' || h === 'player name');
+      if (!hasNum || !hasName) continue;
+
+      const rows = trs.slice(1).map(tr =>
+        Array.from(tr.querySelectorAll('th, td')).map(c => normalizeText(c.textContent))
+      ).filter(r => r.some(c => c !== ''));
+      return { headers, rows, tableNum: i + 1 };
+    }
+    throw new Error('No table with "#" + "Full Name" headers found on the page.');
+  }
+
+  function normalizeText(s) {
+    return String(s || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /* Apps Script fallback — opt-in via localStorage flag. See top of file. */
+  async function fetchViaAppsScript(url) {
+    const scriptUrl = (localStorage.getItem(APPS_SCRIPT_URL_KEY) || '').trim();
+    if (!scriptUrl) {
+      throw new Error('Apps Script fallback enabled but cusa_roster_scraper_url is not set in localStorage.');
+    }
+    const res = await fetch(`${scriptUrl}?url=${encodeURIComponent(url)}`, { redirect: 'follow' });
+    if (!res.ok) throw new Error(`Apps Script returned HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Apps Script returned no data');
+    return { headers: data.headers, rows: data.rows, tableNum: data.tableNum };
+  }
 
   function setStatus(msg, cls) {
     const el = document.getElementById('status');

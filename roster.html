@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Master Roster</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f4f6f8; font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; min-height: 100vh; color: #222; }
+  header {
+    background: var(--navy); color: #fff; padding: 16px 24px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  }
+  header .h-left { display: flex; align-items: center; gap: 14px; }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  header .h-sub { font-size: 11px; color: var(--gray); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+  header .back-btn {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
+    color: #fff; padding: 8px 14px; border-radius: 6px;
+    text-decoration: none; font-size: 12px; font-weight: 600;
+  }
+  header .back-btn:hover { background: rgba(255,255,255,0.2); }
+  main { max-width: 1500px; margin: 0 auto; padding: 22px; }
+  .controls {
+    background: #fff; padding: 16px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .controls label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .controls select, .controls button, .controls input {
+    padding: 8px 12px; font-size: 13px; border: 1px solid #d1d5db; border-radius: 6px;
+    font-family: inherit; background: #fff;
+  }
+  .controls select:disabled, .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--navy); color: #fff; border: 0; padding: 9px 16px; cursor: pointer; font-weight: 600; }
+  .btn-primary:not(:disabled):hover { background: #001f30; }
+  .btn-export { background: var(--green); color: var(--navy); border: 0; padding: 9px 16px; cursor: pointer; font-weight: 700; }
+  .btn-export:not(:disabled):hover { background: #95c200; }
+  .status {
+    flex: 1; min-width: 200px; font-size: 12px; color: #555; text-align: right;
+  }
+  .status.ok { color: #166534; font-weight: 600; }
+  .status.err { color: #991b1b; font-weight: 600; }
+  .table-wrap {
+    background: #fff; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    overflow: auto; max-height: calc(100vh - 240px);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: var(--navy); color: #fff; position: sticky; top: 0; z-index: 1; }
+  thead th { padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap; }
+  tbody td { border-bottom: 1px solid #eef0f2; padding: 0; }
+  tbody td input {
+    width: 100%; padding: 8px; border: 0; background: transparent;
+    font-family: inherit; font-size: 12px; color: #222;
+  }
+  tbody td input:focus { outline: 2px solid var(--blue); outline-offset: -2px; background: #fff; }
+  tbody tr:nth-child(even) { background: #fafbfc; }
+  tbody tr:hover { background: rgba(0,181,226,0.06); }
+  .empty {
+    padding: 80px 20px; text-align: center; color: #888; font-size: 14px;
+  }
+  .empty h3 { color: #444; margin-bottom: 8px; font-size: 16px; }
+  .row-actions { width: 40px; text-align: center; }
+  .remove-btn {
+    background: transparent; border: 0; color: #c00; cursor: pointer; font-size: 14px; padding: 4px 6px;
+  }
+  .remove-btn:hover { background: rgba(239,64,53,0.1); border-radius: 4px; }
+  .add-row-bar {
+    background: #fff; padding: 12px 16px; border-top: 1px solid #eef0f2;
+    display: flex; align-items: center; gap: 10px; font-size: 12px; color: #666;
+  }
+  .add-row-bar button {
+    background: var(--blue); color: #fff; border: 0; padding: 6px 14px; border-radius: 6px;
+    cursor: pointer; font-weight: 600; font-size: 12px;
+  }
+  .add-row-bar button:hover { background: #009ec8; }
+  .stub-msg {
+    background: #fff8e1; border: 1px solid #fbcf00; border-radius: 8px;
+    padding: 16px; margin: 16px 0; color: #6b4c00; font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <a href="hub.html" class="back-btn">← Hub</a>
+    <div>
+      <h1>📋 Master Roster</h1>
+      <div class="h-sub">Conference USA · ESPN+</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="controls">
+    <label for="schoolSel">School</label>
+    <select id="schoolSel"></select>
+    <label for="sportSel">Sport</label>
+    <select id="sportSel"></select>
+    <button id="loadBtn" class="btn-primary">📥 Load Roster</button>
+    <button id="downloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
+    <span class="status" id="status">Pick a school and sport, then click Load Roster.</span>
+  </div>
+
+  <div id="content" class="table-wrap">
+    <div class="empty">
+      <h3>No roster loaded</h3>
+      <p>Select a school and sport above and click <strong>Load Roster</strong> to pull data from the Master Roster scraper.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  /* ── Constants ── */
+  const MASTER_ROSTER_SHEET_ID = '1NpjMZH0p70pYAnZ_BkqxevJ5XoZDoeucZq4nF1cAw50';
+  const SCHOOLS = [
+    'Delaware','FIU','Jacksonville State','Kennesaw State','Liberty',
+    'Middle Tennessee','Missouri State','Sam Houston','Western Kentucky'
+  ];
+  const SPORTS = ['Football','MBB','WBB','Baseball','Softball','Soccer','Volleyball'];
+
+  /* ── Sport-specific configuration ───────────────────────────────────────
+     Each entry describes:
+       template      Path to the xlsx template (committed to repo).
+       dataStartRow  1-indexed row where player data begins in the Roster tab.
+       columns       Array describing the editable columns we render in the
+                     HTML table AND write back into the template. Each entry:
+                       { label, key, col, transform?, width? }
+                     - label: header shown in the table
+                     - key:   property name on the parsed row object
+                     - col:   1-indexed Excel column to write to in the Roster
+                     - transform: optional fn to convert source → cell value
+       fromSource   Function: (row, allRows) → object with the keys above.
+                    Receives the parsed CSV row (lowercase-keyed) and may
+                    derive values (e.g. split first/last name).
+  */
+
+  const FOOTBALL_POSITION_MAP = {
+    'quarterback': 'QB', 'wide receiver': 'WR', 'tight end': 'TE',
+    'running back': 'RB', 'fullback': 'FB', 'halfback': 'HB',
+    'offensive line': 'OL', 'offensive lineman': 'OL', 'center': 'C',
+    'offensive guard': 'OG', 'offensive tackle': 'OT',
+    'left guard': 'LG', 'left tackle': 'LT', 'right guard': 'RG', 'right tackle': 'RT',
+    'defensive line': 'DL', 'defensive lineman': 'DL', 'nose tackle': 'NT',
+    'defensive tackle': 'DT', 'defensive end': 'DE',
+    'linebacker': 'LB', 'middle linebacker': 'MLB', 'outside linebacker': 'OLB', 'inside linebacker': 'ILB',
+    'defensive back': 'DB', 'cornerback': 'CB', 'safety': 'S',
+    'free safety': 'FS', 'strong safety': 'SS',
+    'kicker': 'K', 'punter': 'P',
+    'kick returner': 'KR', 'punt returner': 'PR',
+    'long snapper': 'LS', 'holder': 'H',
+    'place kicker': 'K', 'placekicker': 'K'
+  };
+
+  const CLASS_TO_YEAR = {
+    'fr': 1, 'fr.': 1, 'freshman': 1, 'rs fr': 1, 'rs fr.': 1, 'r-fr': 1, 'r-fr.': 1,
+    'so': 2, 'so.': 2, 'sophomore': 2, 'rs so': 2, 'rs so.': 2, 'r-so': 2, 'r-so.': 2,
+    'jr': 3, 'jr.': 3, 'junior': 3, 'rs jr': 3, 'rs jr.': 3, 'r-jr': 3, 'r-jr.': 3,
+    'sr': 4, 'sr.': 4, 'senior': 4, 'rs sr': 4, 'rs sr.': 4, 'r-sr': 4, 'r-sr.': 4,
+    'gr': 5, 'gr.': 5, 'graduate': 5
+  };
+
+  function splitName(full) {
+    const t = (full || '').trim();
+    if (!t) return { first: '', last: '' };
+    const idx = t.indexOf(' ');
+    if (idx === -1) return { first: t, last: '' };
+    return { first: t.slice(0, idx), last: t.slice(idx + 1) };
+  }
+
+  function classToYear(s) {
+    const k = (s || '').trim().toLowerCase();
+    return CLASS_TO_YEAR[k] != null ? CLASS_TO_YEAR[k] : (s || '');
+  }
+
+  function trimHometown(s) {
+    // Source: "Mooresville, N.C. / Mooresville" → "Mooresville, N.C."
+    const t = (s || '').trim();
+    const slash = t.indexOf(' / ');
+    return slash >= 0 ? t.slice(0, slash).trim() : t;
+  }
+
+  function footballPosition(s) {
+    const k = (s || '').trim().toLowerCase();
+    return FOOTBALL_POSITION_MAP[k] || (s || '').trim();
+  }
+
+  /* ── Sport config ── */
+  const SPORT_CONFIG = {
+    'Football': {
+      template: 'templates/master-roster/football.xlsx',
+      dataStartRow: 3,
+      columns: [
+        { label: 'Jersey',     key: 'jersey',   col: 1,  width: 70 },
+        { label: 'Display',    key: 'display',  col: 2,  width: 70 },
+        { label: 'First Name', key: 'first',    col: 3,  width: 130 },
+        { label: 'Last Name',  key: 'last',     col: 4,  width: 140 },
+        { label: 'POS',        key: 'pos',      col: 5,  width: 70 },
+        { label: 'Height',     key: 'height',   col: 6,  width: 80 },
+        { label: 'Weight',     key: 'weight',   col: 7,  width: 70 },
+        { label: 'Hometown',   key: 'hometown', col: 8,  width: 200 },
+        { label: 'Year',       key: 'year',     col: 9,  width: 70 },
+        { label: 'Bio Fact',   key: 'bio',      col: 10, width: 220 }
+      ],
+      fromSource: (r) => {
+        const { first, last } = splitName(r['name']);
+        return {
+          jersey:   r['#'] || '',
+          display:  r['#'] || '',
+          first, last,
+          pos:      footballPosition(r['position']),
+          height:   r['height'] || '',
+          weight:   r['weight'] || '',
+          hometown: trimHometown(r['hometown']),
+          year:     classToYear(r['class']),
+          bio:      (r['previous school'] || '').trim().toUpperCase()
+        };
+      }
+    }
+    /* MBB / WBB / Baseball / Softball / Soccer / Volleyball — Phase 2.
+       Add a config block per sport here following the Football example. */
+  };
+
+  /* ── State ── */
+  let _rows = [];          // editable row objects
+  let _config = null;      // current sport config
+  let _currentSchool = '';
+  let _currentSport = '';
+
+  /* ── Init ── */
+  document.addEventListener('DOMContentLoaded', () => {
+    const schoolSel = document.getElementById('schoolSel');
+    SCHOOLS.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      schoolSel.appendChild(opt);
+    });
+    const sportSel = document.getElementById('sportSel');
+    SPORTS.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sportSel.appendChild(opt);
+    });
+    document.getElementById('loadBtn').addEventListener('click', loadRoster);
+    document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
+  });
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  /* ── Load Roster from Google Sheets gviz CSV ── */
+  async function loadRoster() {
+    const school = document.getElementById('schoolSel').value;
+    const sport = document.getElementById('sportSel').value;
+    const cfg = SPORT_CONFIG[sport];
+
+    if (!cfg) {
+      _config = null; _rows = [];
+      document.getElementById('downloadBtn').disabled = true;
+      document.getElementById('content').innerHTML = `
+        <div class="stub-msg">
+          <strong>${sport} not yet wired up.</strong><br>
+          Football is implemented as Phase 1 — the other sports plug in via the <code>SPORT_CONFIG</code> object once their column mappings are confirmed.
+        </div>`;
+      setStatus(`${sport} – not yet implemented`, 'err');
+      return;
+    }
+
+    setStatus(`Fetching ${school} ${sport}…`);
+    document.getElementById('loadBtn').disabled = true;
+
+    try {
+      const tab = `${school} ${sport}`;
+      const url = `https://docs.google.com/spreadsheets/d/${MASTER_ROSTER_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Sheet fetch failed (HTTP ${res.status}). Check that a tab named "${tab}" exists and the sheet is "Anyone with the link → Viewer".`);
+      const csvText = await res.text();
+      // Use SheetJS to parse the CSV — handles quoted fields with embedded commas.
+      const wb = XLSX.read(csvText, { type: 'string', raw: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', blankrows: false });
+      // Lowercase-key the rows so SPORT_CONFIG.fromSource can look up reliably.
+      const lower = rawRows.map(r => {
+        const out = {};
+        Object.keys(r).forEach(k => { out[String(k).trim().toLowerCase()] = r[k]; });
+        return out;
+      });
+      _rows = lower.map(cfg.fromSource);
+      _config = cfg;
+      _currentSchool = school;
+      _currentSport = sport;
+      renderTable();
+      document.getElementById('downloadBtn').disabled = !_rows.length;
+      setStatus(`Loaded ${_rows.length} player${_rows.length === 1 ? '' : 's'} for ${school} ${sport}.`, 'ok');
+    } catch (err) {
+      console.error(err);
+      document.getElementById('content').innerHTML = `<div class="empty"><h3>Failed to load roster</h3><p>${escapeHtml(err.message || String(err))}</p></div>`;
+      document.getElementById('downloadBtn').disabled = true;
+      setStatus('Load failed', 'err');
+    } finally {
+      document.getElementById('loadBtn').disabled = false;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  /* ── Render editable table ── */
+  function renderTable() {
+    const c = document.getElementById('content');
+    const cols = _config.columns;
+    const headers = cols.map(c => `<th style="min-width:${c.width || 100}px">${c.label}</th>`).join('') + '<th class="row-actions"></th>';
+    const body = _rows.map((row, idx) => `
+      <tr data-idx="${idx}">
+        ${cols.map(c => `<td><input type="text" data-key="${c.key}" value="${escapeHtml(row[c.key])}"></td>`).join('')}
+        <td class="row-actions"><button class="remove-btn" data-action="remove" title="Remove player">✕</button></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <table>
+        <thead><tr>${headers}</tr></thead>
+        <tbody>${body || `<tr><td colspan="${cols.length + 1}" class="empty">No players in this roster.</td></tr>`}</tbody>
+      </table>
+      <div class="add-row-bar">
+        <span>${_rows.length} player${_rows.length === 1 ? '' : 's'} · edit any cell to change before download</span>
+        <button id="addRowBtn">+ Add Player</button>
+      </div>
+    `;
+    // Wire input edits
+    c.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.closest('tr').dataset.idx;
+        const key = inp.dataset.key;
+        if (_rows[idx]) _rows[idx][key] = inp.value;
+      });
+    });
+    c.querySelectorAll('button[data-action="remove"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.closest('tr').dataset.idx;
+        _rows.splice(idx, 1);
+        renderTable();
+      });
+    });
+    document.getElementById('addRowBtn')?.addEventListener('click', () => {
+      const empty = {};
+      _config.columns.forEach(c => empty[c.key] = '');
+      _rows.push(empty);
+      renderTable();
+    });
+  }
+
+  /* ── Download — load template, write Roster cells, save ── */
+  async function downloadExcel() {
+    if (!_config || !_rows.length) return;
+    const btn = document.getElementById('downloadBtn');
+    btn.disabled = true; btn.textContent = '⏳ Building…';
+    try {
+      const tplRes = await fetch(_config.template, { cache: 'no-store' });
+      if (!tplRes.ok) throw new Error(`Template not found at ${_config.template}`);
+      const buf = await tplRes.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellStyles: true, cellFormula: true });
+      if (!wb.Sheets['Roster']) throw new Error('Template is missing a "Roster" sheet');
+      const ws = wb.Sheets['Roster'];
+
+      // Write each row's mapped fields into the configured columns, starting
+      // at dataStartRow. We DO NOT touch any other cells, so formulas, styles,
+      // headers, and validations in the template stay intact.
+      _rows.forEach((row, i) => {
+        const rExcel = _config.dataStartRow + i;
+        _config.columns.forEach(col => {
+          const addr = XLSX.utils.encode_cell({ r: rExcel - 1, c: col.col - 1 });
+          const v = row[col.key];
+          if (v === '' || v == null) {
+            // Clear cell so old template sample data doesn't bleed through.
+            ws[addr] = { t: 's', v: '' };
+          } else if (typeof v === 'number') {
+            ws[addr] = { t: 'n', v };
+          } else {
+            ws[addr] = { t: 's', v: String(v) };
+          }
+        });
+      });
+
+      // Bump the sheet's effective range so the new rows are visible.
+      const lastRow = _config.dataStartRow + _rows.length - 1;
+      const oldRef = ws['!ref'] || 'A1';
+      const oldRange = XLSX.utils.decode_range(oldRef);
+      if (oldRange.e.r < lastRow - 1) {
+        oldRange.e.r = Math.max(oldRange.e.r, lastRow - 1);
+        ws['!ref'] = XLSX.utils.encode_range(oldRange);
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const safeSchool = _currentSchool.replace(/[^A-Za-z0-9]+/g, '_');
+      const filename = `${safeSchool}_${_currentSport}_Roster_${today}.xlsx`;
+      XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
+      setStatus(`✓ Downloaded ${filename}`, 'ok');
+    } catch (err) {
+      console.error(err);
+      alert('Download failed: ' + (err.message || err));
+      setStatus('Download failed', 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇ Download Excel';
+    }
+  }
+</script>
+
+</body>
+</html>

@@ -255,6 +255,25 @@
       .join('/');
   }
 
+  // Volleyball: template recognizes OPP/OH/MB/S/L. Source data also uses
+  // RS (Right Side, → OPP), DS (Defensive Specialist, → L), MH (Middle
+  // Hitter, → MB), and combos like "OH/RS" or "DS/L" (take first segment).
+  const VB_POSITION_MAP = {
+    'oh': 'OH', 'outside': 'OH', 'outside hitter': 'OH', 'o': 'OH',
+    'mb': 'MB', 'middle': 'MB', 'middle blocker': 'MB', 'mh': 'MB',
+    's':  'S',  'setter': 'S',
+    'l':  'L',  'libero': 'L',
+    'opp': 'OPP', 'opposite': 'OPP', 'opposite hitter': 'OPP',
+    'rs': 'OPP', 'right side': 'OPP', 'right side hitter': 'OPP', 'rsh': 'OPP',
+    'ds': 'L',  'defensive specialist': 'L'
+  };
+  function vbPosition(s) {
+    const raw = (s || '').trim();
+    if (!raw) return '';
+    const first = raw.split(/[\/,]| or /i)[0].trim().toLowerCase();
+    return VB_POSITION_MAP[first] || raw.toUpperCase();
+  }
+
   // CBB template's row-2 hint says "Enter FR, SO, JR, or SR" — so the Year
   // column wants text abbreviations, not numbers like the football template.
   function classToYearText(s) {
@@ -381,6 +400,44 @@
   };
   SPORT_CONFIG['MBB'] = BASKETBALL_CONFIG;
   SPORT_CONFIG['WBB'] = BASKETBALL_CONFIG;
+
+  SPORT_CONFIG['Volleyball'] = {
+    template: 'templates/master-roster/volleyball.xlsx',
+    dataStartRow: 4,
+    columns: [
+      { label: 'Jersey',         key: 'jersey',   col: 1,  width: 70 },
+      { label: 'Display',        key: 'display',  col: 2,  width: 70 },
+      { label: 'First Name',     key: 'first',    col: 3,  width: 130 },
+      { label: 'Last Name',      key: 'last',     col: 4,  width: 140 },
+      { label: 'POS',            key: 'pos',      col: 5,  width: 70 },
+      { label: 'Height',         key: 'height',   col: 6,  width: 80 },
+      { label: 'Weight',         key: 'weight',   col: 7,  width: 70 },
+      { label: 'Birthday',       key: 'birthday', col: 8,  width: 100 },
+      { label: 'Hometown',       key: 'hometown', col: 9,  width: 200 },
+      { label: 'Year',           key: 'year',     col: 10, width: 70 },
+      { label: 'Major',          key: 'major',    col: 11, width: 140 },
+      { label: 'Bio Dropline',   key: 'bio',      col: 12, width: 220 },
+      { label: 'ESPN 100 Rank',  key: 'rank',     col: 13, width: 110 }
+    ],
+    fromSource: (r) => {
+      const { first, last } = splitName(r['name']);
+      const num = cleanNum(r['#']);
+      return {
+        jersey:   num,
+        display:  num,
+        first, last,
+        pos:      vbPosition(r['position']),
+        height:   r['height'] || '',
+        weight:   cleanNum(r['weight']),
+        birthday: '',
+        hometown: trimHometown(r['hometown']),
+        year:     classToYear(r['class']),  // numeric (1=FR, 2=SO, 3=JR, 4=SR)
+        major:    '',
+        bio:      (r['previous school'] || '').trim().toUpperCase(),
+        rank:     ''
+      };
+    }
+  };
 
   /* ── State ── */
   let _rows = [];          // editable row objects

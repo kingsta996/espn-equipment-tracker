@@ -240,6 +240,33 @@
     return s;
   }
 
+  // Basketball: G / F / C plus combos like G/F, F/C, Guard/Forward, etc.
+  const BASKETBALL_POSITION_MAP = {
+    'g': 'G', 'guard': 'G',
+    'f': 'F', 'forward': 'F',
+    'c': 'C', 'center': 'C'
+  };
+  function basketballPosition(s) {
+    const raw = (s || '').trim();
+    if (!raw) return '';
+    return raw.split('/')
+      .map(p => p.trim().toLowerCase())
+      .map(p => BASKETBALL_POSITION_MAP[p] || p.toUpperCase())
+      .join('/');
+  }
+
+  // CBB template's row-2 hint says "Enter FR, SO, JR, or SR" — so the Year
+  // column wants text abbreviations, not numbers like the football template.
+  function classToYearText(s) {
+    const k = (s || '').trim().toLowerCase();
+    if (/^(r[-\s]?fr|fr|freshman)/.test(k)) return 'FR';
+    if (/^(r[-\s]?so|so|sophomore)/.test(k)) return 'SO';
+    if (/^(r[-\s]?jr|jr|junior)/.test(k))    return 'JR';
+    if (/^(r[-\s]?sr|sr|senior)/.test(k))    return 'SR';
+    if (/^(gr|graduate)/.test(k))            return 'GR';
+    return (s || '').trim();
+  }
+
   /* ── Sport config ── */
   const SPORT_CONFIG = {
     'Football': {
@@ -310,8 +337,50 @@
         };
       }
     }
-    /* MBB / WBB / Baseball / Softball / Volleyball — confirm one at a time. */
+    /* Baseball / Softball / Volleyball — confirm one at a time. */
   };
+
+  // MBB and WBB share the same template + same column shape. Both registered
+  // against one config object so any future tweak only happens in one place.
+  const BASKETBALL_CONFIG = {
+    template: 'templates/master-roster/basketball.xlsx',
+    dataStartRow: 4,
+    columns: [
+      { label: 'Jersey',         key: 'jersey',   col: 1,  width: 70 },
+      { label: 'Display',        key: 'display',  col: 2,  width: 70 },
+      { label: 'First Name',     key: 'first',    col: 3,  width: 130 },
+      { label: 'Last Name',      key: 'last',     col: 4,  width: 140 },
+      { label: 'POS',            key: 'pos',      col: 5,  width: 70 },
+      { label: 'Height',         key: 'height',   col: 6,  width: 80 },
+      { label: 'Weight',         key: 'weight',   col: 7,  width: 70 },
+      { label: 'Birthday',       key: 'birthday', col: 8,  width: 100 },
+      { label: 'Hometown',       key: 'hometown', col: 9,  width: 200 },
+      { label: 'Year',           key: 'year',     col: 10, width: 70 },
+      { label: 'Major',          key: 'major',    col: 11, width: 140 },
+      { label: 'Bio Dropline',   key: 'bio',      col: 12, width: 220 },
+      { label: 'ESPN 100 Rank',  key: 'rank',     col: 13, width: 110 }
+    ],
+    fromSource: (r) => {
+      const { first, last } = splitName(r['name']);
+      const num = cleanNum(r['#']);
+      return {
+        jersey:   num,
+        display:  num,
+        first, last,
+        pos:      basketballPosition(r['position']),
+        height:   r['height'] || '',
+        weight:   cleanNum(r['weight']),
+        birthday: '',
+        hometown: trimHometown(r['hometown']),
+        year:     classToYearText(r['class']),
+        major:    '',
+        bio:      (r['previous school'] || '').trim().toUpperCase(),
+        rank:     ''
+      };
+    }
+  };
+  SPORT_CONFIG['MBB'] = BASKETBALL_CONFIG;
+  SPORT_CONFIG['WBB'] = BASKETBALL_CONFIG;
 
   /* ── State ── */
   let _rows = [];          // editable row objects

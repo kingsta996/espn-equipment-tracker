@@ -1,0 +1,221 @@
+{
+  "season": "2026-27",
+  "season_folder_id": "364937787874",
+  "video_folder_id": "379505204768",
+  "championships_folder_id": "379506549062",
+  "admin_folder_id": "379504017113",
+  "admin_subfolders": {
+    "Templates": "379507382099",
+    "Production Onboarding": "379507962313",
+    "Melt Request Log": "379507677283"
+  },
+  "production_viewers_group_id": "TBD",
+  "metadata_template_key": "cusaMelt",
+  "sports": [
+    {
+      "name": "Football",
+      "code": "FB",
+      "folder_name": "FOOTBALL",
+      "folder_id": "379505912466",
+      "uploads_folder_id": "379504475104",
+      "file_request_url": "https://conferenceusa.app.box.com/f/8e976f9d9ada48839a71f52c1ab8bb1a"
+    },
+    {
+      "name": "Men's Basketball",
+      "code": "MBB",
+      "folder_name": "MEN'S BASKETBALL",
+      "folder_id": "379507701528",
+      "uploads_folder_id": "379507491613",
+      "file_request_url": "https://conferenceusa.app.box.com/f/6e6c21faefa945d18c555bc54e22b7a9"
+    },
+    {
+      "name": "Women's Basketball",
+      "code": "WBB",
+      "folder_name": "WOMEN'S BASKETBALL",
+      "folder_id": "379508106586",
+      "uploads_folder_id": "379507633579",
+      "file_request_url": "https://conferenceusa.app.box.com/f/af51a002b21a41c29c19f3ef7241e1c1"
+    },
+    {
+      "name": "Volleyball",
+      "code": "VB",
+      "folder_name": "VOLLEYBALL",
+      "folder_id": "379505312505",
+      "uploads_folder_id": "379507725419",
+      "file_request_url": "https://conferenceusa.app.box.com/f/87de1fd1c8cc47ea92af01c975b72c26"
+    },
+    {
+      "name": "Women's Soccer",
+      "code": "WSOC",
+      "folder_name": "WOMEN'S SOCCER",
+      "folder_id": "379507185119",
+      "uploads_folder_id": "379506777415",
+      "file_request_url": "https://conferenceusa.app.box.com/f/501413a8930649c0ab788cc9fa159c3c"
+    },
+    {
+      "name": "Baseball",
+      "code": "BSB",
+      "folder_name": "BASEBALL",
+      "folder_id": "379505367606",
+      "uploads_folder_id": "379505255736",
+      "file_request_url": "https://conferenceusa.app.box.com/f/ab0de5a360504af9842bc12721b30c53"
+    },
+    {
+      "name": "Softball",
+      "code": "SB",
+      "folder_name": "SOFTBALL",
+      "folder_id": "379504825320",
+      "uploads_folder_id": "379504724956",
+      "file_request_url": "https://conferenceusa.app.box.com/f/0432f53f086d4220887559a2917eca1d"
+    }
+  ],
+  "schools": [
+    {
+      "name": "Delaware",
+      "display": "Delaware",
+      "folder_name": "DELAWARE",
+      "school_folders": {
+        "FB": "379504485012",
+        "MBB": "379504419765",
+        "WBB": "379508110875",
+        "VB": "379506609499",
+        "WSOC": "379504825345",
+        "BSB": "379507386315",
+        "SB": "379504348363"
+      }
+    },
+    {
+      "name": "FIU",
+      "display": "FIU",
+      "folder_name": "FIU",
+      "school_folders": {
+        "FB": "379507057680",
+        "MBB": "379506498366",
+        "WBB": "379504760620",
+        "VB": "379506349435",
+        "WSOC": "379507792489",
+        "BSB": "379508024498",
+        "SB": "379504494407"
+      }
+    },
+    {
+      "name": "Jacksonville State",
+      "display": "Jax State",
+      "folder_name": "JAX STATE",
+      "school_folders": {
+        "FB": "379504902229",
+        "MBB": "379508086839",
+        "WBB": "379507350315",
+        "VB": "379504509012",
+        "WSOC": "379504537368",
+        "BSB": "379508156448",
+        "SB": "379504093449"
+      }
+    },
+    {
+      "name": "Kennesaw State",
+      "display": "Kennesaw State",
+      "folder_name": "KENNESAW STATE",
+      "school_folders": {
+        "FB": "379504945663",
+        "MBB": "379504715287",
+        "WBB": "379504662816",
+        "VB": "379507480189",
+        "WSOC": "379506764412",
+        "BSB": "379504792086",
+        "SB": "379505219101"
+      }
+    },
+    {
+      "name": "Liberty",
+      "display": "Liberty",
+      "folder_name": "LIBERTY",
+      "school_folders": {
+        "FB": "379504530151",
+        "MBB": "379505615816",
+        "WBB": "379505644111",
+        "VB": "379507432759",
+        "WSOC": "379506313934",
+        "BSB": "379505774344",
+        "SB": "379505039913"
+      }
+    },
+    {
+      "name": "Middle Tennessee",
+      "display": "Middle Tennessee",
+      "folder_name": "MTSU",
+      "school_folders": {
+        "FB": "379504650849",
+        "MBB": "379507957678",
+        "WBB": "379508053892",
+        "VB": "379504748467",
+        "WSOC": "379505783254",
+        "BSB": "379507482641",
+        "SB": "379505171886"
+      }
+    },
+    {
+      "name": "Missouri State",
+      "display": "Missouri State",
+      "folder_name": "MO STATE",
+      "school_folders": {
+        "FB": "379506877254",
+        "MBB": "379507047683",
+        "WBB": "379507214254",
+        "VB": "379507163880",
+        "WSOC": "379507544413",
+        "BSB": "379504448565",
+        "SB": "379505243694"
+      }
+    },
+    {
+      "name": "New Mexico State",
+      "display": "New Mexico State",
+      "folder_name": "NM STATE",
+      "school_folders": {
+        "FB": "379505144622",
+        "MBB": "379504914276",
+        "WBB": "379504660416",
+        "VB": "379505662999",
+        "WSOC": "379505077590",
+        "BSB": "379506585205",
+        "SB": "379504616918"
+      }
+    },
+    {
+      "name": "Sam Houston",
+      "display": "Sam Houston",
+      "folder_name": "SAM HOUSTON",
+      "school_folders": {
+        "FB": "379507266206",
+        "MBB": "379504700592",
+        "WBB": "379503899612",
+        "VB": "379507976819",
+        "WSOC": "379505785654",
+        "BSB": "379506695298",
+        "SB": "379507929014"
+      }
+    },
+    {
+      "name": "Western Kentucky",
+      "display": "WKU",
+      "folder_name": "WKU",
+      "school_folders": {
+        "FB": "379503755771",
+        "MBB": "379505363433",
+        "WBB": "379506794228",
+        "VB": "379504976802",
+        "WSOC": "379506913451",
+        "BSB": "379505085009",
+        "SB": "379504835257"
+      }
+    }
+  ],
+  "_generated_at": "2026-04-30",
+  "_notes": [
+    "All folder IDs and File Request URLs populated.",
+    "Two TBD fields remain — fill in via Box admin console:",
+    "  - production_viewers_group_id: create Box group 'CUSA Melt Hub - Production Viewers'",
+    "  - cusaMelt metadata template: build out template fields per spec section 9"
+  ]
+}

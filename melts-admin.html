@@ -219,7 +219,11 @@
     <p class="desc">
       One URL per sport — generated when you create File Requests on each sport's <code>_New Uploads/</code> folder in Box.
       Save changes per row. Saved URLs are read by the public Melts page in real time, so schools see updates immediately.
+      Tip: <strong>Sync from config file</strong> pulls the 7 URLs from <code>melt_hub_config.json</code> in one click.
     </p>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button id="syncConfigBtn" style="background:var(--blue);color:#fff;border:0;padding:9px 16px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">🔄 Sync from melt_hub_config.json</button>
+    </div>
     <div class="links-grid" id="linksGrid"></div>
   </section>
 
@@ -308,6 +312,39 @@ async function initPortal() {
   setupRealtime();
   wireTabs();
   document.getElementById('markSaveBtn').addEventListener('click', saveMark);
+  document.getElementById('syncConfigBtn').addEventListener('click', syncFromConfig);
+}
+
+async function syncFromConfig() {
+  if (!_db) return;
+  if (!confirm('Pull the 7 File Request URLs from melt_hub_config.json into Supabase?\n\nAny URL you have manually overridden will be replaced with the value from the config file.')) return;
+  const btn = document.getElementById('syncConfigBtn');
+  btn.disabled = true; const oldText = btn.textContent; btn.textContent = '⏳ Syncing…';
+  try {
+    const res = await fetch('melt_hub_config.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Could not load melt_hub_config.json (HTTP ${res.status})`);
+    const cfg = await res.json();
+    if (!Array.isArray(cfg.sports)) throw new Error('Config file has no sports array');
+    const rows = cfg.sports
+      .filter(s => SPORTS.includes(s.name))
+      .map(s => ({
+        sport: s.name,
+        file_request_url: (s.file_request_url || '').trim(),
+        updated_at: new Date().toISOString(),
+        updated_by: _currentUser?.email || null
+      }));
+    if (!rows.length) throw new Error('Config file matches none of the expected sports');
+    const { error } = await _db.from('melt_config').upsert(rows, { onConflict: 'sport' });
+    if (error) throw error;
+    await loadConfig();
+    renderLinks();
+    showStatus(`Synced ${rows.length} File Request URL${rows.length === 1 ? '' : 's'} from config`, 'ok');
+    logActivity('import', 'melt_config', `Synced ${rows.length} File Request URLs from melt_hub_config.json`);
+  } catch (e) {
+    showStatus(`Sync failed: ${e.message || e}`, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = oldText;
+  }
 }
 
 /* ── Auth ── */

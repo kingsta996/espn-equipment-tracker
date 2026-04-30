@@ -496,13 +496,28 @@ function initSupabase() {
 }
 
 async function loadFileRequestURLs() {
+  // 1. JSON fallback (committed alongside this file). Provides URLs even if
+  //    the Supabase melt_config table is empty / unreachable.
+  try {
+    const res = await fetch('melt_hub_config.json', { cache: 'no-store' });
+    if (res.ok) {
+      const cfg = await res.json();
+      (cfg.sports || []).forEach(s => {
+        if (FILE_REQUEST_URLS.hasOwnProperty(s.name) && (s.file_request_url || '').trim()) {
+          FILE_REQUEST_URLS[s.name] = s.file_request_url.trim();
+        }
+      });
+    }
+  } catch (e) { console.warn('melt_hub_config.json load:', e); }
+
+  // 2. DB overrides (admin-edited values in Supabase melt_config).
   if (!_db) return;
   try {
     const { data, error } = await _db.from('melt_config').select('sport, file_request_url');
     if (error) throw error;
     (data || []).forEach(r => {
-      if (FILE_REQUEST_URLS.hasOwnProperty(r.sport)) {
-        FILE_REQUEST_URLS[r.sport] = (r.file_request_url || '').trim();
+      if (FILE_REQUEST_URLS.hasOwnProperty(r.sport) && (r.file_request_url || '').trim()) {
+        FILE_REQUEST_URLS[r.sport] = r.file_request_url.trim();
       }
     });
   } catch (e) { console.warn('melt_config load:', e); }

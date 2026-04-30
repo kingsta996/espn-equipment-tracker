@@ -184,6 +184,15 @@
     return CLASS_TO_YEAR[k] != null ? CLASS_TO_YEAR[k] : (s || '');
   }
 
+  // Sort rows by jersey number ascending. Blank or non-numeric jerseys go last.
+  function jerseyNum(v) {
+    const m = String(v ?? '').match(/-?\d+/);
+    return m ? parseInt(m[0], 10) : Number.POSITIVE_INFINITY;
+  }
+  function sortByJersey(rows) {
+    rows.sort((a, b) => jerseyNum(a.jersey) - jerseyNum(b.jersey));
+  }
+
   function trimHometown(s) {
     // Source: "Mooresville, N.C. / Mooresville" → "Mooresville, N.C."
     const t = (s || '').trim();
@@ -300,6 +309,7 @@
         return out;
       });
       _rows = lower.map(cfg.fromSource);
+      sortByJersey(_rows);
       _config = cfg;
       _currentSchool = school;
       _currentSport = sport;
@@ -376,6 +386,9 @@
       if (!wb.Sheets['Roster']) throw new Error('Template is missing a "Roster" sheet');
       const ws = wb.Sheets['Roster'];
 
+      // Sort by jersey number so the exported roster reads in numerical order.
+      sortByJersey(_rows);
+
       // Write each row's mapped fields into the configured columns, starting
       // at dataStartRow. We DO NOT touch any other cells, so formulas, styles,
       // headers, and validations in the template stay intact.
@@ -395,14 +408,31 @@
         });
       });
 
-      // Bump the sheet's effective range so the new rows are visible.
+      // Trim every column past the last data column defined in the sport's
+      // config. For Football that's J (col 10); everything from K onward —
+      // formula columns (Position lookup, Year text, Headshot path, …), the
+      // position abbreviation table in AB-AD, and any helper columns — gets
+      // stripped. This also removes the cross-sheet formulas that would
+      // otherwise produce #REF! errors after we drop the other tabs below.
+      const maxCol = Math.max(..._config.columns.map(c => c.col)); // 1-indexed
+      Object.keys(ws).forEach(key => {
+        if (key[0] === '!') return;
+        const addr = XLSX.utils.decode_cell(key);
+        if (addr.c >= maxCol) delete ws[key];
+      });
+      if (ws['!cols']) ws['!cols'] = ws['!cols'].slice(0, maxCol);
+      if (ws['!merges']) ws['!merges'] = ws['!merges'].filter(m => m.s.c < maxCol);
+
+      // Reset the sheet range to A1:<lastDataCol><lastDataRow>.
       const lastRow = _config.dataStartRow + _rows.length - 1;
-      const oldRef = ws['!ref'] || 'A1';
-      const oldRange = XLSX.utils.decode_range(oldRef);
-      if (oldRange.e.r < lastRow - 1) {
-        oldRange.e.r = Math.max(oldRange.e.r, lastRow - 1);
-        ws['!ref'] = XLSX.utils.encode_range(oldRange);
-      }
+      ws['!ref'] = XLSX.utils.encode_range({
+        s: { r: 0, c: 0 },
+        e: { r: lastRow - 1, c: maxCol - 1 }
+      });
+
+      // Drop every other sheet — the export is a single Roster tab.
+      wb.SheetNames = ['Roster'];
+      wb.Sheets = { 'Roster': ws };
 
       const today = new Date().toISOString().split('T')[0];
       const safeSchool = _currentSchool.replace(/[^A-Za-z0-9]+/g, '_');

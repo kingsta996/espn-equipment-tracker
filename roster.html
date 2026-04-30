@@ -124,10 +124,19 @@
 <script>
   /* ── Constants ── */
   const MASTER_ROSTER_SHEET_ID = '1NpjMZH0p70pYAnZ_BkqxevJ5XoZDoeucZq4nF1cAw50';
+  // The Master Roster sheet has one data tab; School + Sport columns identify
+  // each row. We fetch the whole tab once per Load Roster click and filter
+  // client-side. Cheap (~3500 rows total) and avoids depending on whoever
+  // last touched the dropdowns inside the Google Sheet.
+  const MASTER_ROSTER_TAB = 'Master Roster';
   const SCHOOLS = [
     'Delaware','FIU','Jacksonville State','Kennesaw State','Liberty',
     'Middle Tennessee','Missouri State','Sam Houston','Western Kentucky'
   ];
+  // Map UI school name → exact value in the Master Roster sheet's School column.
+  const SCHOOL_TO_DATA_NAME = {
+    'Western Kentucky': 'WKU'
+  };
   const SPORTS = ['Football','MBB','WBB','Baseball','Softball','Soccer','Volleyball'];
 
   /* ── Sport-specific configuration ───────────────────────────────────────
@@ -205,6 +214,32 @@
     return FOOTBALL_POSITION_MAP[k] || (s || '').trim();
   }
 
+  // Soccer source is messy (D/Defender/DF/Defense/MD all mean Defender;
+  // combos like "Midfield/Forward" or "MF/D" appear too). Collapse to one
+  // of GK/D/M/F. Combos: take the first segment.
+  const SOCCER_POSITION_MAP = {
+    'gk': 'GK', 'goalkeeper': 'GK', 'goal keeper': 'GK', 'keeper': 'GK', 'g': 'GK',
+    'd': 'D', 'df': 'D', 'def': 'D', 'defender': 'D', 'defense': 'D', 'md': 'D', 'back': 'D',
+    'm': 'M', 'mf': 'M', 'mid': 'M', 'midfield': 'M', 'midfielder': 'M',
+    'f': 'F', 'fw': 'F', 'fwd': 'F', 'forward': 'F', 'striker': 'F', 'attacker': 'F'
+  };
+  function soccerPosition(s) {
+    const raw = (s || '').trim();
+    if (!raw) return '';
+    // Combos with /, comma, or " or " — take first segment.
+    const first = raw.split(/[\/,]| or /i)[0].trim().toLowerCase();
+    return SOCCER_POSITION_MAP[first] || raw.toUpperCase();
+  }
+
+  // The Master Roster tab returns numeric jersey numbers as floats ('1.0',
+  // '27.0'). Strip the trailing '.0' so the cell looks like a jersey number.
+  function cleanNum(v) {
+    if (v == null || v === '') return '';
+    const s = String(v).trim();
+    if (/^-?\d+\.0+$/.test(s)) return s.replace(/\.0+$/, '');
+    return s;
+  }
+
   /* ── Sport config ── */
   const SPORT_CONFIG = {
     'Football': {
@@ -224,21 +259,58 @@
       ],
       fromSource: (r) => {
         const { first, last } = splitName(r['name']);
+        const num = cleanNum(r['#']);
         return {
-          jersey:   r['#'] || '',
-          display:  r['#'] || '',
+          jersey:   num,
+          display:  num,
           first, last,
           pos:      footballPosition(r['position']),
           height:   r['height'] || '',
-          weight:   r['weight'] || '',
+          weight:   cleanNum(r['weight']),
           hometown: trimHometown(r['hometown']),
           year:     classToYear(r['class']),
           bio:      (r['previous school'] || '').trim().toUpperCase()
         };
       }
+    },
+    'Soccer': {
+      template: 'templates/master-roster/soccer.xlsx',
+      dataStartRow: 4, // Soccer template puts column headers on row 3, data starts row 4
+      columns: [
+        { label: 'Jersey',       key: 'jersey',   col: 1,  width: 70 },
+        { label: 'Display',      key: 'display',  col: 2,  width: 70 },
+        { label: 'First Name',   key: 'first',    col: 3,  width: 130 },
+        { label: 'Last Name',    key: 'last',     col: 4,  width: 140 },
+        { label: 'POS',          key: 'pos',      col: 5,  width: 70 },
+        { label: 'Height',       key: 'height',   col: 6,  width: 80 },
+        { label: 'Weight',       key: 'weight',   col: 7,  width: 70 },
+        { label: 'Birthday',     key: 'birthday', col: 8,  width: 100 },
+        { label: 'Hometown',     key: 'hometown', col: 9,  width: 200 },
+        { label: 'Year',         key: 'year',     col: 10, width: 70 },
+        { label: 'Major',        key: 'major',    col: 11, width: 140 },
+        { label: 'Bio Dropline', key: 'bio',      col: 12, width: 220 },
+        { label: 'Goals',        key: 'goals',    col: 13, width: 80 }
+      ],
+      fromSource: (r) => {
+        const { first, last } = splitName(r['name']);
+        const num = cleanNum(r['#']);
+        return {
+          jersey:   num,
+          display:  num,
+          first, last,
+          pos:      soccerPosition(r['position']),
+          height:   r['height'] || '',
+          weight:   cleanNum(r['weight']),
+          birthday: '',
+          hometown: trimHometown(r['hometown']),
+          year:     classToYear(r['class']),
+          major:    '',
+          bio:      (r['previous school'] || '').trim().toUpperCase(),
+          goals:    ''
+        };
+      }
     }
-    /* MBB / WBB / Baseball / Softball / Soccer / Volleyball — Phase 2.
-       Add a config block per sport here following the Football example. */
+    /* MBB / WBB / Baseball / Softball / Volleyball — confirm one at a time. */
   };
 
   /* ── State ── */
@@ -293,12 +365,10 @@
     document.getElementById('loadBtn').disabled = true;
 
     try {
-      const tab = `${school} ${sport}`;
-      const url = `https://docs.google.com/spreadsheets/d/${MASTER_ROSTER_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+      const url = `https://docs.google.com/spreadsheets/d/${MASTER_ROSTER_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(MASTER_ROSTER_TAB)}`;
       const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`Sheet fetch failed (HTTP ${res.status}). Check that a tab named "${tab}" exists and the sheet is "Anyone with the link → Viewer".`);
+      if (!res.ok) throw new Error(`Sheet fetch failed (HTTP ${res.status}). Make sure the Master Roster sheet is "Anyone with the link → Viewer" and has a tab named "${MASTER_ROSTER_TAB}".`);
       const csvText = await res.text();
-      // Use SheetJS to parse the CSV — handles quoted fields with embedded commas.
       const wb = XLSX.read(csvText, { type: 'string', raw: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', blankrows: false });
@@ -308,7 +378,17 @@
         Object.keys(r).forEach(k => { out[String(k).trim().toLowerCase()] = r[k]; });
         return out;
       });
-      _rows = lower.map(cfg.fromSource);
+      // Filter to the selected school + sport. Map UI school name to the
+      // exact value used in the Master Roster sheet's School column.
+      const dataSchool = SCHOOL_TO_DATA_NAME[school] || school;
+      const filtered = lower.filter(r =>
+        String(r['school'] || '').trim() === dataSchool &&
+        String(r['sport']  || '').trim() === sport
+      );
+      if (!filtered.length) {
+        throw new Error(`No rows found for ${school} ${sport} in the Master Roster (looking for School="${dataSchool}", Sport="${sport}").`);
+      }
+      _rows = filtered.map(cfg.fromSource);
       sortByJersey(_rows);
       _config = cfg;
       _currentSchool = school;

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Broadcast Melts — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A; --gray: #BFCED6; --white: #FFFFFF;
+    --red: #E40046; --blue: #00B5E2; --green: #A7D500;
+    --espn-red: #EF4035; --light: #f4f6f8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--light); font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; min-height: 100vh; color: #222; }
+
+  .header {
+    background: var(--navy); padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .hdr-fallback { color: var(--white); font-weight: 900; letter-spacing: -0.5px; font-size: 18px; }
+  .header .who { color: var(--gray); font-size: 11px; }
+  .header .signout {
+    background: rgba(239,64,53,0.85); color: #fff !important; padding: 4px 12px;
+    border-radius: 5px; font-weight: 700; font-size: 11px; cursor: pointer; border: 0;
+    font-family: inherit;
+  }
+  .header .signout:hover { background: var(--espn-red); }
+
+  /* Login modal */
+  .pw-overlay { display:none; position:fixed; inset:0; background:rgba(0,38,58,0.7); z-index:200; align-items:center; justify-content:center; padding:20px; }
+  .pw-overlay.open { display:flex; }
+  .pw-box { background:#fff; border-radius:12px; padding:32px; max-width:360px; width:100%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+  .pw-box h2 { font-size:18px; color:var(--navy); margin-bottom:6px; }
+  .pw-box p { font-size:12px; color:#666; margin-bottom:20px; }
+  .pw-input { width:100%; padding:10px 14px; border:2px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; margin-bottom:12px; }
+  .pw-input:focus { outline:none; border-color:var(--blue); }
+  .pw-err { color:var(--espn-red); font-size:12px; margin-bottom:10px; display:none; }
+  .pw-actions { display:flex; gap:8px; justify-content:center; }
+
+  .tab-bar {
+    background: #fff; padding: 0 20px; border-bottom: 1px solid #ddd;
+    display: flex; gap: 4px; overflow-x: auto;
+  }
+  .tab-bar button {
+    background: transparent; border: 0; padding: 12px 18px;
+    font-size: 13px; font-weight: 600; color: #666; cursor: pointer;
+    border-bottom: 3px solid transparent; font-family: inherit;
+    margin-bottom: -1px; white-space: nowrap;
+  }
+  .tab-bar button:hover { color: var(--navy); }
+  .tab-bar button.active { color: var(--espn-red); border-bottom-color: var(--espn-red); }
+
+  main { max-width: 1300px; margin: 0 auto; padding: 22px; }
+  section.tab-content { display: none; }
+  section.tab-content.active { display: block; }
+  section.tab-content {
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06); padding: 22px; margin-bottom: 20px;
+  }
+  h2 { color: var(--navy); font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .desc { color: #666; font-size: 12px; margin-bottom: 18px; line-height: 1.55; }
+  .desc code { background: #f0f3f6; padding: 1px 6px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 11px; color: var(--navy); }
+
+  /* Box Links table */
+  .links-grid { display: grid; gap: 10px; }
+  .link-row {
+    display: grid; grid-template-columns: 200px 1fr auto; gap: 10px;
+    align-items: center; padding: 10px;
+    border: 1px solid #e5e7eb; border-radius: 8px;
+  }
+  .link-row .sport { font-weight: 700; color: var(--navy); font-size: 13px; }
+  .link-row input {
+    padding: 8px 10px; border: 1px solid var(--gray); border-radius: 6px;
+    font-size: 12px; font-family: 'Courier New', monospace;
+  }
+  .link-row input:focus { outline: none; border-color: var(--blue); }
+  .link-row .save-btn {
+    background: var(--navy); color: #fff; border: 0;
+    padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 11px;
+    cursor: pointer; font-family: inherit;
+  }
+  .link-row .save-btn:hover { background: #001f30; }
+  .link-row .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .link-row.changed { background: #fff8e1; border-color: #fbcf00; }
+  .link-row.live { border-left: 4px solid var(--green); }
+  .link-row.tbd  { border-left: 4px solid #fbcf00; }
+
+  /* Tracker table */
+  .tracker-meta { color:#555; font-size:12px; margin-bottom: 12px; }
+  table.tracker { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.tracker thead { background: var(--navy); color: #fff; }
+  table.tracker th { padding: 8px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
+  table.tracker td { padding: 8px; border-bottom: 1px solid #eef0f2; }
+  table.tracker tr:nth-child(even) td { background: #fafbfc; }
+  table.tracker tr.uploaded td { background: rgba(167,213,0,0.08); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .pill.uploaded { background: rgba(167,213,0,0.25); color: #4d6300; }
+  .pill.pending  { background: #fef3c7; color: #92400e; }
+  .filename {
+    font-family: 'Courier New', monospace; font-size: 11px;
+    color: #444; word-break: break-all;
+  }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .btn-small {
+    padding: 5px 10px; font-size: 11px; font-weight: 600;
+    border: 0; border-radius: 5px; cursor: pointer; font-family: inherit;
+  }
+  .btn-mark { background: var(--green); color: var(--navy); }
+  .btn-mark:hover { background: #95c200; }
+  .btn-edit { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+  .btn-edit:hover { background: #f4f6f8; }
+  .btn-unmark { background: #fff; color: #c00; border: 1px solid #f5b5b5; }
+  .btn-unmark:hover { background: #fff5f5; }
+
+  .empty-state { padding: 60px 20px; text-align: center; color: #888; font-size: 13px; }
+  .status-bar {
+    position: fixed; bottom: 20px; right: 20px; background: var(--navy);
+    color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: none; z-index: 100;
+  }
+  .status-bar.show { display: block; }
+  .status-bar.ok { background: #166534; }
+  .status-bar.err { background: #991b1b; }
+
+  /* Mark-uploaded modal */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,38,58,0.55); z-index:150; align-items:center; justify-content:center; padding:20px; }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:#fff; border-radius:12px; padding:24px;
+    max-width:560px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.25);
+  }
+  .modal h3 { color: var(--navy); font-size: 15px; margin-bottom: 12px; }
+  .modal .field { margin-bottom: 14px; }
+  .modal label { display:block; font-weight: 700; font-size: 11px; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .modal input, .modal textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--gray); border-radius: 6px;
+    font-size: 13px; font-family: inherit;
+  }
+  .modal input.code, .modal textarea.code { font-family: 'Courier New', monospace; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .modal .btn { padding: 8px 16px; border-radius: 6px; border: 0; font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .modal .btn-cancel { background: #eee; color: #555; }
+  .modal .btn-save { background: var(--green); color: var(--navy); }
+  .modal .btn-save:hover { background: #95c200; }
+</style>
+</head>
+<body>
+
+<!-- Login modal -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>🔒 Melts Admin Portal</h2>
+    <p>Sign in with your admin email and password</p>
+    <input class="pw-input" id="pwEmail" type="email" placeholder="you@example.com" autocomplete="email">
+    <input class="pw-input" id="pwInput" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr">Incorrect email or password.</div>
+    <div class="pw-actions">
+      <button onclick="window.location.href='melts.html'" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="submitPw()" style="background:var(--espn-red);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mark-uploaded modal -->
+<div class="modal-overlay" id="markOverlay">
+  <div class="modal">
+    <h3 id="markTitle">Mark melt as uploaded</h3>
+    <div class="field">
+      <label>Event</label>
+      <div id="markEvent" style="font-size:13px;color:#444"></div>
+    </div>
+    <div class="field">
+      <label for="markFilename">Canonical filename (edit if needed)</label>
+      <input type="text" id="markFilename" class="code">
+      <div style="font-size:10px;color:#888;margin-top:4px">Generated from event date + matchup. Adjust for series game (G1/G2/G3) or doubleheader (DH1/DH2) if applicable.</div>
+    </div>
+    <div class="field">
+      <label for="markNotes">Notes (optional)</label>
+      <input type="text" id="markNotes" placeholder="e.g. Network broadcast, doubleheader Game 2">
+    </div>
+    <div class="actions">
+      <button class="btn btn-cancel" onclick="closeMarkModal()">Cancel</button>
+      <button class="btn btn-save" id="markSaveBtn">Mark Uploaded</button>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>🎬 Broadcast Melts — Admin</h1>
+  <span class="who" id="currentUser"></span>
+  <a href="melts.html">View Public</a>
+  <button class="signout" onclick="signOut()">Sign Out</button>
+</div>
+
+<div class="tab-bar">
+  <button class="active" data-tab="links">🔗 Box Links</button>
+  <button data-tab="fall">🍂 Fall Tracker</button>
+  <button data-tab="winter">❄️ Winter Tracker</button>
+  <button data-tab="spring">🌸 Spring Tracker</button>
+</div>
+
+<main>
+  <section class="tab-content active" id="links">
+    <h2>File Request URLs</h2>
+    <p class="desc">
+      One URL per sport — generated when you create File Requests on each sport's <code>_New Uploads/</code> folder in Box.
+      Save changes per row. Saved URLs are read by the public Melts page in real time, so schools see updates immediately.
+    </p>
+    <div class="links-grid" id="linksGrid"></div>
+  </section>
+
+  <section class="tab-content" id="fall">
+    <h2>🍂 Fall Tracker — Football, Volleyball, Women's Soccer</h2>
+    <p class="desc">Pulls from the ESPN schedule submission events in this athletic year. Mark each event as uploaded once the melt is in Box. The public Melts page shows the same list with live status.</p>
+    <div class="tracker-meta" id="fallMeta"></div>
+    <div id="fallTracker"><div class="empty-state">Loading…</div></div>
+  </section>
+
+  <section class="tab-content" id="winter">
+    <h2>❄️ Winter Tracker — Men's & Women's Basketball</h2>
+    <p class="desc">Pulls from the ESPN schedule submission events in this athletic year. Mark each event as uploaded once the melt is in Box.</p>
+    <div class="tracker-meta" id="winterMeta"></div>
+    <div id="winterTracker"><div class="empty-state">Loading…</div></div>
+  </section>
+
+  <section class="tab-content" id="spring">
+    <h2>🌸 Spring Tracker — Baseball, Softball</h2>
+    <p class="desc">Pulls from the ESPN schedule submission events in this athletic year. Mark each event as uploaded once the melt is in Box. For series games, edit the auto-generated filename to add G1/G2/G3.</p>
+    <div class="tracker-meta" id="springMeta"></div>
+    <div id="springTracker"><div class="empty-state">Loading…</div></div>
+  </section>
+</main>
+
+<div class="status-bar" id="statusBar"></div>
+
+<script>
+/* ── Constants ── */
+const SPORTS = ['Football',"Men's Basketball","Women's Basketball",'Volleyball',"Women's Soccer",'Baseball','Softball'];
+const SPORT_SEASON = {
+  'Football': 'Fall', 'Soccer': 'Fall', "Men's Soccer": 'Fall', "Women's Soccer": 'Fall', 'Volleyball': 'Fall',
+  "Men's Basketball": 'Winter', "Women's Basketball": 'Winter', "Women’s Basketball": 'Winter',
+  'Baseball': 'Spring', 'Softball': 'Spring'
+};
+// Map various forms of school names to the canonical melt-filename display name
+const MELT_NAME_MAP = {
+  'jacksonville state':'Jax State', 'jsu':'Jax State', 'jax state':'Jax State', 'jacksonville st.':'Jax State',
+  'western kentucky':'WKU', 'wku':'WKU',
+  'florida international':'FIU', 'fiu':'FIU',
+  'middle tennessee':'Middle Tennessee', 'mtsu':'Middle Tennessee', 'middle tenn':'Middle Tennessee',
+  'missouri state':'Missouri State', 'mo state':'Missouri State', 'missouri st.':'Missouri State',
+  'new mexico state':'New Mexico State', 'nm state':'New Mexico State', 'nmsu':'New Mexico State',
+  'sam houston':'Sam Houston', 'sam houston state':'Sam Houston', 'shsu':'Sam Houston',
+  'kennesaw state':'Kennesaw State', 'ksu':'Kennesaw State',
+  'liberty':'Liberty', 'delaware':'Delaware'
+};
+
+// Legacy fallback hash for the old shared admin password (mirrors admin.html).
+const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+const UNLOCK_KEY = 'cusa_melts_admin_unlocked';
+const CURRENT_USER_KEY = 'cusa_melts_admin_user';
+
+let _db = null;
+let _currentUser = null;
+let _adminUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true';
+let _config = {};        // sport → { file_request_url, ... }
+let _events = [];        // schedule_events for active year
+let _uploads = new Map(); // schedule_event_id → melt_uploads row
+let _athleticYear = '2026-27';
+let _markEventId = null;
+
+/* ── Init ── */
+document.addEventListener('DOMContentLoaded', async () => {
+  initSupabase();
+  loadCurrentUser();
+  if (!_adminUnlocked) {
+    openPwModal();
+    return;
+  }
+  await initPortal();
+});
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+async function initPortal() {
+  await Promise.all([loadSettings(), loadConfig(), loadUploads(), loadEvents()]);
+  renderLinks();
+  renderTracker('fall');
+  renderTracker('winter');
+  renderTracker('spring');
+  setupRealtime();
+  wireTabs();
+  document.getElementById('markSaveBtn').addEventListener('click', saveMark);
+}
+
+/* ── Auth ── */
+function openPwModal() {
+  document.getElementById('pwOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('pwEmail').focus(), 80);
+}
+function closePwModal() { document.getElementById('pwOverlay').classList.remove('open'); }
+
+async function hashPw(s) {
+  const buf = new TextEncoder().encode(s);
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function submitPw() {
+  const email = (document.getElementById('pwEmail').value || '').trim().toLowerCase();
+  const pw = document.getElementById('pwInput').value;
+  const errEl = document.getElementById('pwErr');
+  if (!email || !pw) { errEl.textContent = 'Email and password are required.'; errEl.style.display = 'block'; return; }
+  const h = await hashPw(pw);
+  let user = null;
+  if (_db) {
+    try {
+      const { data } = await _db.from('admin_users').select('email, pw_hash, display_name, is_active').eq('email', email).maybeSingle();
+      if (data && data.is_active && data.pw_hash === h) user = { email: data.email, display_name: data.display_name || data.email };
+    } catch (e) { console.warn('admin_users lookup failed:', e); }
+  }
+  if (!user && h === VW_PW_HASH) user = { email: email || 'legacy-admin', display_name: 'Legacy Admin' };
+  if (!user) { errEl.textContent = 'Incorrect email or password.'; errEl.style.display = 'block'; return; }
+  _currentUser = user;
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  _adminUnlocked = true;
+  localStorage.setItem(UNLOCK_KEY, 'true');
+  closePwModal();
+  await initPortal();
+  logActivity('login', null, 'Signed in to Melts admin');
+}
+
+function loadCurrentUser() {
+  try { _currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); }
+  catch { _currentUser = null; }
+  const el = document.getElementById('currentUser');
+  if (el) el.textContent = _currentUser ? `Signed in as ${_currentUser.display_name || _currentUser.email}` : '';
+}
+
+function signOut() {
+  if (_currentUser) logActivity('sign-out', null, 'Signed out of Melts admin');
+  localStorage.removeItem(UNLOCK_KEY);
+  localStorage.removeItem(CURRENT_USER_KEY);
+  window.location.href = 'melts.html';
+}
+
+function logActivity(action, target, details) {
+  if (!_db) return;
+  const u = _currentUser || {};
+  _db.from('admin_activity_log').insert({
+    email: u.email || 'unknown',
+    display_name: u.display_name || null,
+    app: 'melts',
+    action,
+    target: target || null,
+    details: details || null
+  }).then(({error}) => { if (error) console.warn('logActivity failed:', error); });
+}
+
+/* ── Data loading ── */
+async function loadSettings() {
+  if (!_db) return;
+  try {
+    const { data } = await _db.from('schedule_settings').select('active_year').eq('id','singleton').maybeSingle();
+    if (data?.active_year) _athleticYear = data.active_year;
+  } catch(e) { console.warn('settings load:', e); }
+}
+
+async function loadConfig() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('melt_config').select('*');
+    if (error) throw error;
+    _config = {};
+    (data || []).forEach(r => { _config[r.sport] = r; });
+  } catch (e) {
+    console.warn('melt_config load:', e);
+    if (/melt_config|schema cache/i.test(e.message || '')) {
+      showStatus('melt_config table missing — run the SQL migration', 'err');
+    }
+  }
+}
+
+async function loadUploads() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('melt_uploads').select('*');
+    if (error) throw error;
+    _uploads = new Map((data || []).map(u => [u.schedule_event_id, u]));
+  } catch (e) {
+    console.warn('melt_uploads load:', e);
+    if (/melt_uploads|schema cache/i.test(e.message || '')) {
+      showStatus('melt_uploads table missing — run the SQL migration', 'err');
+    }
+  }
+}
+
+async function loadEvents() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('schedule_events')
+      .select('*').eq('athletic_year', _athleticYear).eq('archived', false)
+      .order('event_date', { ascending: true });
+    if (error) throw error;
+    _events = data || [];
+  } catch (e) { console.warn('schedule_events load:', e); _events = []; }
+}
+
+function setupRealtime() {
+  if (!_db) return;
+  _db.channel('melts-admin-config')
+    .on('postgres_changes', { event:'*', schema:'public', table:'melt_config' }, async () => {
+      await loadConfig(); renderLinks();
+    }).subscribe();
+  _db.channel('melts-admin-uploads')
+    .on('postgres_changes', { event:'*', schema:'public', table:'melt_uploads' }, async () => {
+      await loadUploads(); renderTracker('fall'); renderTracker('winter'); renderTracker('spring');
+    }).subscribe();
+  _db.channel('melts-admin-events')
+    .on('postgres_changes', { event:'*', schema:'public', table:'schedule_events' }, async () => {
+      await loadEvents(); renderTracker('fall'); renderTracker('winter'); renderTracker('spring');
+    }).subscribe();
+}
+
+/* ── Tabs ── */
+function wireTabs() {
+  document.querySelectorAll('.tab-bar button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b === btn));
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('section.tab-content').forEach(s => s.classList.toggle('active', s.id === tab));
+    });
+  });
+}
+
+/* ── Box Links tab ── */
+function renderLinks() {
+  const grid = document.getElementById('linksGrid');
+  grid.innerHTML = SPORTS.map(s => {
+    const cfg = _config[s] || {};
+    const live = !!(cfg.file_request_url || '').trim();
+    return `
+      <div class="link-row ${live ? 'live' : 'tbd'}" data-sport="${escapeAttr(s)}">
+        <div class="sport">${s}</div>
+        <input type="url" placeholder="https://app.box.com/f/…" value="${escapeAttr(cfg.file_request_url || '')}">
+        <button class="save-btn" data-action="save">Save</button>
+      </div>`;
+  }).join('');
+  grid.querySelectorAll('.link-row').forEach(row => {
+    const sport = row.dataset.sport;
+    const input = row.querySelector('input');
+    const orig = input.value;
+    input.addEventListener('input', () => {
+      row.classList.toggle('changed', input.value !== orig);
+    });
+    row.querySelector('button[data-action="save"]').addEventListener('click', () => saveLink(sport, input.value, row));
+  });
+}
+
+async function saveLink(sport, url, row) {
+  if (!_db) return;
+  const btn = row.querySelector('.save-btn');
+  btn.disabled = true; const oldText = btn.textContent; btn.textContent = '⏳';
+  try {
+    const { error } = await _db.from('melt_config').upsert({
+      sport, file_request_url: (url || '').trim(),
+      updated_at: new Date().toISOString(),
+      updated_by: _currentUser?.email || null
+    }, { onConflict: 'sport' });
+    if (error) throw error;
+    btn.textContent = '✓ Saved';
+    row.classList.remove('changed');
+    row.classList.toggle('live', !!url.trim());
+    row.classList.toggle('tbd', !url.trim());
+    await loadConfig();
+    setTimeout(() => { btn.textContent = oldText; btn.disabled = false; }, 1500);
+    showStatus(`Saved File Request URL for ${sport}`, 'ok');
+    logActivity('edit', `melt_config:${sport}`, `Updated File Request URL for ${sport}`);
+  } catch (e) {
+    btn.textContent = oldText; btn.disabled = false;
+    showStatus(`Save failed: ${e.message || e}`, 'err');
+  }
+}
+
+/* ── Tracker rendering ── */
+function meltSchoolName(s) {
+  const k = (s || '').trim().toLowerCase();
+  return MELT_NAME_MAP[k] || (s || '').trim();
+}
+
+function buildMeltFilename(event, ext = 'mp4') {
+  if (!event.event_date) return '';
+  const home = meltSchoolName(event.home);
+  const away = meltSchoolName(event.away);
+  if (!home || !away) return '';
+  return `${event.event_date} ${home} vs ${away} - MELT.${ext}`;
+}
+
+function eventsForSeason(season) {
+  return _events.filter(e => {
+    const sn = (SPORT_SEASON[e.sport] || e.season || '').toLowerCase();
+    return sn === season.toLowerCase();
+  });
+}
+
+function renderTracker(season) {
+  const container = document.getElementById(`${season}Tracker`);
+  const meta = document.getElementById(`${season}Meta`);
+  const events = eventsForSeason(season);
+  const uploaded = events.filter(e => _uploads.has(e.id)).length;
+  const total = events.length;
+  meta.textContent = `${_athleticYear} · ${total} event${total === 1 ? '' : 's'} · ${uploaded}/${total} marked uploaded`;
+
+  if (!total) {
+    container.innerHTML = `<div class="empty-state">No ${season} events in the schedule for ${_athleticYear} yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <table class="tracker">
+      <thead><tr>
+        <th style="width:90px">Date</th>
+        <th style="width:130px">Sport</th>
+        <th>School / Matchup</th>
+        <th style="width:80px">Status</th>
+        <th>Filename / Notes</th>
+        <th style="width:200px"></th>
+      </tr></thead>
+      <tbody>
+        ${events.map(e => renderTrackerRow(e)).join('')}
+      </tbody>
+    </table>
+  `;
+  container.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.eventId;
+      const action = btn.dataset.action;
+      if (action === 'mark' || action === 'edit') openMarkModal(id);
+      else if (action === 'unmark') unmarkUpload(id);
+    });
+  });
+}
+
+function renderTrackerRow(e) {
+  const u = _uploads.get(e.id);
+  const isUp = !!u;
+  const matchup = `${e.away || '?'} @ ${e.home || '?'}`;
+  return `
+    <tr class="${isUp ? 'uploaded' : ''}">
+      <td>${escapeHtml(e.event_date || '—')}</td>
+      <td>${escapeHtml(e.sport || '—')}</td>
+      <td><strong>${escapeHtml(e.school || '—')}</strong> · ${escapeHtml(matchup)}</td>
+      <td>${isUp ? '<span class="pill uploaded">✓ Uploaded</span>' : '<span class="pill pending">⚠ Pending</span>'}</td>
+      <td class="filename">
+        ${isUp ? escapeHtml(u.filename || '—') : escapeHtml(buildMeltFilename(e))}
+        ${isUp && u.notes ? `<div style="color:#888;font-size:10px;margin-top:3px">${escapeHtml(u.notes)}</div>` : ''}
+      </td>
+      <td class="row-actions">
+        ${isUp
+          ? `<button class="btn-small btn-edit" data-action="edit" data-event-id="${e.id}">Edit</button>
+             <button class="btn-small btn-unmark" data-action="unmark" data-event-id="${e.id}">Unmark</button>`
+          : `<button class="btn-small btn-mark" data-action="mark" data-event-id="${e.id}">Mark Uploaded</button>`}
+      </td>
+    </tr>`;
+}
+
+/* ── Mark modal ── */
+function openMarkModal(eventId) {
+  const e = _events.find(x => x.id === eventId);
+  if (!e) return;
+  _markEventId = eventId;
+  const u = _uploads.get(eventId);
+  document.getElementById('markTitle').textContent = u ? 'Edit melt upload record' : 'Mark melt as uploaded';
+  document.getElementById('markEvent').innerHTML = `
+    <strong>${escapeHtml(e.school || '')}</strong> · ${escapeHtml(e.sport || '')}<br>
+    ${escapeHtml(e.event_date || '')} · ${escapeHtml(e.away || '?')} @ ${escapeHtml(e.home || '?')}
+  `;
+  document.getElementById('markFilename').value = u?.filename || buildMeltFilename(e);
+  document.getElementById('markNotes').value = u?.notes || '';
+  document.getElementById('markOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('markFilename').focus(), 80);
+}
+function closeMarkModal() {
+  document.getElementById('markOverlay').classList.remove('open');
+  _markEventId = null;
+}
+
+async function saveMark() {
+  if (!_markEventId || !_db) return;
+  const filename = document.getElementById('markFilename').value.trim();
+  const notes = document.getElementById('markNotes').value.trim();
+  const event = _events.find(x => x.id === _markEventId);
+  try {
+    const { error } = await _db.from('melt_uploads').upsert({
+      schedule_event_id: _markEventId,
+      filename,
+      notes: notes || null,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: _currentUser?.email || null
+    }, { onConflict: 'schedule_event_id' });
+    if (error) throw error;
+    closeMarkModal();
+    await loadUploads();
+    renderTracker('fall'); renderTracker('winter'); renderTracker('spring');
+    showStatus(`Marked uploaded: ${filename}`, 'ok');
+    logActivity('add', `melt:${_markEventId}`, `Marked uploaded — ${event?.school} ${event?.sport} ${event?.event_date}`);
+  } catch (e) {
+    showStatus(`Save failed: ${e.message || e}`, 'err');
+  }
+}
+
+async function unmarkUpload(eventId) {
+  if (!confirm('Remove this melt-uploaded mark? The file in Box is not affected — only the tracker entry.')) return;
+  const event = _events.find(x => x.id === eventId);
+  try {
+    const { error } = await _db.from('melt_uploads').delete().eq('schedule_event_id', eventId);
+    if (error) throw error;
+    await loadUploads();
+    renderTracker('fall'); renderTracker('winter'); renderTracker('spring');
+    showStatus('Unmarked', 'ok');
+    logActivity('delete', `melt:${eventId}`, `Unmarked — ${event?.school} ${event?.sport} ${event?.event_date}`);
+  } catch (e) {
+    showStatus(`Failed: ${e.message || e}`, 'err');
+  }
+}
+
+/* ── Helpers ── */
+function showStatus(msg, kind) {
+  const bar = document.getElementById('statusBar');
+  bar.textContent = msg;
+  bar.className = 'status-bar show ' + (kind || '');
+  setTimeout(() => bar.classList.remove('show'), 3000);
+}
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function escapeAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+</script>
+</body>
+</html>

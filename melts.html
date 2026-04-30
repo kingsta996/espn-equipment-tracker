@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CUSA Broadcast Melts</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <style>
   :root {
     --navy: #00263A;
@@ -200,6 +202,31 @@
     font-family: 'Courier New', monospace; font-size: 11px;
     color: #444; padding: 2px 0;
   }
+
+  /* Public tracker */
+  .period-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+  .period-tabs button {
+    background: transparent; border: 0; padding: 10px 16px;
+    font-size: 12px; font-weight: 600; color: #666; cursor: pointer;
+    border-bottom: 3px solid transparent; font-family: inherit; margin-bottom: -1px;
+  }
+  .period-tabs button:hover { color: var(--navy); }
+  .period-tabs button.active { color: var(--espn-red); border-bottom-color: var(--espn-red); }
+  .tracker-meta { color:#555; font-size:12px; margin-bottom:10px; }
+  .tracker-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tracker-table thead { background: var(--navy); color: #fff; }
+  .tracker-table th { padding: 8px 10px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
+  .tracker-table td { padding: 8px 10px; border-bottom: 1px solid #eef0f2; }
+  .tracker-table tr:nth-child(even) td { background: #fafbfc; }
+  .tracker-table tr.uploaded td { background: rgba(167,213,0,0.08); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .pill-uploaded, .pill.uploaded { background: rgba(167,213,0,0.25); color: #4d6300; }
+  .pill-pending,  .pill.pending  { background: #fef3c7; color: #92400e; }
+  .filename-cell { font-family: 'Courier New', monospace; font-size: 10.5px; color: #555; word-break: break-all; }
+  .empty-state-tracker { padding: 40px 20px; text-align: center; color: #888; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -210,6 +237,7 @@
        onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
   <span class="hdr-fallback" style="display:none">CUSA × ESPN</span>
   <h1>🎬 Broadcast Melts</h1>
+  <a href="melts-admin.html" style="background:rgba(239,64,53,0.85);color:#fff;padding:5px 12px;font-weight:700">🔒 Admin Portal</a>
   <a href="index.html">← Hub</a>
 </div>
 
@@ -334,10 +362,27 @@
   <section>
     <h2>Upload Links</h2>
     <p class="desc">
-      Each sport has its own File Request URL. The link uploads directly to that sport's <code>_New Uploads/</code> intake folder; the filename you generated above is what tells admins which school and game it's for. Once Box is provisioned, the URLs below get filled in.
+      Each sport has its own File Request URL. The link uploads directly to that sport's <code>_New Uploads/</code> intake folder; the filename you generated above is what tells admins which school and game it's for.
     </p>
 
     <div class="upload-grid" id="uploadGrid"></div>
+  </section>
+
+  <!-- ── Melt Upload Tracker ── -->
+  <section>
+    <h2>Melt Upload Tracker</h2>
+    <p class="desc">
+      Live status of every event in the ESPN schedule for the current athletic year. <span class="pill pill-uploaded">✓ Uploaded</span> means a melt has been marked received in Box; <span class="pill pill-pending">⚠ Pending</span> means we're still waiting. Pulled directly from <a href="schedule.html" style="color:var(--blue)">ESPN schedule submissions</a>.
+    </p>
+
+    <div class="period-tabs" id="periodTabs">
+      <button data-period="fall">🍂 Fall — Football, Volleyball, Soccer</button>
+      <button data-period="winter">❄️ Winter — Basketball</button>
+      <button data-period="spring">🌸 Spring — Baseball, Softball</button>
+    </div>
+
+    <div class="tracker-meta" id="trackerMeta"></div>
+    <div id="trackerContainer"><div class="empty-state-tracker">Loading…</div></div>
   </section>
 
 </main>
@@ -367,10 +412,10 @@ const SPORTS = [
   { name: 'Softball',            emoji: '🥎', seriesEligible: true  }
 ];
 
-// File Request URL per sport. Empty string = "not yet configured" — once Box
-// generates the 7 File Requests, paste them here. Will eventually be moved
-// into config.js so it can be set via Netlify env vars.
-const FILE_REQUEST_URLS = {
+// File Request URLs are loaded from the Supabase melt_config table on page
+// load; admins edit them at melts-admin.html. Local fallback lets the page
+// degrade gracefully if Supabase isn't reachable.
+let FILE_REQUEST_URLS = {
   "Football":            '',
   "Men's Basketball":    '',
   "Women's Basketball":  '',
@@ -379,6 +424,28 @@ const FILE_REQUEST_URLS = {
   "Baseball":            '',
   "Softball":            ''
 };
+
+const SPORT_SEASON_PUBLIC = {
+  'Football': 'Fall', 'Soccer': 'Fall', "Men's Soccer": 'Fall', "Women's Soccer": 'Fall', 'Volleyball': 'Fall',
+  "Men's Basketball": 'Winter', "Women's Basketball": 'Winter', "Women’s Basketball": 'Winter',
+  'Baseball': 'Spring', 'Softball': 'Spring'
+};
+const MELT_NAME_MAP_PUBLIC = {
+  'jacksonville state':'Jax State','jsu':'Jax State','jax state':'Jax State','jacksonville st.':'Jax State',
+  'western kentucky':'WKU','wku':'WKU',
+  'florida international':'FIU','fiu':'FIU',
+  'middle tennessee':'Middle Tennessee','mtsu':'Middle Tennessee','middle tenn':'Middle Tennessee',
+  'missouri state':'Missouri State','mo state':'Missouri State','missouri st.':'Missouri State',
+  'new mexico state':'New Mexico State','nm state':'New Mexico State','nmsu':'New Mexico State',
+  'sam houston':'Sam Houston','sam houston state':'Sam Houston','shsu':'Sam Houston',
+  'kennesaw state':'Kennesaw State','ksu':'Kennesaw State','liberty':'Liberty','delaware':'Delaware'
+};
+
+let _db = null;
+let _athleticYear = '2026-27';
+let _trackerEvents = [];
+let _trackerUploads = new Map();
+let _currentPeriod = 'fall';
 
 // §10 filename validation regex.
 const FILENAME_RE = /^\d{4}-\d{2}-\d{2} ((Quarterfinal|Semifinal|Final|Championship|Game [1-9]\d?) - )?[A-Z][A-Za-z. ]+ vs [A-Z][A-Za-z. ]+( G[1-3])?( \(DH[12]\))? - MELT\.(mp4|mov)$/;
@@ -401,7 +468,7 @@ const state = {
 };
 
 /* ── Init ── */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   populateSchools();
   populateSports();
   populateOpponentLists();
@@ -410,7 +477,145 @@ document.addEventListener('DOMContentLoaded', () => {
   loadMySchool();
   applyMode();
   updateOutput();
+
+  // Supabase-driven sections
+  initSupabase();
+  await loadFileRequestURLs();
+  populateUploadCards();
+  await loadTrackerData();
+  setDefaultPeriod();
+  wirePeriodTabs();
+  renderTracker();
+  setupRealtime();
 });
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+async function loadFileRequestURLs() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('melt_config').select('sport, file_request_url');
+    if (error) throw error;
+    (data || []).forEach(r => {
+      if (FILE_REQUEST_URLS.hasOwnProperty(r.sport)) {
+        FILE_REQUEST_URLS[r.sport] = (r.file_request_url || '').trim();
+      }
+    });
+  } catch (e) { console.warn('melt_config load:', e); }
+}
+
+async function loadTrackerData() {
+  if (!_db) return;
+  try {
+    const { data: settings } = await _db.from('schedule_settings').select('active_year').eq('id', 'singleton').maybeSingle();
+    if (settings?.active_year) _athleticYear = settings.active_year;
+    const [eventsRes, uploadsRes] = await Promise.all([
+      _db.from('schedule_events').select('id, sport, school, event_date, away, home, network')
+        .eq('athletic_year', _athleticYear).eq('archived', false)
+        .order('event_date', { ascending: true }),
+      _db.from('melt_uploads').select('schedule_event_id, filename, uploaded_at, notes')
+    ]);
+    if (eventsRes.error) throw eventsRes.error;
+    if (uploadsRes.error) throw uploadsRes.error;
+    _trackerEvents = eventsRes.data || [];
+    _trackerUploads = new Map((uploadsRes.data || []).map(u => [u.schedule_event_id, u]));
+  } catch (e) {
+    console.warn('Tracker load:', e);
+    _trackerEvents = []; _trackerUploads = new Map();
+  }
+}
+
+function setDefaultPeriod() {
+  // Default to whichever period the current month falls into.
+  const m = new Date().getMonth(); // 0=Jan
+  if (m >= 7 && m <= 10)        _currentPeriod = 'fall';   // Aug–Nov
+  else if (m === 11 || m <= 2)  _currentPeriod = 'winter'; // Dec–Mar
+  else                          _currentPeriod = 'spring'; // Apr–Jul
+}
+
+function wirePeriodTabs() {
+  document.querySelectorAll('#periodTabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _currentPeriod = btn.dataset.period;
+      renderTracker();
+    });
+  });
+}
+
+function setupRealtime() {
+  if (!_db) return;
+  _db.channel('melts-public-config')
+    .on('postgres_changes', { event:'*', schema:'public', table:'melt_config' }, async () => {
+      await loadFileRequestURLs(); populateUploadCards();
+    }).subscribe();
+  _db.channel('melts-public-uploads')
+    .on('postgres_changes', { event:'*', schema:'public', table:'melt_uploads' }, async () => {
+      await loadTrackerData(); renderTracker();
+    }).subscribe();
+}
+
+function meltSchoolNamePub(s) {
+  const k = (s || '').trim().toLowerCase();
+  return MELT_NAME_MAP_PUBLIC[k] || (s || '').trim();
+}
+function buildExpectedFilename(e) {
+  if (!e.event_date) return '';
+  const home = meltSchoolNamePub(e.home);
+  const away = meltSchoolNamePub(e.away);
+  if (!home || !away) return '';
+  return `${e.event_date} ${home} vs ${away} - MELT.mp4`;
+}
+
+function renderTracker() {
+  // Set active tab
+  document.querySelectorAll('#periodTabs button').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === _currentPeriod)
+  );
+  const events = _trackerEvents.filter(e => {
+    const sn = (SPORT_SEASON_PUBLIC[e.sport] || '').toLowerCase();
+    return sn === _currentPeriod;
+  });
+  const uploaded = events.filter(e => _trackerUploads.has(e.id)).length;
+  const meta = document.getElementById('trackerMeta');
+  meta.textContent = `${_athleticYear} · ${events.length} event${events.length === 1 ? '' : 's'} · ${uploaded}/${events.length} uploaded`;
+
+  const c = document.getElementById('trackerContainer');
+  if (!events.length) {
+    c.innerHTML = `<div class="empty-state-tracker">No ${_currentPeriod} events submitted to the ESPN schedule yet for ${_athleticYear}.</div>`;
+    return;
+  }
+  c.innerHTML = `
+    <table class="tracker-table">
+      <thead><tr>
+        <th style="width:90px">Date</th>
+        <th style="width:130px">Sport</th>
+        <th>School / Matchup</th>
+        <th style="width:100px">Status</th>
+        <th>Filename</th>
+      </tr></thead>
+      <tbody>${events.map(e => {
+        const u = _trackerUploads.get(e.id);
+        const isUp = !!u;
+        const fname = isUp ? (u.filename || '—') : buildExpectedFilename(e);
+        return `<tr class="${isUp ? 'uploaded' : ''}">
+          <td>${escapeHtml(e.event_date || '—')}</td>
+          <td>${escapeHtml(e.sport || '—')}</td>
+          <td><strong>${escapeHtml(e.school || '—')}</strong> · ${escapeHtml(e.away || '?')} @ ${escapeHtml(e.home || '?')}</td>
+          <td>${isUp ? '<span class="pill pill-uploaded">✓ Uploaded</span>' : '<span class="pill pill-pending">⚠ Pending</span>'}</td>
+          <td class="filename-cell">${escapeHtml(fname)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
 
 function populateSchools() {
   // "My School" picker

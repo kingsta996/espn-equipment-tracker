@@ -274,6 +274,26 @@
     return VB_POSITION_MAP[first] || raw.toUpperCase();
   }
 
+  // Baseball / Softball share the Diamond template. Source data uses a mix
+  // of abbreviations and long names. Combos (INF/OF, RHP/INF, C/UTL) take
+  // the first segment. Specific base codes (1B, 2B, 3B, SS, DH) pass through.
+  const DIAMOND_POSITION_MAP = {
+    'p': 'P', 'pitcher': 'P',
+    'rhp': 'RHP', 'right handed pitcher': 'RHP', 'right-handed pitcher': 'RHP',
+    'lhp': 'LHP', 'left handed pitcher': 'LHP', 'left-handed pitcher': 'LHP',
+    'c': 'C', 'catcher': 'C',
+    'inf': 'INF', 'if': 'INF', 'infield': 'INF', 'infielder': 'INF',
+    'of': 'OF', 'outfield': 'OF', 'outfielder': 'OF',
+    'utl': 'UTL', 'ut': 'UTL', 'util': 'UTL', 'utility': 'UTL',
+    '1b': '1B', '2b': '2B', '3b': '3B', 'ss': 'SS', 'dh': 'DH'
+  };
+  function diamondPosition(s) {
+    const raw = (s || '').trim();
+    if (!raw) return '';
+    const first = raw.split(/[\/,]| or /i)[0].trim().toLowerCase();
+    return DIAMOND_POSITION_MAP[first] || raw.toUpperCase();
+  }
+
   // CBB template's row-2 hint says "Enter FR, SO, JR, or SR" — so the Year
   // column wants text abbreviations, not numbers like the football template.
   function classToYearText(s) {
@@ -400,6 +420,56 @@
   };
   SPORT_CONFIG['MBB'] = BASKETBALL_CONFIG;
   SPORT_CONFIG['WBB'] = BASKETBALL_CONFIG;
+
+  // Baseball + Softball share the Diamond template. Note: the template's
+  // Roster tab is normally computed from a MAIN tab via VLOOKUPs, but we
+  // overwrite the Roster cells with hardcoded values directly — same pattern
+  // as the other sports. The MAIN tab gets dropped in the export anyway.
+  // Source data has no Bats/Throws columns, so those export blank for the
+  // user to fill in before sending the file off.
+  const DIAMOND_CONFIG = {
+    template: 'templates/master-roster/diamond.xlsx',
+    dataStartRow: 4,
+    columns: [
+      { label: 'Jersey',        key: 'jersey',   col: 1,  width: 70 },
+      { label: 'Display',       key: 'display',  col: 2,  width: 70 },
+      { label: 'First Name',    key: 'first',    col: 3,  width: 130 },
+      { label: 'Last Name',     key: 'last',     col: 4,  width: 140 },
+      { label: 'POS',           key: 'pos',      col: 5,  width: 70 },
+      { label: 'Bats',          key: 'bats',     col: 6,  width: 70 },
+      { label: 'Throws',        key: 'throws',   col: 7,  width: 70 },
+      { label: 'Height',        key: 'height',   col: 8,  width: 80 },
+      { label: 'Weight',        key: 'weight',   col: 9,  width: 70 },
+      { label: 'Birthday',      key: 'birthday', col: 10, width: 100 },
+      { label: 'Hometown',      key: 'hometown', col: 11, width: 200 },
+      { label: 'Year',          key: 'year',     col: 12, width: 70 },
+      { label: 'Major',         key: 'major',    col: 13, width: 140 },
+      { label: 'Bio Dropline',  key: 'bio',      col: 14, width: 220 },
+      { label: 'ESPN 100 Rank', key: 'rank',     col: 15, width: 110 }
+    ],
+    fromSource: (r) => {
+      const { first, last } = splitName(r['name']);
+      const num = cleanNum(r['#']);
+      return {
+        jersey:   num,
+        display:  num,
+        first, last,
+        pos:      diamondPosition(r['position']),
+        bats:     '',
+        throws:   '',
+        height:   r['height'] || '',
+        weight:   cleanNum(r['weight']),
+        birthday: '',
+        hometown: trimHometown(r['hometown']),
+        year:     classToYear(r['class']),  // numeric (1=FR, 2=SO, 3=JR, 4=SR/GR)
+        major:    '',
+        bio:      (r['previous school'] || '').trim().toUpperCase(),
+        rank:     ''
+      };
+    }
+  };
+  SPORT_CONFIG['Baseball'] = DIAMOND_CONFIG;
+  SPORT_CONFIG['Softball'] = DIAMOND_CONFIG;
 
   SPORT_CONFIG['Volleyball'] = {
     template: 'templates/master-roster/volleyball.xlsx',

@@ -1270,6 +1270,225 @@ function exportSchoolEditor() {
   XLSX.writeFile(wb, `CUSA_School_Editor_${today}.xlsx`);
 }
 
+/* ── Export a single school as a mirror of the editor form (admin only) ── */
+function exportSingleSchool(school) {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel export library failed to load. Please check your internet connection and refresh.');
+    return;
+  }
+  if (!state.isAdmin) { alert('Admin only.'); return; }
+  if (!school) { alert('No school selected.'); return; }
+
+  const today = new Date().toISOString().slice(0,10);
+
+  // Style helpers — match exportCompliance for consistency
+  const navyFill    = {patternType:'solid', fgColor:{rgb:'00263A'}};
+  const espnRedFill = {patternType:'solid', fgColor:{rgb:'EF4035'}};
+  const sectionFill = {patternType:'solid', fgColor:{rgb:'BFCED6'}};
+  const grayFill    = {patternType:'solid', fgColor:{rgb:'F4F6F8'}};
+  const failFill    = {patternType:'solid', fgColor:{rgb:'FFC7CE'}};
+  const titleFont   = {color:{rgb:'FFFFFF'}, bold:true, name:'Arial', sz:14};
+  const sectionFont = {color:{rgb:'00263A'}, bold:true, name:'Arial', sz:12};
+  const labelFont   = {color:{rgb:'333333'}, bold:true, name:'Arial', sz:10};
+  const valueFont   = {name:'Arial', sz:10};
+  const failFont    = {color:{rgb:'9C0006'}, bold:true, name:'Arial', sz:10};
+  const border = {
+    top:{style:'thin',color:{rgb:'CCCCCC'}}, bottom:{style:'thin',color:{rgb:'CCCCCC'}},
+    left:{style:'thin',color:{rgb:'CCCCCC'}}, right:{style:'thin',color:{rgb:'CCCCCC'}}
+  };
+
+  // Field-row builder. min = ESPN/CUSA threshold; below threshold renders red.
+  // Returns a [labelCell, valueCell] pair shaped for the rows-of-cells builder below.
+  const numRow = (label, key, min) => {
+    const raw = school[key];
+    const num = Number(raw);
+    const below = (min !== undefined) && Number.isFinite(num) && num < min;
+    const display = (raw == null || raw === '') ? '' : (Number.isFinite(num) ? num : raw);
+    const valueStyle = below
+      ? {fill:failFill, font:failFont, alignment:{horizontal:'left', wrapText:true}, border}
+      : {font:valueFont, alignment:{horizontal:'left', wrapText:true}, border};
+    const labelText = (min !== undefined) ? `${label} (min ${min})` : label;
+    return [
+      { v: labelText, t:'s',
+        s:{fill:grayFill, font:labelFont, alignment:{horizontal:'left'}, border} },
+      { v: display, t: Number.isFinite(num) ? 'n' : 's',
+        s: valueStyle }
+    ];
+  };
+  const txtRow = (label, key) => {
+    const raw = school[key];
+    const display = (raw == null) ? '' : raw;
+    return [
+      { v: label, t:'s', s:{fill:grayFill, font:labelFont, alignment:{horizontal:'left'}, border} },
+      { v: display, t:'s',  s:{font:valueFont, alignment:{horizontal:'left', wrapText:true}, border} }
+    ];
+  };
+  const togRow = (label, key) => [
+    { v: label, t:'s', s:{fill:grayFill, font:labelFont, alignment:{horizontal:'left'}, border} },
+    { v: school[key] ? 'Yes' : 'No', t:'s',
+      s:{font:school[key] ? valueFont : failFont, alignment:{horizontal:'left'}, border} }
+  ];
+  const sectionHeader = label => [[
+    { v: label.toUpperCase(), t:'s',
+      s:{fill:sectionFill, font:sectionFont, alignment:{horizontal:'left'}, border} },
+    { v: '', s:{fill:sectionFill, border} }
+  ]];
+  const blankRow = () => [[{ v:'', s:{} }, { v:'', s:{} }]];
+
+  // Build the workbook rows
+  const sportsList = Array.isArray(school.sports) ? school.sports.join(', ') : '';
+  const updatedAt = school.updated_at ? new Date(school.updated_at).toLocaleString() : '—';
+  const markedAt  = school.manually_marked_at ? new Date(school.manually_marked_at).toLocaleString() : '—';
+
+  const rows = [];
+
+  // Title row(s)
+  rows.push([
+    { v:`CUSA SCHOOL EDITOR — ${school.name || 'Untitled School'}`, t:'s',
+      s:{fill:espnRedFill, font:titleFont, alignment:{horizontal:'center'}, border} },
+    { v:'', s:{fill:espnRedFill, border} }
+  ]);
+  rows.push([
+    { v:`Exported ${today}`, t:'s',
+      s:{fill:navyFill, font:{color:{rgb:'FFFFFF'}, name:'Arial', sz:10}, alignment:{horizontal:'center'}, border} },
+    { v:'', s:{fill:navyFill, border} }
+  ]);
+  rows.push(...blankRow());
+
+  // School Info
+  rows.push(...sectionHeader('School Info'));
+  rows.push(txtRow('School Name', 'name'));
+  rows.push(txtRow('Conference', 'conference'));
+  rows.push(txtRow('Contact Email', 'auth_email'));
+  rows.push([
+    { v:'Sports Produced', t:'s', s:{fill:grayFill, font:labelFont, alignment:{horizontal:'left'}, border} },
+    { v: sportsList, t:'s', s:{font:valueFont, alignment:{horizontal:'left', wrapText:true}, border} }
+  ]);
+  rows.push([
+    { v:'School Login Password', t:'s', s:{fill:grayFill, font:labelFont, alignment:{horizontal:'left'}, border} },
+    { v: school.pw_hash ? '✓ Set' : 'Not set', t:'s',
+      s:{font: school.pw_hash ? valueFont : failFont, alignment:{horizontal:'left'}, border} }
+  ]);
+  rows.push(...blankRow());
+
+  // Switcher
+  rows.push(...sectionHeader('Switcher'));
+  rows.push(txtRow('Model', 'swModel'));
+  rows.push(numRow('Inputs', 'swInputs', 10));
+  rows.push(numRow('Keyers', 'swKeyers', 2));
+  rows.push(numRow('M/Es', 'swMEs', 1));
+  rows.push(...blankRow());
+
+  // Cameras & Lenses
+  rows.push(...sectionHeader('Cameras & Lenses'));
+  rows.push(numRow('Total Cameras', 'cameras', 4));
+  rows.push(txtRow('Camera Models', 'cameraModels'));
+  rows.push(togRow('Has 40x+ Lens w/ Extender', 'has40xLens'));
+  rows.push(txtRow('40x Lens Detail', 'lensDetail'));
+  rows.push(togRow('Has 14x+ Lens (≥3 cams)', 'has14xLens'));
+  rows.push(...blankRow());
+
+  // Sport-Specific Cameras
+  rows.push(...sectionHeader('Sport-Specific Cameras'));
+  rows.push(numRow('Football', 'cam_football', 4));
+  rows.push(numRow('Basketball', 'cam_basketball', 4));
+  rows.push(numRow('Volleyball', 'cam_volleyball', 4));
+  rows.push(numRow('Soccer', 'cam_soccer', 4));
+  rows.push(numRow('Baseball', 'cam_baseball', 3));
+  rows.push(numRow('Softball', 'cam_softball', 3));
+  rows.push(...blankRow());
+
+  // Replay
+  rows.push(...sectionHeader('Replay'));
+  rows.push(txtRow('Model', 'replayModel'));
+  rows.push(numRow('# Units', 'replayUnits'));
+  rows.push(numRow('Inputs', 'replayInputs', 4));
+  rows.push(numRow('Outputs', 'replayOutputs', 2));
+  rows.push(...blankRow());
+
+  // Audio
+  rows.push(...sectionHeader('Audio'));
+  rows.push(txtRow('Model', 'audioModel'));
+  rows.push(numRow('Inputs', 'audioInputs', 24));
+  rows.push(numRow('Outputs', 'audioOutputs', 2));
+  rows.push(numRow('Faders', 'audioFaders'));
+  rows.push(...blankRow());
+
+  // Intercom
+  rows.push(...sectionHeader('Intercom'));
+  rows.push(txtRow('Model', 'intercomModel'));
+  rows.push(numRow('Channels', 'intercomCh', 10));
+  rows.push(...blankRow());
+
+  // Graphics
+  rows.push(...sectionHeader('Graphics'));
+  rows.push(txtRow('Platform', 'gfxModel'));
+  rows.push(numRow('Channels', 'gfxChannels'));
+  rows.push(togRow('Approved Platform (XPression/Viz/AJT)', 'gfxApproved'));
+  rows.push(...blankRow());
+
+  // Transmission
+  rows.push(...sectionHeader('Transmission'));
+  rows.push(txtRow('Digital Encoder', 'txDigital'));
+  rows.push(togRow('Haivision Approved', 'txApproved'));
+  rows.push(togRow('Backup Power', 'backupPower'));
+  rows.push(...blankRow());
+
+  // Multiviewer
+  rows.push(...sectionHeader('Multiviewer'));
+  rows.push(numRow('# Sources', 'mvSources'));
+  rows.push(txtRow('Software', 'mvSoftware'));
+  rows.push(...blankRow());
+
+  // Tracking footer
+  rows.push(...sectionHeader('Last Updated'));
+  rows.push([
+    { v:'Auto-Updated', t:'s', s:{fill:grayFill, font:labelFont, alignment:{horizontal:'left'}, border} },
+    { v: updatedAt, t:'s', s:{font:valueFont, alignment:{horizontal:'left'}, border} }
+  ]);
+  rows.push([
+    { v:'Marked Updated', t:'s', s:{fill:grayFill, font:labelFont, alignment:{horizontal:'left'}, border} },
+    { v: markedAt, t:'s', s:{font:valueFont, alignment:{horizontal:'left'}, border} }
+  ]);
+
+  // Build worksheet
+  const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.map(c => c.v)));
+  rows.forEach((row, rIdx) => {
+    row.forEach((cell, cIdx) => {
+      const addr = XLSX.utils.encode_cell({r: rIdx, c: cIdx});
+      if (ws[addr]) {
+        if (cell.s) ws[addr].s = cell.s;
+        if (cell.t) ws[addr].t = cell.t;
+      } else if (cell.v !== undefined && cell.v !== '') {
+        ws[addr] = {v: cell.v, t: cell.t || 's', s: cell.s};
+      }
+    });
+  });
+
+  // Merge title + date rows across the two columns
+  ws['!merges'] = [
+    {s:{r:0,c:0}, e:{r:0,c:1}},
+    {s:{r:1,c:0}, e:{r:1,c:1}}
+  ];
+  // Merge each section-header row across the two columns (find them by scanning)
+  rows.forEach((row, r) => {
+    if (row[0]?.s?.fill === sectionFill) {
+      ws['!merges'].push({s:{r,c:0}, e:{r,c:1}});
+    }
+  });
+
+  ws['!cols'] = [{wch:36}, {wch:48}];
+  ws['!rows'] = [{hpt:28}, {hpt:18}].concat(rows.slice(2).map(() => ({hpt:18})));
+
+  const wb = XLSX.utils.book_new();
+  // Sheet name max 31 chars, no special chars
+  const safeSheetName = (school.name || 'School').replace(/[\\/?*\[\]:]/g,' ').slice(0, 31);
+  XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+
+  const safeFileName = (school.name || 'School').replace(/[^A-Za-z0-9_-]+/g, '_');
+  XLSX.writeFile(wb, `CUSA_${safeFileName}_${today}.xlsx`);
+}
+
 function renderProtectedTabGate() {
   return `
     <div style="max-width:460px;margin:60px auto;background:var(--white);border-radius:8px;border:2px solid var(--navy);overflow:hidden">
@@ -1675,6 +1894,7 @@ function renderEditor() {
       <div class="editor-header">
         <span>${ro ? '👁 Viewing: ' : 'Editing: '}${escapeHtml(s.name)}${ro ? ' <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:10px;margin-left:6px">Read Only</span>' : ''}</span>
         <div style="display:flex;gap:8px">
+          ${state.isAdmin ? `<button class="btn" id="export-school" style="background:#15803d;color:#fff" title="Export this school's editor as Excel (admin only)">⬇ Export</button>` : ''}
           ${ro ? '' : `<button class="btn" id="save-school" style="background:var(--green);color:var(--navy)">Save</button>`}
           ${state.unlocked ? `<button class="btn" id="remove-school" style="background:#fff;color:var(--espn-red)">Remove</button>` : ''}
         </div>
@@ -1887,6 +2107,11 @@ function wireEditor() {
 
   document.getElementById('export-editor')?.addEventListener('click', () => {
     exportSchoolEditor();
+  });
+
+  document.getElementById('export-school')?.addEventListener('click', () => {
+    if (state.editingIdx === null) return;
+    exportSingleSchool(state.schools[state.editingIdx]);
   });
 
   document.getElementById('save-school')?.addEventListener('click', async () => {

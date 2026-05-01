@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Highlight Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A; --gray: #BFCED6; --white: #FFFFFF;
+    --red: #E40046; --blue: #00B5E2; --green: #A7D500;
+    --espn-red: #EF4035; --light: #f4f6f8; --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--light); font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; min-height: 100vh; color: #222; }
+
+  .header {
+    background: var(--navy); padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .hdr-fallback { color: var(--white); font-weight: 900; letter-spacing: -0.5px; font-size: 18px; }
+  .header .who { color: var(--gray); font-size: 11px; }
+  .header .signout {
+    background: rgba(239,64,53,0.85); color: #fff !important; padding: 4px 12px;
+    border-radius: 5px; font-weight: 700; font-size: 11px; cursor: pointer; border: 0; font-family: inherit;
+  }
+  .header .signout:hover { background: var(--espn-red); }
+
+  /* Login modal */
+  .pw-overlay { display:none; position:fixed; inset:0; background:rgba(0,38,58,0.7); z-index:200; align-items:center; justify-content:center; padding:20px; }
+  .pw-overlay.open { display:flex; }
+  .pw-box { background:#fff; border-radius:12px; padding:32px; max-width:360px; width:100%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+  .pw-box h2 { font-size:18px; color:var(--navy); margin-bottom:6px; }
+  .pw-box p { font-size:12px; color:#666; margin-bottom:20px; }
+  .pw-input { width:100%; padding:10px 14px; border:2px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; margin-bottom:12px; }
+  .pw-input:focus { outline:none; border-color:var(--blue); }
+  .pw-err { color:var(--espn-red); font-size:12px; margin-bottom:10px; display:none; }
+  .pw-actions { display:flex; gap:8px; justify-content:center; }
+
+  .tab-bar {
+    background: #fff; padding: 0 20px; border-bottom: 1px solid #ddd;
+    display: flex; gap: 4px; overflow-x: auto;
+  }
+  .tab-bar button {
+    background: transparent; border: 0; padding: 12px 18px;
+    font-size: 13px; font-weight: 600; color: #666; cursor: pointer;
+    border-bottom: 3px solid transparent; font-family: inherit;
+    margin-bottom: -1px; white-space: nowrap;
+  }
+  .tab-bar button:hover { color: var(--navy); }
+  .tab-bar button.active { color: var(--espn-red); border-bottom-color: var(--espn-red); }
+  .tab-bar .badge {
+    background: var(--espn-red); color: #fff; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 999px; margin-left: 6px;
+  }
+  .tab-bar .badge.muted { background: #94a3b8; }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 22px; }
+  section.tab-content { display: none; }
+  section.tab-content.active { display: block; }
+  section.tab-content {
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06); padding: 22px; margin-bottom: 20px;
+  }
+  h2 { color: var(--navy); font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .desc { color: #666; font-size: 12px; margin-bottom: 18px; line-height: 1.55; }
+
+  .toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #eef0f2;
+  }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: var(--navy); color: #fff; }
+  th { padding: 8px 10px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
+  td { padding: 8px 10px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafbfc; }
+  tr.row-pending td { background: rgba(245,158,11,0.06); }
+  tr.row-failed td { background: rgba(220,38,38,0.05); }
+  tr.row-declined td { color: #999; }
+
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .pill.pending    { background: #fef3c7; color: #92400e; }
+  .pill.approved   { background: #dbeafe; color: #1e40af; }
+  .pill.processing { background: #dbeafe; color: #1e40af; animation: pulse 2s infinite; }
+  .pill.complete   { background: rgba(167,213,0,0.25); color: #4d6300; }
+  .pill.failed     { background: #fee2e2; color: #991b1b; }
+  .pill.declined   { background: #f1f5f9; color: #64748b; }
+  .pill.active     { background: rgba(167,213,0,0.25); color: #4d6300; }
+  .pill.shutdown   { background: #f1f5f9; color: #64748b; }
+  .pill.stale      { background: #fee2e2; color: #991b1b; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%     { opacity: 0.55; }
+  }
+
+  .heartbeat-fresh { color: #166534; font-weight: 600; }
+  .heartbeat-stale { color: #991b1b; font-weight: 700; }
+
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .btn-small {
+    padding: 5px 10px; font-size: 11px; font-weight: 600;
+    border: 0; border-radius: 5px; cursor: pointer; font-family: inherit;
+  }
+  .btn-approve { background: var(--green); color: var(--navy); }
+  .btn-approve:hover { background: #95c200; }
+  .btn-decline { background: #fff; color: #c00; border: 1px solid #f5b5b5; }
+  .btn-decline:hover { background: #fff5f5; }
+  .btn-share   { background: var(--blue); color: #fff; }
+  .btn-share:hover { background: #009ec5; }
+  .btn-retry   { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+  .btn-retry:hover { background: #f4f6f8; }
+  .btn-reset   { background: var(--amber); color: #fff; }
+  .btn-reset:hover { background: #d97706; }
+  .btn-delete  { background: #fff; color: #c00; border: 1px solid #f5b5b5; }
+  .btn-delete:hover { background: #fff5f5; }
+  .btn-sweep   {
+    padding: 8px 16px; font-size: 12px; font-weight: 700;
+    background: var(--amber); color: #fff;
+    border: 0; border-radius: 6px; cursor: pointer; font-family: inherit;
+  }
+  .btn-sweep:hover { background: #d97706; }
+
+  .filename   { font-family: 'Courier New', monospace; font-size: 11px; color: #444; word-break: break-all; }
+  .empty-state { padding: 40px 20px; text-align: center; color: #888; font-size: 13px; }
+
+  /* Error truncation */
+  .err-msg { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; cursor: pointer; }
+  .err-msg.expanded { white-space: normal; max-width: none; }
+
+  .status-bar {
+    position: fixed; bottom: 20px; right: 20px; background: var(--navy);
+    color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: none; z-index: 100; max-width: 400px;
+  }
+  .status-bar.show { display: block; }
+  .status-bar.ok { background: #166534; }
+  .status-bar.err { background: #991b1b; }
+
+  /* Modals */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,38,58,0.55); z-index:150; align-items:center; justify-content:center; padding:20px; overflow-y: auto; }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:#fff; border-radius:12px; padding:24px;
+    max-width:560px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.25);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { color: var(--navy); font-size: 15px; margin-bottom: 8px; }
+  .modal .summary {
+    background: #f9fafb; border-radius: 6px; padding: 12px;
+    margin-bottom: 14px; font-size: 12px; line-height: 1.6;
+  }
+  .modal .field { margin-bottom: 14px; }
+  .modal label { display:block; font-weight: 700; font-size: 11px; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .modal input, .modal textarea, .modal select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--gray); border-radius: 6px;
+    font-size: 13px; font-family: inherit;
+  }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .modal .btn { padding: 8px 16px; border-radius: 6px; border: 0; font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .btn-cancel { background: #eee; color: #555; }
+  .btn-confirm { background: var(--green); color: var(--navy); }
+  .btn-confirm:hover { background: #95c200; }
+  .btn-confirm-amber { background: var(--amber); color: #fff; }
+  .btn-confirm-amber:hover { background: #d97706; }
+</style>
+</head>
+<body>
+
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>🔒 Highlight Admin</h2>
+    <p>Sign in with your admin email and password</p>
+    <input class="pw-input" id="pwEmail" type="email" placeholder="you@example.com" autocomplete="email">
+    <input class="pw-input" id="pwInput" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr">Incorrect email or password.</div>
+    <div class="pw-actions">
+      <button onclick="window.location.href='highlight.html'" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="submitPw()" style="background:var(--espn-red);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- Approve modal -->
+<div class="modal-overlay" id="approveOverlay">
+  <div class="modal">
+    <h3>Approve request</h3>
+    <div class="summary" id="approveSummary"></div>
+    <div class="field">
+      <label for="approveNotes">Admin notes (optional, appended to request notes)</label>
+      <textarea id="approveNotes" rows="2" placeholder="e.g. 'rush — needed for tonight's pre-game package'"></textarea>
+    </div>
+    <p style="font-size:11px;color:#666;line-height:1.5">
+      On approve, the request enters the <strong>Approved</strong> queue and the next available worker will claim it. The worker will produce a Box folder of clips; you'll see the row move to <strong>Complete</strong> and can mint a share link from there.
+    </p>
+    <div class="actions">
+      <button class="btn btn-cancel" onclick="closeApproveModal()">Cancel</button>
+      <button class="btn btn-confirm" id="approveConfirmBtn">Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- Decline modal -->
+<div class="modal-overlay" id="declineOverlay">
+  <div class="modal">
+    <h3>Decline request</h3>
+    <div class="summary" id="declineSummary"></div>
+    <div class="field">
+      <label for="declineReason">Reason (optional, sent to requester)</label>
+      <textarea id="declineReason" rows="3" placeholder="e.g. 'jersey color too similar to opposing team — manual edit needed'"></textarea>
+    </div>
+    <div class="actions">
+      <button class="btn btn-cancel" onclick="closeDeclineModal()">Cancel</button>
+      <button class="btn btn-confirm-amber" id="declineConfirmBtn">Decline</button>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>🎯 Highlight Admin</h1>
+  <span class="who" id="currentUser"></span>
+  <a href="highlight.html">View Public</a>
+  <button class="signout" onclick="signOut()">Sign Out</button>
+</div>
+
+<div class="tab-bar">
+  <button class="active" data-tab="pending">📨 Pending <span class="badge" id="pendingBadge" style="display:none">0</span></button>
+  <button data-tab="active">⚙️ Active <span class="badge muted" id="activeBadge" style="display:none">0</span></button>
+  <button data-tab="complete">✓ Complete</button>
+  <button data-tab="failed">⚠️ Failed <span class="badge" id="failedBadge" style="display:none">0</span></button>
+  <button data-tab="workers">🖥 Workers</button>
+  <button data-tab="all">📜 All</button>
+</div>
+
+<main>
+  <section class="tab-content active" id="pending">
+    <h2>Pending Requests</h2>
+    <p class="desc">Submissions awaiting approval. Approving moves the row to the <strong>Active</strong> tab where workers will claim it.</p>
+    <div id="pendingList"><div class="empty-state">Loading…</div></div>
+  </section>
+
+  <section class="tab-content" id="active">
+    <h2>Active Jobs</h2>
+    <p class="desc">Approved or currently processing. The Heartbeat Age column turns red when a worker hasn't checked in for over 5 minutes — use Force-Reset to free the job for another worker.</p>
+    <div id="activeList"><div class="empty-state">Loading…</div></div>
+  </section>
+
+  <section class="tab-content" id="complete">
+    <h2>Complete</h2>
+    <p class="desc">Successfully processed. Click <strong>Get Share Link</strong> to mint a Box shared link on the output folder (30-day expiry) and open it in a new tab.</p>
+    <div id="completeList"><div class="empty-state">Loading…</div></div>
+  </section>
+
+  <section class="tab-content" id="failed">
+    <h2>Failed</h2>
+    <p class="desc">Click an error message to expand it. Use <strong>Retry</strong> to put the row back in the Approved queue with a fresh slate, or <strong>Delete</strong> to remove it permanently.</p>
+    <div id="failedList"><div class="empty-state">Loading…</div></div>
+  </section>
+
+  <section class="tab-content" id="workers">
+    <h2>Workers</h2>
+    <p class="desc">Registered workers and their status. Stale = haven't checked in for over 5 minutes while still marked active. Use the sweep button to reset orphaned jobs whose worker died mid-process.</p>
+    <div class="toolbar">
+      <button class="btn-sweep" id="sweepBtn">⚡ Run Stale Sweep Now</button>
+      <span style="font-size:11px;color:#666">Resets jobs whose <code style="background:#f0f3f6;padding:1px 5px;border-radius:3px;font-family:'Courier New',monospace">last_heartbeat_at</code> is older than 5 minutes back to <strong>Approved</strong>.</span>
+    </div>
+    <div id="workersList"><div class="empty-state">Loading…</div></div>
+  </section>
+
+  <section class="tab-content" id="all">
+    <h2>All Requests</h2>
+    <p class="desc">Read-only listing of every row, newest first.</p>
+    <div id="allList"><div class="empty-state">Loading…</div></div>
+  </section>
+</main>
+
+<div class="status-bar" id="statusBar"></div>
+
+<script>
+const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+const UNLOCK_KEY = 'cusa_highlight_admin_unlocked';
+const CURRENT_USER_KEY = 'cusa_highlight_admin_user';
+const PW_HASH_KEY = 'cusa_highlight_admin_pw_hash';
+const FUNCTION_URL = '/.netlify/functions/box-highlights';
+const STALE_MINUTES = 5;
+
+let _db = null;
+let _currentUser = null;
+let _adminUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true';
+let _requests = [];
+let _workers = [];
+let _pendingActionId = null;
+let _heartbeatTickTimer = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initSupabase();
+  loadCurrentUser();
+  if (!_adminUnlocked) { openPwModal(); return; }
+  await initPortal();
+});
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+async function initPortal() {
+  await Promise.all([loadRequests(), loadWorkers()]);
+  renderAll();
+  setupRealtime();
+  wireTabs();
+  document.getElementById('approveConfirmBtn').addEventListener('click', confirmApprove);
+  document.getElementById('declineConfirmBtn').addEventListener('click', confirmDecline);
+  document.getElementById('sweepBtn').addEventListener('click', runStaleSweep);
+  // Re-render every 30s so heartbeat-age and worker-stale flags update without a server event.
+  _heartbeatTickTimer = setInterval(() => { renderActive(); renderWorkers(); }, 30 * 1000);
+}
+
+/* ── Auth ── */
+function openPwModal() {
+  document.getElementById('pwOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('pwEmail').focus(), 80);
+}
+function closePwModal() { document.getElementById('pwOverlay').classList.remove('open'); }
+
+async function hashPw(s) {
+  const buf = new TextEncoder().encode(s);
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function submitPw() {
+  const email = (document.getElementById('pwEmail').value || '').trim().toLowerCase();
+  const pw = document.getElementById('pwInput').value;
+  const errEl = document.getElementById('pwErr');
+  if (!email || !pw) { errEl.textContent = 'Email and password required.'; errEl.style.display = 'block'; return; }
+  const h = await hashPw(pw);
+  let user = null;
+  if (_db) {
+    try {
+      const { data } = await _db.from('admin_users').select('email, pw_hash, display_name, is_active').eq('email', email).maybeSingle();
+      if (data && data.is_active && data.pw_hash === h) user = { email: data.email, display_name: data.display_name || data.email };
+    } catch (e) { console.warn('admin_users lookup failed:', e); }
+  }
+  if (!user && h === VW_PW_HASH) user = { email: email || 'legacy-admin', display_name: 'Legacy Admin' };
+  if (!user) { errEl.textContent = 'Incorrect email or password.'; errEl.style.display = 'block'; return; }
+
+  _currentUser = user;
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  localStorage.setItem(PW_HASH_KEY, h);
+  _adminUnlocked = true;
+  localStorage.setItem(UNLOCK_KEY, 'true');
+  closePwModal();
+  await initPortal();
+}
+
+function loadCurrentUser() {
+  try { _currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); }
+  catch { _currentUser = null; }
+  const el = document.getElementById('currentUser');
+  if (el) el.textContent = _currentUser ? `Signed in as ${_currentUser.display_name || _currentUser.email}` : '';
+}
+
+function signOut() {
+  localStorage.removeItem(UNLOCK_KEY);
+  localStorage.removeItem(CURRENT_USER_KEY);
+  localStorage.removeItem(PW_HASH_KEY);
+  window.location.href = 'highlight.html';
+}
+
+/* ── Netlify Function bridge ── */
+async function callFunction(action, payload) {
+  const email = _currentUser?.email;
+  const pwHash = localStorage.getItem(PW_HASH_KEY);
+  if (!email || !pwHash) throw new Error('Not signed in');
+  const res = await fetch(FUNCTION_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Email': email,
+      'X-Admin-Pw-Hash': pwHash
+    },
+    body: JSON.stringify({ action, ...(payload || {}) })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+/* ── Data loading ── */
+async function loadRequests() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('highlight_requests')
+      .select('*').order('submitted_at', { ascending: false });
+    if (error) throw error;
+    _requests = data || [];
+  } catch (e) {
+    console.warn('requests load:', e);
+    if (/highlight_requests|schema cache/i.test(e.message || '')) {
+      showStatus('highlight_requests table missing — run the SQL migration', 'err');
+    }
+  }
+}
+
+async function loadWorkers() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('highlight_worker_registry')
+      .select('*').order('last_seen_at', { ascending: false });
+    if (error) throw error;
+    _workers = data || [];
+  } catch (e) {
+    console.warn('workers load:', e);
+    _workers = [];
+  }
+}
+
+function setupRealtime() {
+  if (!_db) return;
+  _db.channel('highlight-admin')
+    .on('postgres_changes', { event:'*', schema:'public', table:'highlight_requests' }, async () => {
+      await loadRequests(); renderAll();
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'highlight_worker_registry' }, async () => {
+      await loadWorkers(); renderWorkers();
+    })
+    .subscribe();
+}
+
+/* ── Tabs ── */
+function wireTabs() {
+  document.querySelectorAll('.tab-bar button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b === btn));
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('section.tab-content').forEach(s => s.classList.toggle('active', s.id === tab));
+    });
+  });
+}
+
+/* ── Renderers ── */
+function renderAll() {
+  renderPending(); renderActive(); renderComplete(); renderFailed(); renderWorkers(); renderAllTab();
+  updateBadges();
+}
+
+function updateBadges() {
+  const pending = _requests.filter(r => r.status === 'Pending').length;
+  const active  = _requests.filter(r => r.status === 'Approved' || r.status === 'Processing').length;
+  const failed  = _requests.filter(r => r.status === 'Failed').length;
+  setBadge('pendingBadge', pending);
+  setBadge('activeBadge', active);
+  setBadge('failedBadge', failed);
+}
+function setBadge(id, n) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = n;
+  el.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+function renderPending() {
+  const rows = _requests.filter(r => r.status === 'Pending');
+  const c = document.getElementById('pendingList');
+  if (!rows.length) { c.innerHTML = '<div class="empty-state">No pending requests.</div>'; return; }
+  c.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Submitted</th><th>Requester</th><th>School</th><th>File</th>
+        <th>Jersey</th><th>Color</th><th>Team</th><th style="width:180px">Actions</th>
+      </tr></thead>
+      <tbody>${rows.map(r => `
+        <tr class="row-pending">
+          <td>${fmtDate(r.submitted_at)}</td>
+          <td>
+            <strong>${escHtml(r.requester_name || '—')}</strong><br>
+            <span style="color:#555;font-size:11px">${escHtml(r.requester_email)}</span>
+          </td>
+          <td>${escHtml(r.requester_school || '—')}</td>
+          <td>
+            ${r.box_file_name ? `<span class="filename">${escHtml(r.box_file_name)}</span><br>` : ''}
+            <span style="font-family:'Courier New',monospace;font-size:10px;color:#888">${escHtml(r.box_file_id)}</span>
+            ${r.game_context ? `<br><span style="font-size:11px;color:#555">${escHtml(r.game_context)}</span>` : ''}
+            ${r.notes ? `<br><span style="font-size:11px;color:#888;font-style:italic">${escHtml(r.notes)}</span>` : ''}
+          </td>
+          <td><strong>${escHtml(r.jersey_number)}</strong></td>
+          <td>${escHtml(r.jersey_color)}</td>
+          <td>${escHtml(r.team || '—')}</td>
+          <td class="row-actions">
+            <button class="btn-small btn-approve" data-action="approve" data-id="${r.id}">✓ Approve</button>
+            <button class="btn-small btn-decline" data-action="decline" data-id="${r.id}">✗ Decline</button>
+          </td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+  c.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      if (btn.dataset.action === 'approve') openApproveModal(id);
+      else if (btn.dataset.action === 'decline') openDeclineModal(id);
+    });
+  });
+}
+
+function renderActive() {
+  const rows = _requests.filter(r => r.status === 'Approved' || r.status === 'Processing');
+  const c = document.getElementById('activeList');
+  if (!rows.length) { c.innerHTML = '<div class="empty-state">No active jobs.</div>'; return; }
+  c.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Submitted</th><th>Requester</th><th>File</th><th>Jersey</th><th>Color</th>
+        <th>Status</th><th>Worker</th><th>Heartbeat</th><th style="width:120px">Actions</th>
+      </tr></thead>
+      <tbody>${rows.map(r => {
+        const stale = r.status === 'Processing' && isStaleHeartbeat(r.last_heartbeat_at);
+        return `
+        <tr>
+          <td>${fmtDate(r.submitted_at)}</td>
+          <td>
+            <strong>${escHtml(r.requester_name || '—')}</strong><br>
+            <span style="color:#555;font-size:11px">${escHtml(r.requester_email)}</span>
+          </td>
+          <td>${r.box_file_name ? `<span class="filename">${escHtml(r.box_file_name)}</span>` : `<span style="font-family:'Courier New',monospace;font-size:10px;color:#888">${escHtml(r.box_file_id)}</span>`}</td>
+          <td><strong>${escHtml(r.jersey_number)}</strong></td>
+          <td>${escHtml(r.jersey_color)}</td>
+          <td><span class="pill ${r.status.toLowerCase()}">${r.status}</span></td>
+          <td style="font-size:11px;color:#555">${escHtml(r.worker_host || '—')}</td>
+          <td style="font-size:11px"><span class="${stale ? 'heartbeat-stale' : 'heartbeat-fresh'}">${heartbeatLabel(r.last_heartbeat_at, r.status)}</span></td>
+          <td class="row-actions">
+            ${stale ? `<button class="btn-small btn-reset" data-action="force_reset" data-id="${r.id}">⚡ Force-Reset</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  c.querySelectorAll('button[data-action="force_reset"]').forEach(btn => {
+    btn.addEventListener('click', () => forceReset(btn.dataset.id));
+  });
+}
+
+function renderComplete() {
+  const rows = _requests.filter(r => r.status === 'Complete');
+  const c = document.getElementById('completeList');
+  if (!rows.length) { c.innerHTML = '<div class="empty-state">No completed jobs yet.</div>'; return; }
+  c.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Submitted</th><th>Requester</th><th>File</th><th>Output Folder</th>
+        <th>Clips</th><th>Completed</th><th style="width:200px">Actions</th>
+      </tr></thead>
+      <tbody>${rows.map(r => `
+        <tr>
+          <td>${fmtDate(r.submitted_at)}</td>
+          <td>
+            <strong>${escHtml(r.requester_name || '—')}</strong><br>
+            <span style="color:#555;font-size:11px">${escHtml(r.requester_email)}</span>
+          </td>
+          <td>${r.box_file_name ? `<span class="filename">${escHtml(r.box_file_name)}</span>` : `<span style="font-family:'Courier New',monospace;font-size:10px;color:#888">${escHtml(r.box_file_id)}</span>`}<br><span style="font-size:11px">#${escHtml(r.jersey_number)} ${escHtml(r.jersey_color)}</span></td>
+          <td><span style="font-family:'Courier New',monospace;font-size:11px">${escHtml(r.output_box_folder_id || '—')}</span></td>
+          <td>${r.output_clip_count == null ? '—' : escHtml(r.output_clip_count)}</td>
+          <td style="font-size:11px;color:#555">${fmtDate(r.processing_completed_at)}</td>
+          <td class="row-actions">
+            <button class="btn-small btn-share" data-action="get_share_link" data-id="${r.id}">🔗 Get Share Link</button>
+            <button class="btn-small btn-retry" data-action="retry" data-id="${r.id}">↻ Re-run</button>
+          </td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+  c.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.action === 'get_share_link') getShareLink(btn.dataset.id);
+      else if (btn.dataset.action === 'retry') retryJob(btn.dataset.id);
+    });
+  });
+}
+
+function renderFailed() {
+  const rows = _requests.filter(r => r.status === 'Failed');
+  const c = document.getElementById('failedList');
+  if (!rows.length) { c.innerHTML = '<div class="empty-state">No failed jobs.</div>'; return; }
+  c.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Submitted</th><th>Requester</th><th>File</th><th>Error</th>
+        <th>Worker</th><th>Failed At</th><th style="width:160px">Actions</th>
+      </tr></thead>
+      <tbody>${rows.map(r => `
+        <tr class="row-failed">
+          <td>${fmtDate(r.submitted_at)}</td>
+          <td>
+            <strong>${escHtml(r.requester_name || '—')}</strong><br>
+            <span style="color:#555;font-size:11px">${escHtml(r.requester_email)}</span>
+          </td>
+          <td>${r.box_file_name ? `<span class="filename">${escHtml(r.box_file_name)}</span>` : `<span style="font-family:'Courier New',monospace;font-size:10px;color:#888">${escHtml(r.box_file_id)}</span>`}<br><span style="font-size:11px">#${escHtml(r.jersey_number)} ${escHtml(r.jersey_color)}</span></td>
+          <td><span class="err-msg" data-expand="1" title="Click to expand">${escHtml(r.error_message || '(no message)')}</span></td>
+          <td style="font-size:11px;color:#555">${escHtml(r.worker_host || '—')}</td>
+          <td style="font-size:11px;color:#555">${fmtDate(r.processing_completed_at)}</td>
+          <td class="row-actions">
+            <button class="btn-small btn-retry"  data-action="retry"  data-id="${r.id}">↻ Retry</button>
+            <button class="btn-small btn-delete" data-action="delete" data-id="${r.id}">✗ Delete</button>
+          </td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+  c.querySelectorAll('.err-msg[data-expand]').forEach(el => {
+    el.addEventListener('click', () => el.classList.toggle('expanded'));
+  });
+  c.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.action === 'retry') retryJob(btn.dataset.id);
+      else if (btn.dataset.action === 'delete') deleteJob(btn.dataset.id);
+    });
+  });
+}
+
+function renderWorkers() {
+  const c = document.getElementById('workersList');
+  if (!_workers.length) { c.innerHTML = '<div class="empty-state">No workers have registered yet. Start a worker on a Mac to see it appear here.</div>'; return; }
+  c.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Hostname</th><th>Status</th><th>Started</th><th>Last Seen</th>
+        <th>Current Jobs</th><th>Max Concurrent</th>
+      </tr></thead>
+      <tbody>${_workers.map(w => {
+        const effective = (w.status === 'active' && isStaleWorker(w.last_seen_at)) ? 'stale' : w.status;
+        return `
+        <tr>
+          <td><strong>${escHtml(w.worker_host)}</strong></td>
+          <td><span class="pill ${effective}">${effective}</span></td>
+          <td style="font-size:11px;color:#555">${fmtDate(w.started_at)}</td>
+          <td style="font-size:11px"><span class="${isStaleWorker(w.last_seen_at) && w.status === 'active' ? 'heartbeat-stale' : 'heartbeat-fresh'}">${heartbeatLabel(w.last_seen_at, 'active')}</span></td>
+          <td>${w.current_job_count ?? 0}</td>
+          <td>${w.max_concurrent_jobs ?? 1}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+function renderAllTab() {
+  const c = document.getElementById('allList');
+  if (!_requests.length) { c.innerHTML = '<div class="empty-state">No requests yet.</div>'; return; }
+  c.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Submitted</th><th>Status</th><th>Requester</th><th>File</th><th>Jersey</th><th>Worker</th>
+      </tr></thead>
+      <tbody>${_requests.map(r => `
+        <tr class="${r.status === 'Declined' ? 'row-declined' : ''}">
+          <td style="font-size:11px;color:#555">${fmtDate(r.submitted_at)}</td>
+          <td><span class="pill ${r.status.toLowerCase()}">${r.status}</span></td>
+          <td><strong>${escHtml(r.requester_name || '—')}</strong><br><span style="font-size:11px;color:#555">${escHtml(r.requester_email)}</span></td>
+          <td>${r.box_file_name ? `<span class="filename">${escHtml(r.box_file_name)}</span>` : `<span style="font-family:'Courier New',monospace;font-size:11px;color:#888">${escHtml(r.box_file_id)}</span>`}</td>
+          <td>#${escHtml(r.jersey_number)} ${escHtml(r.jersey_color)}</td>
+          <td style="font-size:11px;color:#555">${escHtml(r.worker_host || '—')}</td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+/* ── Action handlers ── */
+function openApproveModal(id) {
+  const r = _requests.find(x => x.id === id);
+  if (!r) return;
+  _pendingActionId = id;
+  document.getElementById('approveSummary').innerHTML = `
+    <strong>${escHtml(r.requester_name || '—')}</strong> · ${escHtml(r.requester_email)}<br>
+    File: <span class="filename">${escHtml(r.box_file_name || r.box_file_id)}</span><br>
+    Jersey: <strong>#${escHtml(r.jersey_number)}</strong> ${escHtml(r.jersey_color)}
+    ${r.team ? ` · Team: ${escHtml(r.team)}` : ''}
+    ${r.game_context ? `<br>Game: ${escHtml(r.game_context)}` : ''}
+  `;
+  document.getElementById('approveNotes').value = '';
+  document.getElementById('approveOverlay').classList.add('open');
+}
+function closeApproveModal() {
+  document.getElementById('approveOverlay').classList.remove('open');
+  _pendingActionId = null;
+}
+async function confirmApprove() {
+  if (!_pendingActionId) return;
+  const notes = document.getElementById('approveNotes').value.trim();
+  const btn = document.getElementById('approveConfirmBtn');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Approving…';
+  try {
+    await callFunction('approve', { request_id: _pendingActionId, admin_notes: notes || null });
+    closeApproveModal();
+    await loadRequests(); renderAll();
+    showStatus('✓ Approved — worker will pick it up', 'ok');
+  } catch (e) {
+    showStatus('Approve failed: ' + e.message, 'err');
+    btn.textContent = old; btn.disabled = false;
+  }
+}
+
+function openDeclineModal(id) {
+  const r = _requests.find(x => x.id === id);
+  if (!r) return;
+  _pendingActionId = id;
+  document.getElementById('declineSummary').innerHTML = `
+    <strong>${escHtml(r.requester_name || '—')}</strong> · ${escHtml(r.requester_email)}<br>
+    Jersey #${escHtml(r.jersey_number)} ${escHtml(r.jersey_color)}
+  `;
+  document.getElementById('declineReason').value = '';
+  document.getElementById('declineOverlay').classList.add('open');
+}
+function closeDeclineModal() {
+  document.getElementById('declineOverlay').classList.remove('open');
+  _pendingActionId = null;
+}
+async function confirmDecline() {
+  if (!_pendingActionId) return;
+  const reason = document.getElementById('declineReason').value.trim() || null;
+  const btn = document.getElementById('declineConfirmBtn');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Declining…';
+  try {
+    await callFunction('decline', { request_id: _pendingActionId, reason });
+    closeDeclineModal();
+    await loadRequests(); renderAll();
+    showStatus('Declined', 'ok');
+  } catch (e) {
+    showStatus('Decline failed: ' + e.message, 'err');
+    btn.textContent = old; btn.disabled = false;
+  }
+}
+
+async function getShareLink(id) {
+  try {
+    const result = await callFunction('get_share_link', { request_id: id });
+    if (result.shared_url) {
+      window.open(result.shared_url, '_blank', 'noopener');
+      showStatus(`✓ Share link minted (expires ${fmtDate(result.expires_at)})`, 'ok');
+    } else {
+      showStatus('Share link did not return a URL', 'err');
+    }
+  } catch (e) {
+    showStatus('Get share link failed: ' + e.message, 'err');
+  }
+}
+
+async function retryJob(id) {
+  if (!confirm('Reset this job back to Approved? It will be re-claimed by the next available worker.')) return;
+  try {
+    await callFunction('retry', { request_id: id });
+    await loadRequests(); renderAll();
+    showStatus('✓ Retry queued', 'ok');
+  } catch (e) {
+    showStatus('Retry failed: ' + e.message, 'err');
+  }
+}
+
+async function forceReset(id) {
+  if (!confirm('Force-reset this job? Use this only if the worker is presumed dead.\n\nThe row will be moved back to Approved with the worker_host cleared, so another worker can claim it.')) return;
+  try {
+    await callFunction('force_reset', { request_id: id });
+    await loadRequests(); renderAll();
+    showStatus('✓ Force-reset', 'ok');
+  } catch (e) {
+    showStatus('Force-reset failed: ' + e.message, 'err');
+  }
+}
+
+async function deleteJob(id) {
+  if (!confirm('Permanently delete this row?\n\nThe processing log entries will also be removed (cascade). This cannot be undone.')) return;
+  try {
+    await callFunction('delete', { request_id: id });
+    await loadRequests(); renderAll();
+    showStatus('✓ Deleted', 'ok');
+  } catch (e) {
+    showStatus('Delete failed: ' + e.message, 'err');
+  }
+}
+
+async function runStaleSweep() {
+  const btn = document.getElementById('sweepBtn');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Sweeping…';
+  try {
+    const result = await callFunction('sweep_stale', { stale_minutes: STALE_MINUTES });
+    await loadRequests(); renderAll();
+    const n = result?.reset_count ?? 0;
+    showStatus(`✓ Sweep complete — ${n} job${n === 1 ? '' : 's'} reset`, 'ok');
+  } catch (e) {
+    showStatus('Sweep failed: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+/* ── Helpers ── */
+function isStaleHeartbeat(ts) {
+  if (!ts) return false;
+  return (Date.now() - new Date(ts).getTime()) > STALE_MINUTES * 60 * 1000;
+}
+function isStaleWorker(ts) {
+  if (!ts) return true;
+  return (Date.now() - new Date(ts).getTime()) > STALE_MINUTES * 60 * 1000;
+}
+function heartbeatLabel(ts, status) {
+  if (!ts) return status === 'Approved' ? '— (not claimed)' : '—';
+  const ageSec = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 1000));
+  if (ageSec < 60)   return `${ageSec}s ago`;
+  if (ageSec < 3600) return `${Math.floor(ageSec / 60)}m ago`;
+  return `${Math.floor(ageSec / 3600)}h ago`;
+}
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+}
+function showStatus(msg, kind) {
+  const bar = document.getElementById('statusBar');
+  bar.textContent = msg;
+  bar.className = 'status-bar show ' + (kind || '');
+  setTimeout(() => bar.classList.remove('show'), 4000);
+}
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+</script>
+</body>
+</html>

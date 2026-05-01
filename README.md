@@ -152,6 +152,12 @@ This tool follows CUSA's 2025 Brand Book:
 
 ---
 
+## Highlight Request
+
+The Production Hub also includes an automated highlight pipeline (`highlight.html` + `highlight-admin.html`) that lets staff request player-specific highlights from Box game film by jersey number and color. Approved requests are claimed by a Python worker on a CUSA Mac, which produces a Box folder of clips and surfaces a 30-day shared link in the admin UI. The architecture is multi-worker-safe (atomic claim via `claim_next_highlight_job`, heartbeat-based stale-job sweeping) so processing capacity can scale by adding more machines. See [`docs/HIGHLIGHT_FEATURE.md`](docs/HIGHLIGHT_FEATURE.md) for the full architecture, schema, env-var reference, and operational runbook.
+
+---
+
 ## Maintained By
 
 **Keith King** — Conference USA Media Operations

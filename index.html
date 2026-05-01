@@ -167,15 +167,33 @@
     <div class="card-desc">Browse 5,200+ historical game folders across 9 seasons; request access by access code</div>
     <div class="card-arrow">Open →</div>
   </a>
-  <a class="hub-card" href="highlight.html">
+  <a class="hub-card" id="highlightTile" href="highlight.html" style="display:none">
     <div class="card-icon" style="background:rgba(0,181,226,0.2);border:1px solid rgba(0,181,226,0.4);">🎯</div>
-    <div class="card-title">Highlight Request</div>
+    <div class="card-title">Highlight Request <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
     <div class="card-desc">Request automated player highlights from a Box game film by jersey number and color</div>
     <div class="card-arrow">Open →</div>
   </a>
 </div>
 
 <div class="hub-footer">Conference USA &nbsp;·&nbsp; ESPN+ &nbsp;·&nbsp; 2025–26</div>
+
+<script>
+  // Reveal admin-only tiles to anyone signed into any admin page on this device.
+  (function () {
+    var ADMIN_KEYS = [
+      'cusa_archive_admin_unlocked',
+      'cusa_highlight_admin_unlocked',
+      'cusa_melts_admin_unlocked',
+      'cusa_schedule_admin_unlocked',
+      'cusa_viewer_unlocked'
+    ];
+    var isAdmin = ADMIN_KEYS.some(function (k) { return localStorage.getItem(k) === 'true'; });
+    if (isAdmin) {
+      var t = document.getElementById('highlightTile');
+      if (t) t.style.display = 'block';
+    }
+  })();
+</script>
 
 </body>
 </html>

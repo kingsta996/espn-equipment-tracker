@@ -1146,6 +1146,130 @@ function exportCompliance() {
   XLSX.writeFile(wb, filename);
 }
 
+/* ── Export every school's School-Editor data as a flat workbook (admin only) ── */
+function exportSchoolEditor() {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel export library failed to load. Please check your internet connection and refresh.');
+    return;
+  }
+  if (!state.isAdmin) { alert('Admin only.'); return; }
+
+  const schools = (state.schools || []).slice().sort((a,b) =>
+    String(a.name||'').localeCompare(String(b.name||''))
+  );
+  const today = new Date().toISOString().slice(0,10);
+  const yes = v => v ? 'Yes' : 'No';
+  const dt  = v => v ? new Date(v).toLocaleString() : '';
+
+  // Field order = how they appear in the editor, grouped by section.
+  const FIELDS = [
+    { key:'name',                label:'School' },
+    { key:'conference',          label:'Conference' },
+    { key:'auth_email',          label:'Contact Email' },
+    { key:'sports',              label:'Sports',                  transform: v => Array.isArray(v) ? v.join(', ') : '' },
+
+    { key:'swModel',             label:'Switcher Model' },
+    { key:'swInputs',            label:'Switcher Inputs' },
+    { key:'swKeyers',            label:'Switcher Keyers' },
+    { key:'swMEs',               label:'Switcher MEs' },
+
+    { key:'cameras',             label:'Total Cameras' },
+    { key:'cameraModels',        label:'Camera Models' },
+    { key:'cam_football',        label:'Cameras (Football)' },
+    { key:'cam_basketball',      label:'Cameras (Basketball)' },
+    { key:'cam_volleyball',      label:'Cameras (Volleyball)' },
+    { key:'cam_soccer',          label:'Cameras (Soccer)' },
+    { key:'cam_baseball',        label:'Cameras (Baseball)' },
+    { key:'cam_softball',        label:'Cameras (Softball)' },
+
+    { key:'has40xLens',          label:'Has 40x+ Lens',           transform: yes },
+    { key:'lensDetail',          label:'Lens Detail' },
+    { key:'has14xLens',          label:'Has 14x Lens',            transform: yes },
+
+    { key:'replayModel',         label:'Replay Model' },
+    { key:'replayUnits',         label:'Replay Units' },
+    { key:'replayInputs',        label:'Replay Inputs' },
+    { key:'replayOutputs',       label:'Replay Outputs' },
+
+    { key:'audioModel',          label:'Audio Console' },
+    { key:'audioInputs',         label:'Audio Inputs' },
+    { key:'audioOutputs',        label:'Audio Outputs' },
+    { key:'audioFaders',         label:'Audio Faders' },
+
+    { key:'intercomModel',       label:'Intercom Model' },
+    { key:'intercomCh',          label:'Intercom Channels' },
+
+    { key:'gfxModel',            label:'Graphics Model' },
+    { key:'gfxChannels',         label:'Graphics Channels' },
+    { key:'gfxApproved',         label:'Graphics ESPN-Approved',  transform: yes },
+
+    { key:'txDigital',           label:'Transmission' },
+    { key:'txApproved',          label:'Transmission ESPN-Approved', transform: yes },
+    { key:'backupPower',         label:'Backup Power',            transform: yes },
+
+    { key:'mvSources',           label:'MV Sources' },
+    { key:'mvSoftware',          label:'MV Software' },
+
+    { key:'updated_at',          label:'Last Auto-Updated',       transform: dt },
+    { key:'manually_marked_at',  label:'Last Marked Updated',     transform: dt }
+  ];
+
+  // Style helpers (match exportCompliance for consistency)
+  const navyFill = {patternType:'solid', fgColor:{rgb:'00263A'}};
+  const espnRedFill = {patternType:'solid', fgColor:{rgb:'EF4035'}};
+  const headerFont = {color:{rgb:'FFFFFF'}, bold:true, name:'Arial', sz:11};
+  const titleFont  = {color:{rgb:'FFFFFF'}, bold:true, name:'Arial', sz:14};
+  const cellFont   = {name:'Arial', sz:10};
+  const border = {
+    top:{style:'thin',color:{rgb:'CCCCCC'}}, bottom:{style:'thin',color:{rgb:'CCCCCC'}},
+    left:{style:'thin',color:{rgb:'CCCCCC'}}, right:{style:'thin',color:{rgb:'CCCCCC'}}
+  };
+
+  // Build the rows: title, spacer, header, one row per school
+  const titleRow  = [{ v:`CUSA SCHOOL EDITOR — DATA EXPORT — ${today}`, t:'s',
+                       s:{fill:espnRedFill, font:titleFont, alignment:{horizontal:'center'}, border} }];
+  const spacerRow = [{ v:'', s:{} }];
+  const headerRow = FIELDS.map(f => ({ v:f.label, t:'s',
+                       s:{fill:navyFill, font:headerFont, alignment:{horizontal:'center', wrapText:true}, border} }));
+  const dataRows  = schools.map(s => FIELDS.map(f => {
+    const raw = s[f.key];
+    const out = f.transform ? f.transform(raw) : (raw == null ? '' : raw);
+    const isNum = typeof out === 'number' && Number.isFinite(out);
+    return { v: out, t: isNum ? 'n' : 's',
+             s: {font: cellFont, alignment: {horizontal: isNum ? 'center' : 'left', wrapText:true}, border} };
+  }));
+
+  const rows = [titleRow, spacerRow, headerRow, ...dataRows];
+
+  // Build worksheet
+  const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.map(c => c.v)));
+  rows.forEach((row, rIdx) => {
+    row.forEach((cell, cIdx) => {
+      const addr = XLSX.utils.encode_cell({r: rIdx, c: cIdx});
+      if (ws[addr]) {
+        if (cell.s) ws[addr].s = cell.s;
+        if (cell.t) ws[addr].t = cell.t;
+      } else if (cell.v !== undefined && cell.v !== '') {
+        ws[addr] = {v: cell.v, t: cell.t || 's', s: cell.s};
+      }
+    });
+  });
+
+  // Merge title row across every column
+  ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:FIELDS.length - 1}}];
+
+  // Column widths — measured against header label, with a sensible floor/ceiling
+  ws['!cols'] = FIELDS.map(f => ({ wch: Math.min(40, Math.max(14, f.label.length + 4)) }));
+  // Row heights
+  ws['!rows'] = [{hpt:26}, {hpt:8}, {hpt:36}].concat(schools.map(() => ({hpt:22})));
+  // Freeze header (row 3 / index 3 = first data row)
+  ws['!freeze'] = { ySplit: 3 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'School Editor Data');
+  XLSX.writeFile(wb, `CUSA_School_Editor_${today}.xlsx`);
+}
+
 function renderProtectedTabGate() {
   return `
     <div style="max-width:460px;margin:60px auto;background:var(--white);border-radius:8px;border:2px solid var(--navy);overflow:hidden">
@@ -1644,6 +1768,7 @@ function renderEditor() {
   return `
     <div class="toolbar">
       <h2>School Equipment Editor</h2>
+      ${state.isAdmin ? `<button class="btn" id="export-editor" style="background:#15803d;color:#fff" title="Export every school's editor data to Excel (admin only)">⬇ Export Editor Data</button>` : ''}
       ${state.unlocked ? `<button class="btn blue" id="add-school">+ Add School</button>` : ''}
     </div>
     <div class="school-grid">${cards}</div>
@@ -1758,6 +1883,10 @@ function wireEditor() {
     state.editingIdx = state.schools.length - 1;
     await saveSchool(newSchool);
     render();
+  });
+
+  document.getElementById('export-editor')?.addEventListener('click', () => {
+    exportSchoolEditor();
   });
 
   document.getElementById('save-school')?.addEventListener('click', async () => {

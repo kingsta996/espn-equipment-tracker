@@ -18,7 +18,7 @@ import time
 from typing import Callable
 
 from .base import Handler, HandlerResult
-from ..lib import logger
+from lib import logger
 
 
 class StubHandler(Handler):

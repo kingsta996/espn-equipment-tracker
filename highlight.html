@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Highlight Request</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A; --gray: #BFCED6; --white: #FFFFFF;
+    --red: #E40046; --blue: #00B5E2; --green: #A7D500;
+    --espn-red: #EF4035; --light: #f4f6f8; --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--light); font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; min-height: 100vh; color: #222; }
+
+  .header {
+    background: var(--navy); padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .hdr-fallback { color: var(--white); font-weight: 900; letter-spacing: -0.5px; font-size: 18px; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 22px; }
+
+  section {
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    padding: 24px; margin-bottom: 20px;
+  }
+  section h2 {
+    color: var(--navy); font-size: 16px; font-weight: 700;
+    margin-bottom: 6px; letter-spacing: -0.2px;
+  }
+  section .desc {
+    color: #666; font-size: 12px; margin-bottom: 18px; line-height: 1.55;
+  }
+  section .desc code {
+    background: #f0f3f6; padding: 1px 6px; border-radius: 3px;
+    font-family: 'Courier New', monospace; font-size: 11px; color: var(--navy);
+  }
+
+  .form-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .form-grid .field.full { grid-column: 1 / -1; }
+  .field label {
+    display: block; margin-bottom: 5px; font-weight: 700;
+    font-size: 11px; color: var(--navy);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .req { color: #c00; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 11px;
+    border: 1px solid var(--gray); border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: #fff;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: var(--blue);
+  }
+  .field .hint { font-size: 10px; color: #888; margin-top: 4px; line-height: 1.45; }
+
+  .btn {
+    padding: 10px 22px; border-radius: 6px; border: 0;
+    font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: var(--espn-red); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #d63227; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-cancel { background: #eee; color: #555; }
+  .btn-cancel:hover { background: #ddd; }
+
+  .actions {
+    display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;
+    border-top: 1px solid #eef0f2; padding-top: 18px;
+  }
+
+  .info-banner {
+    background: rgba(0,181,226,0.08);
+    border: 1px solid rgba(0,181,226,0.3);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 18px;
+    font-size: 12px; color: #0c4a6e; line-height: 1.55;
+  }
+  .info-banner strong { color: var(--navy); }
+
+  .status-bar {
+    position: fixed; bottom: 20px; right: 20px; background: var(--navy);
+    color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: none; z-index: 100; max-width: 400px;
+  }
+  .status-bar.show { display: block; }
+  .status-bar.ok { background: #166534; }
+  .status-bar.err { background: #991b1b; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>🎯 Highlight Request</h1>
+  <a href="index.html">← Hub</a>
+</div>
+
+<main>
+
+  <section>
+    <h2>Request automated player highlights</h2>
+    <p class="desc">
+      Paste a Box file ID from the game film along with the player's jersey number and color, and our pipeline will produce a folder of clip highlights. You'll receive the Box folder share link by email when the clips are ready (typically within an hour for a 2-hour broadcast).
+    </p>
+
+    <div class="info-banner">
+      <strong>Where do I find the Box file ID?</strong>
+      Open the file in Box, then either copy it from the URL (e.g.
+      <code>app.box.com/file/<strong>1234567890</strong></code>) or right-click → <strong>Get URL</strong> → the trailing number is the file ID. Paste only the number.
+    </div>
+
+    <form id="hlForm" autocomplete="on">
+      <div class="form-grid">
+
+        <div class="field">
+          <label for="reqName">Your Name <span class="req">*</span></label>
+          <input type="text" id="reqName" required autocomplete="name">
+        </div>
+
+        <div class="field">
+          <label for="reqEmail">Your Email <span class="req">*</span></label>
+          <input type="email" id="reqEmail" required autocomplete="email">
+          <div class="hint">We'll email you when your clips are ready.</div>
+        </div>
+
+        <div class="field">
+          <label for="reqSchool">Your School</label>
+          <select id="reqSchool"><option value="">— Select —</option></select>
+        </div>
+
+        <div class="field">
+          <label for="boxFileId">Box File ID <span class="req">*</span></label>
+          <input type="text" id="boxFileId" required placeholder="e.g. 1234567890" style="font-family:'Courier New',monospace">
+        </div>
+
+        <div class="field full">
+          <label for="boxFileName">Box File Name <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input type="text" id="boxFileName" placeholder="e.g. WKU_Liberty_FB_2025-10-12.mp4">
+          <div class="hint">Helps the admin recognize the file at a glance.</div>
+        </div>
+
+        <div class="field">
+          <label for="jerseyNumber">Jersey Number <span class="req">*</span></label>
+          <input type="text" id="jerseyNumber" required maxlength="4" placeholder="e.g. 07">
+          <div class="hint">Enter exactly as worn (leading zeros matter).</div>
+        </div>
+
+        <div class="field">
+          <label for="jerseyColor">Jersey Color <span class="req">*</span></label>
+          <select id="jerseyColor" required>
+            <option value="">— Select —</option>
+            <option>White</option>
+            <option>Navy</option>
+            <option>Red</option>
+            <option>Black</option>
+            <option>Gray</option>
+            <option>Color (other)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="reqTeam">Team <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <select id="reqTeam"><option value="">— Select —</option></select>
+        </div>
+
+        <div class="field">
+          <label for="gameContext">Game Context <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input type="text" id="gameContext" placeholder="e.g. WKU vs Liberty 2025-10-12">
+        </div>
+
+        <div class="field full">
+          <label for="reqNotes">Notes <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <textarea id="reqNotes" rows="3" placeholder="Anything the admin should know — e.g. 'special teams plays only'"></textarea>
+        </div>
+
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="submitBtn">📨 Submit Request</button>
+      </div>
+    </form>
+  </section>
+
+</main>
+
+<div class="status-bar" id="statusBar"></div>
+
+<script>
+let _db = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initSupabase();
+  await loadSchools();
+  document.getElementById('hlForm').addEventListener('submit', submitRequest);
+});
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+async function loadSchools() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('conference_schools').select('name').order('name');
+    if (error) throw error;
+    const opts = (data || []).map(r => `<option value="${escAttr(r.name)}">${escHtml(r.name)}</option>`).join('');
+    document.getElementById('reqSchool').innerHTML = '<option value="">— Select —</option>' + opts;
+    document.getElementById('reqTeam').innerHTML   = '<option value="">— Select —</option>' + opts;
+  } catch (e) {
+    console.warn('schools load failed:', e);
+  }
+}
+
+async function submitRequest(e) {
+  e.preventDefault();
+  if (!_db) { showStatus('Database not connected — try again later.', 'err'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ Submitting…';
+
+  const payload = {
+    requester_name:   document.getElementById('reqName').value.trim(),
+    requester_email:  document.getElementById('reqEmail').value.trim(),
+    requester_school: document.getElementById('reqSchool').value || null,
+    box_file_id:      document.getElementById('boxFileId').value.trim(),
+    box_file_name:    document.getElementById('boxFileName').value.trim() || null,
+    jersey_number:    document.getElementById('jerseyNumber').value.trim(),
+    jersey_color:     document.getElementById('jerseyColor').value,
+    team:             document.getElementById('reqTeam').value || null,
+    game_context:     document.getElementById('gameContext').value.trim() || null,
+    notes:            document.getElementById('reqNotes').value.trim() || null,
+    status: 'Pending'
+  };
+
+  try {
+    const { error } = await _db.from('highlight_requests').insert(payload);
+    if (error) throw error;
+    showStatus(`✓ Request submitted. You'll be notified at ${payload.requester_email} when your clips are ready.`, 'ok');
+    document.getElementById('hlForm').reset();
+  } catch (err) {
+    showStatus(`Submission failed: ${err.message || err}`, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+function showStatus(msg, kind) {
+  const bar = document.getElementById('statusBar');
+  bar.textContent = msg;
+  bar.className = 'status-bar show ' + (kind || '');
+  setTimeout(() => bar.classList.remove('show'), 6000);
+}
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+</script>
+</body>
+</html>

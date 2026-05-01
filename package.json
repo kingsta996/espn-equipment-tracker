@@ -1,0 +1,9 @@
+{
+  "name": "cusa-espn-equipment-tracker",
+  "private": true,
+  "description": "Root package.json — deps here so Netlify's esbuild function bundler can resolve modules used in netlify/functions/.",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.7",
+    "box-node-sdk": "^3.6.0"
+  }
+}

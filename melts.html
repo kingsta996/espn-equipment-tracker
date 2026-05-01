@@ -376,9 +376,10 @@
     </p>
 
     <div class="period-tabs" id="periodTabs">
-      <button data-period="fall">🍂 Fall — Football, Volleyball, Soccer</button>
-      <button data-period="winter">❄️ Winter — Basketball</button>
-      <button data-period="spring">🌸 Spring — Baseball, Softball</button>
+      <button data-period="fall">🍂 Fall</button>
+      <button data-period="winter">❄️ Winter</button>
+      <button data-period="spring">🌸 Spring</button>
+      <button data-period="uploaded" style="margin-left:auto">✓ All Uploaded This Year</button>
     </div>
 
     <div class="tracker-meta" id="trackerMeta"></div>
@@ -590,23 +591,51 @@ function renderTracker() {
   document.querySelectorAll('#periodTabs button').forEach(b =>
     b.classList.toggle('active', b.dataset.period === _currentPeriod)
   );
-  const events = _trackerEvents.filter(e => {
-    const sn = (SPORT_SEASON_PUBLIC[e.sport] || '').toLowerCase();
-    return sn === _currentPeriod;
-  });
+
+  // 'uploaded' tab → every uploaded melt across all seasons (the year-wide
+  // "what is currently uploaded" view). The Fall/Winter/Spring tabs filter
+  // by season + show pending alongside.
+  let events;
+  if (_currentPeriod === 'uploaded') {
+    events = _trackerEvents
+      .filter(e => _trackerUploads.has(e.id))
+      .slice()
+      .sort((a, b) => {
+        // newest upload first
+        const ua = _trackerUploads.get(a.id)?.uploaded_at || '';
+        const ub = _trackerUploads.get(b.id)?.uploaded_at || '';
+        return ub.localeCompare(ua);
+      });
+  } else {
+    events = _trackerEvents.filter(e =>
+      (SPORT_SEASON_PUBLIC[e.sport] || '').toLowerCase() === _currentPeriod
+    );
+  }
+
   const uploaded = events.filter(e => _trackerUploads.has(e.id)).length;
+  const yearTotal = _trackerEvents.length;
+  const yearUploaded = _trackerEvents.filter(e => _trackerUploads.has(e.id)).length;
   const meta = document.getElementById('trackerMeta');
-  meta.textContent = `${_athleticYear} · ${events.length} event${events.length === 1 ? '' : 's'} · ${uploaded}/${events.length} uploaded`;
+
+  if (_currentPeriod === 'uploaded') {
+    meta.textContent = `${_athleticYear} · ${uploaded} uploaded melt${uploaded === 1 ? '' : 's'} across all seasons`;
+  } else {
+    meta.textContent = `${_athleticYear} · ${events.length} event${events.length === 1 ? '' : 's'} this season · ${uploaded}/${events.length} uploaded · ${yearUploaded}/${yearTotal} uploaded year-to-date`;
+  }
 
   const c = document.getElementById('trackerContainer');
   if (!events.length) {
-    c.innerHTML = `<div class="empty-state-tracker">No ${_currentPeriod} events submitted to the ESPN schedule yet for ${_athleticYear}.</div>`;
+    c.innerHTML = `<div class="empty-state-tracker">${
+      _currentPeriod === 'uploaded'
+        ? `No melts have been marked as uploaded yet for ${_athleticYear}.`
+        : `No ${_currentPeriod} events submitted to the ESPN schedule yet for ${_athleticYear}.`
+    }</div>`;
     return;
   }
   c.innerHTML = `
     <table class="tracker-table">
       <thead><tr>
-        <th style="width:90px">Date</th>
+        <th style="width:90px">${_currentPeriod === 'uploaded' ? 'Uploaded' : 'Date'}</th>
         <th style="width:130px">Sport</th>
         <th>School / Matchup</th>
         <th style="width:100px">Status</th>
@@ -616,8 +645,11 @@ function renderTracker() {
         const u = _trackerUploads.get(e.id);
         const isUp = !!u;
         const fname = isUp ? (u.filename || '—') : buildExpectedFilename(e);
+        const dateCell = _currentPeriod === 'uploaded'
+          ? (u?.uploaded_at ? new Date(u.uploaded_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—')
+          : (e.event_date || '—');
         return `<tr class="${isUp ? 'uploaded' : ''}">
-          <td>${escapeHtml(e.event_date || '—')}</td>
+          <td>${escapeHtml(dateCell)}</td>
           <td>${escapeHtml(e.sport || '—')}</td>
           <td><strong>${escapeHtml(e.school || '—')}</strong> · ${escapeHtml(e.away || '?')} @ ${escapeHtml(e.home || '?')}</td>
           <td>${isUp ? '<span class="pill pill-uploaded">✓ Uploaded</span>' : '<span class="pill pill-pending">⚠ Pending</span>'}</td>

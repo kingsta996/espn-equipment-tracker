@@ -147,6 +147,13 @@
   .school-card.active .mark-toggle.on { background: var(--green); color: var(--navy); border-color: var(--green); }
   .mark-meta { font-size: 10px; color: var(--gray); margin-top: 4px; }
   .school-card.active .mark-meta { color: rgba(255,255,255,0.65); }
+  .submitted-badge {
+    display: inline-block; margin-top: 6px;
+    background: var(--green); color: var(--navy);
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+  }
+  .school-card.active .submitted-badge { background: var(--green); color: var(--navy); }
   td { padding: 6px 10px; border-bottom: 1px solid #eee; }
   tr:nth-child(even) td { background: #fafafa; }
   td.label { font-weight: 600; color: var(--navy); }
@@ -553,7 +560,9 @@ function withinRecentWindow(iso) {
   return ageDays >= 0 && ageDays <= RECENT_UPDATE_DAYS;
 }
 function isManuallyMarked(school) {
-  return withinRecentWindow(school?.manually_marked_at);
+  // School-submitted "I confirm my equipment list is current" — persists until
+  // the admin RESET button at the start of the next year clears all marks.
+  return !!school?.manually_marked_at;
 }
 function isAutoUpdated(school) {
   return withinRecentWindow(school?.updated_at);
@@ -570,7 +579,7 @@ function formatUpdatedDate(school) {
   }
   if (school?.manually_marked_at) {
     const d = new Date(school.manually_marked_at);
-    if (!isNaN(d.getTime())) lines.push('Admin marked: ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }));
+    if (!isNaN(d.getTime())) lines.push('School submitted: ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }));
   }
   return lines.length ? lines.join('  •  ') : 'Never updated';
 }
@@ -1851,7 +1860,6 @@ function renderReference() {
 }
 
 function renderEditor() {
-  const showMarkToggle = state.isAdmin && !state.espnAccess;
   const cards = state.schools.map((s, i) => {
     const isActive = state.editingIdx === i || state.pendingEditIdx === i;
     const marked = isManuallyMarked(s);
@@ -1859,14 +1867,12 @@ function renderEditor() {
     const cardClasses = ['school-card'];
     if (isActive) cardClasses.push('active');
     if (marked) cardClasses.push('is-marked-updated');
-    const toggle = showMarkToggle
-      ? `<button class="mark-toggle ${marked ? 'on' : ''}" data-mark-idx="${i}" title="${marked ? 'Clear admin mark' : 'Mark this school as recently updated'}">${marked ? '✓ Marked Updated' : '○ Mark as Updated'}</button>`
-      : '';
     const metaLine = recent ? `<div class="mark-meta">${escapeHtml(formatUpdatedDate(s))}</div>` : '';
+    const submittedBadge = marked ? `<div class="submitted-badge">✓ Submitted</div>` : '';
     return `<div class="${cardClasses.join(' ')}" data-idx="${i}">
       <div class="name">${escapeHtml(s.name || 'Unnamed')}</div>
       ${metaLine}
-      ${toggle}
+      ${submittedBadge}
     </div>`;
   }).join('');
 
@@ -1892,9 +1898,10 @@ function renderEditor() {
 
     form = `<div class="editor-wrap">
       <div class="editor-header">
-        <span>${ro ? '👁 Viewing: ' : 'Editing: '}${escapeHtml(s.name)}${ro ? ' <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:10px;margin-left:6px">Read Only</span>' : ''}</span>
+        <span>${ro ? '👁 Viewing: ' : 'Editing: '}${escapeHtml(s.name)}${ro ? ' <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:10px;margin-left:6px">Read Only</span>' : ''}${isManuallyMarked(s) ? ' <span style="font-size:11px;background:var(--green);color:var(--navy);padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:800">✓ Submitted</span>' : ''}</span>
         <div style="display:flex;gap:8px">
           ${state.isAdmin ? `<button class="btn" id="export-school" style="background:#15803d;color:#fff" title="Export this school's editor as Excel (admin only)">⬇ Export</button>` : ''}
+          ${(!ro && state.authorizedSchoolEmail && (s.auth_email || '').toLowerCase() === state.authorizedSchoolEmail.toLowerCase()) ? `<button class="btn" id="school-submit" style="background:var(--espn-red);color:#fff" title="Confirm your equipment list is current">${isManuallyMarked(s) ? '↻ Re-Submit' : '✓ Submit & Mark Updated'}</button>` : ''}
           ${ro ? '' : `<button class="btn" id="save-school" style="background:var(--green);color:var(--navy)">Save</button>`}
           ${state.unlocked ? `<button class="btn" id="remove-school" style="background:#fff;color:var(--espn-red)">Remove</button>` : ''}
         </div>
@@ -1989,6 +1996,7 @@ function renderEditor() {
     <div class="toolbar">
       <h2>School Equipment Editor</h2>
       ${state.isAdmin ? `<button class="btn" id="export-editor" style="background:#15803d;color:#fff" title="Export every school's editor data to Excel (admin only)">⬇ Export Editor Data</button>` : ''}
+      ${state.isAdmin ? `<button class="btn" id="reset-marks" style="background:#fff;color:var(--espn-red);border:1px solid var(--espn-red)" title="Clear 'Submitted' status from every school — run at the start of each year so schools must re-submit their equipment list">⟲ Reset Submitted</button>` : ''}
       ${state.unlocked ? `<button class="btn blue" id="add-school">+ Add School</button>` : ''}
     </div>
     <div class="school-grid">${cards}</div>
@@ -2068,8 +2076,7 @@ function wireEditor() {
   }
 
   document.querySelectorAll('.school-card').forEach(card => {
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.mark-toggle')) return;
+    card.addEventListener('click', () => {
       if (!state.unlocked && !state.espnAccess) {
         state.pendingEditIdx = Number(card.dataset.idx);
         render();
@@ -2079,22 +2086,48 @@ function wireEditor() {
       render();
     });
   });
-  document.querySelectorAll('.school-card .mark-toggle').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const idx = +btn.dataset.markIdx;
-      const school = state.schools[idx];
-      if (!school) return;
+
+  document.getElementById('school-submit')?.addEventListener('click', async () => {
+    if (state.editingIdx === null) return;
+    const school = state.schools[state.editingIdx];
+    if (!school) return;
+    const already = isManuallyMarked(school);
+    const msg = already
+      ? `Re-submit for ${school.name}?\n\nThis updates the submission timestamp to now. Do this if you've made further edits since your last submission.`
+      : `Submit ${school.name}'s equipment list?\n\nBy submitting, you confirm the data above is current and accurate. The school will be marked as ✓ Submitted until the conference admin runs a yearly reset.`;
+    if (!confirm(msg)) return;
+    const btn = document.getElementById('school-submit');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Submitting…'; }
+    const prev = school.manually_marked_at;
+    school.manually_marked_at = new Date().toISOString();
+    const ok = await saveSchool(school);
+    if (!ok) {
+      school.manually_marked_at = prev;
+      showToast('⚠ Could not submit — try again', true);
+    } else {
+      showToast(already ? '✓ Re-submitted' : '✓ Submitted — thank you');
+    }
+    render();
+  });
+
+  document.getElementById('reset-marks')?.addEventListener('click', async () => {
+    if (!state.isAdmin) return;
+    const marked = state.schools.filter(isManuallyMarked);
+    if (!marked.length) { showToast('No schools currently marked Submitted'); return; }
+    if (!confirm(`Reset Submitted status for ${marked.length} school${marked.length === 1 ? '' : 's'}?\n\nThis clears the ✓ Submitted badge and timestamp for every school that has one. Schools will need to re-submit to confirm their equipment list is current. Cannot be undone.\n\nProceed?`)) return;
+    const btn = document.getElementById('reset-marks');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Resetting…'; }
+    let okCount = 0, failCount = 0;
+    for (const school of marked) {
       const prev = school.manually_marked_at;
-      school.manually_marked_at = isManuallyMarked(school) ? null : new Date().toISOString();
-      btn.disabled = true;
+      school.manually_marked_at = null;
       const ok = await saveSchool(school);
-      if (!ok) {
-        school.manually_marked_at = prev;
-        showToast('⚠ Could not save mark — reverted', true);
-      }
-      render();
-    });
+      if (ok) okCount++;
+      else { school.manually_marked_at = prev; failCount++; }
+    }
+    if (failCount === 0) showToast(`✓ Reset ${okCount} school${okCount === 1 ? '' : 's'}`);
+    else showToast(`⚠ Reset ${okCount}, failed ${failCount} — see console`, true);
+    render();
   });
 
   document.getElementById('add-school')?.addEventListener('click', async () => {

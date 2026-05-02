@@ -615,6 +615,93 @@
   .eng-flag-row .efr-name { font-weight: 700; color: #991b1b; }
   .eng-flag-row .efr-meta { color: #555; font-size: 11px; }
 
+  /* ── Championships tab (CBS Sports Network) ── */
+  .champ-header {
+    background: linear-gradient(135deg, #002b5b 0%, #00263A 100%);
+    color: var(--white);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .champ-header-brand { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 260px; }
+  .champ-logo { height: 38px; width: auto; }
+  .champ-logo-fallback { font-size: 13px; font-weight: 800; letter-spacing: 0.5px; color: var(--white); }
+  .champ-title-line1 { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; }
+  .champ-title-line2 { font-size: 11px; color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+  .champ-sport-select { display: flex; align-items: center; gap: 8px; }
+  .champ-sport-select label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--gray); }
+  .champ-sport-select select {
+    padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: var(--white);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 200px;
+  }
+  .champ-sport-select select option { color: var(--navy); background: var(--white); }
+  .champ-sport-select select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+  .champ-meta { background: var(--navy); }
+
+  .champ-table th { background: #f5f7fa; }
+  .champ-row td { padding: 7px 12px; border-bottom: 1px solid #f0f0f0; }
+  .champ-row .cell-break { font-weight: 700; color: var(--navy); white-space: nowrap; width: 60px; }
+  .champ-row .cell-segment { font-weight: 600; color: var(--navy); }
+  .champ-row.segment-only td { background: #f0f4f8; }
+  .champ-row .cell-dur { font-weight: 700; color: #002b5b; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .champ-row .cell-note { color: #555; font-size: 11px; font-style: italic; }
+  .champ-row .cell-local, .champ-row .cell-psa { font-variant-numeric: tabular-nums; color: #aaa; font-size: 11px; }
+  .champ-row .cell-local.filled { color: var(--conf-fg); font-weight: 700; background: var(--conf-bg); }
+  .champ-row .cell-psa.filled { color: #4d7c0f; font-weight: 700; background: #ecfccb; }
+  .champ-row.has-local .cell-segment { color: var(--navy); }
+
+  .champ-floaters {
+    margin-top: 18px;
+    background: var(--white);
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .champ-floaters h3 { background: #f5f7fa; color: var(--navy); margin: 0; padding: 8px 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid #ddd; }
+  .champ-floaters-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .champ-floaters-table td { padding: 7px 14px; border-bottom: 1px solid #f0f0f0; }
+  .champ-floaters-table tr:last-child td { border-bottom: none; }
+  .champ-floaters-table .cell-break { font-weight: 700; color: var(--navy); width: 110px; }
+  .champ-floaters-table .cell-dur { font-weight: 700; color: #002b5b; width: 70px; }
+
+  .champ-notes {
+    margin-top: 14px;
+    background: var(--white);
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 14px 18px;
+  }
+  .champ-notes h3 { color: var(--navy); margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+  .champ-note { margin-bottom: 8px; font-size: 12px; padding-left: 12px; border-left: 3px solid #002b5b; }
+  .champ-note:last-child { margin-bottom: 0; }
+  .champ-note-title { font-weight: 700; color: var(--navy); margin-bottom: 2px; }
+  .champ-note-body { color: #444; line-height: 1.5; }
+
+  .champ-placeholder {
+    background: var(--white);
+    border: 2px dashed #d0d7dc;
+    border-radius: 12px;
+    padding: 50px 24px;
+    text-align: center;
+    color: #666;
+  }
+  .champ-placeholder-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.6; }
+  .champ-placeholder h3 { color: var(--navy); font-size: 16px; margin: 0 0 8px; }
+  .champ-placeholder p { font-size: 13px; line-height: 1.5; max-width: 540px; margin: 0 auto; }
+
   /* ── Toast ── */
   .save-toast {
     position: fixed; bottom: 20px; right: 20px;
@@ -705,6 +792,7 @@
   <button onclick="switchTab('soccer')" data-tab="soccer">Soccer</button>
   <button onclick="switchTab('volleyball')" data-tab="volleyball">Volleyball</button>
   <button onclick="switchTab('football')" data-tab="football">Football</button>
+  <button onclick="switchTab('championships')" data-tab="championships">🏆 Championships</button>
   <button onclick="switchTab('box')" data-tab="box">Box</button>
   <button id="engagementTabBtn" onclick="switchTab('engagement')" data-tab="engagement" style="display:none;background:#fffbeb;color:var(--warn-fg);font-weight:700">📊 Engagement</button>
 </div>
@@ -962,6 +1050,142 @@ const CATEGORY_LABELS = {
 const CATEGORY_ORDER = ['school_psa', 'cusa_psa', 'sponsor'];
 
 /* ──────────────────────────────────────────────────────────────────────────
+   CBSSN Championship formats (source: CBS Sports Network format PDFs)
+   ─────────────────────────────────────────────────────────────────────── */
+const CHAMPIONSHIP_FORMAT_DATA = {
+  football: {
+    name: "Football",
+    meta: { YEAR: "2025", NETWORK: "CBS Sports Network", SPORT: "CUSA Football", FORMAT_ID: "2018 CUSAFB" },
+    segments: [
+      { num: 1,  name: "Start of 1st Quarter (:02/:32 Kick)", brk: "1",  dur: "2:00" },
+      { num: 2,  name: "",                                    brk: "2",  dur: "2:00", local: "1:30" },
+      { num: 3,  name: "",                                    brk: "3",  dur: "2:00" },
+      { num: 4,  name: "",                                    brk: "4",  dur: "2:00" },
+      { num: 5,  name: "End of 1st Quarter",                  brk: "5",  dur: "2:45", local: "1:30" },
+      { num: 6,  name: "Start of 2nd Quarter",                brk: "6",  dur: "2:00" },
+      { num: 7,  name: "",                                    brk: "7",  dur: "2:00", local: "1:30" },
+      { num: 8,  name: "",                                    brk: "8",  dur: "2:00" },
+      { num: 9,  name: "",                                    brk: "9",  dur: "2:00", note: "2:00 TIMEOUT" },
+      { num: 10, name: "End of 2nd Quarter",                  brk: "10", dur: "2:45", local: "1:30" },
+      { num: 11, name: "Halftime",                            brk: "11", dur: "3:00", psa: "1:00" },
+      { num: 12, name: "",                                    brk: "12", dur: "3:00" },
+      { num: 13, name: "",                                    brk: "13", dur: "2:45", psa: "1:00" },
+      { num: 14, name: "Start of 3rd Quarter",                brk: "14", dur: "2:00" },
+      { num: 15, name: "",                                    brk: "15", dur: "2:00", local: "1:30" },
+      { num: 16, name: "",                                    brk: "16", dur: "2:00" },
+      { num: 17, name: "",                                    brk: "17", dur: "2:00" },
+      { num: 18, name: "End of 3rd Quarter",                  brk: "18", dur: "2:45", local: "1:30" },
+      { num: 19, name: "Start of 4th Quarter",                brk: "19", dur: "2:00" },
+      { num: 20, name: "",                                    brk: "20", dur: "2:00", local: "1:30" },
+      { num: 21, name: "",                                    brk: "21", dur: "2:00" },
+      { num: 22, name: "",                                    brk: "22", dur: "2:00", note: "2:00 TIMEOUT" },
+      { num: 23, name: "End of 4th Quarter",                  brk: "23", dur: "2:00" },
+      { num: 24, name: "Wrap Up / Close",                     brk: "",   dur: "" }
+    ],
+    floaters: [
+      { letter: "A", dur: "0:30", note: "Mandatory Floater A" }
+    ],
+    notes: [
+      { title: "OT Scenario", body: "1:45 break at the end of regulation, then air the coin flip live after the break. The end of the 1st OT break is 1:30. The process repeats until the end of the game." }
+    ]
+  },
+  mens_basketball: {
+    name: "Men's Basketball",
+    meta: { YEAR: "2025-26", NETWORK: "CBS Sports Network", SPORT: "Men's Basketball — 2 hours", FORMAT_ID: "CUSA_BSK18" },
+    segments: [
+      { num: 1,  name: "Pre-Game / Open",        brk: "1",  dur: "2:00" },
+      { num: 2,  name: "Start of 1st Half",      brk: "2",  dur: "2:00", note: "At/Under 16:00" },
+      { num: 3,  name: "",                       brk: "3",  dur: "1:40", note: "At/Under 12:00", local: "1:30" },
+      { num: 4,  name: "",                       brk: "4",  dur: "1:30", note: "At/Under 8:00" },
+      { num: 5,  name: "",                       brk: "5",  dur: "1:30", note: "At/Under 4:00" },
+      { num: 6,  name: "End of 1st Half",        brk: "6",  dur: "2:30", local: "1:30", psa: "1:00" },
+      { num: 7,  name: "Halftime Segment A",     brk: "7",  dur: "2:30", psa: "1:00" },
+      { num: 8,  name: "Halftime Segment B",     brk: "8",  dur: "2:00", local: "1:30" },
+      { num: 9,  name: "Start of 2nd Half",      brk: "9",  dur: "2:00", note: "1st Coaches timeout OR" },
+      { num: 10, name: "",                       brk: "10", dur: "1:30", note: "AT/UNDER 16, 12, 8, 4 (breaks air in order) extend" },
+      { num: 11, name: "",                       brk: "11", dur: "1:30" },
+      { num: 12, name: "",                       brk: "12", dur: "1:30" },
+      { num: 13, name: "",                       brk: "13", dur: "1:40", local: "1:30" },
+      { num: 14, name: "End of 2nd Half",        brk: "14", dur: "2:00" },
+      { num: 15, name: "Post-Game / Wrap-Up",    brk: "",   dur: "" }
+    ],
+    floaters: [
+      { letter: "A", dur: "0:30", note: "Mandatory Floater A" },
+      { letter: "B", dur: "0:30", note: "Mandatory Floater B" }
+    ],
+    notes: [
+      { title: "Second-Half Timeouts", body: "1st Coaches timeout or AT/UNDER 16, 12, 8, 4 (all breaks air in order) extend." },
+      { title: "Overtime Procedure",   body: "The first team-called timeout becomes a 1:30 timeout." }
+    ]
+  },
+  womens_basketball: {
+    name: "Women's Basketball",
+    meta: { YEAR: "2025-26", NETWORK: "CBS Sports Network", SPORT: "Women's Basketball — 2 hours", FORMAT_ID: "CUSA_WBSK18" },
+    segments: [
+      { num: 1,  name: "Pre-Game / Open",         brk: "1",  dur: "2:00", note: "Pre-Tip Break" },
+      { num: 2,  name: "Start of 1st Quarter",    brk: "2",  dur: "2:30", note: "1st dead ball at/below 5 OR 1st TO above 5", local: "1:30" },
+      { num: 3,  name: "End of 1st Quarter",      brk: "3",  dur: "2:30" },
+      { num: 4,  name: "Start of 2nd Quarter",    brk: "4",  dur: "2:30", note: "1st dead ball at/below 5 OR 1st TO above 5" },
+      { num: 5,  name: "End of 2nd Quarter",      brk: "5",  dur: "2:30", local: "1:30" },
+      { num: 6,  name: "Halftime Segment A",      brk: "6",  dur: "2:30" },
+      { num: 7,  name: "Halftime Segment B",      brk: "7",  dur: "2:30", local: "1:30" },
+      { num: 8,  name: "Start of 3rd Quarter",    brk: "8",  dur: "2:30", note: "1st team-called timeout (breaks air in order)" },
+      { num: 9,  name: "",                        brk: "9",  dur: "2:30" },
+      { num: 10, name: "End of 3rd Quarter",      brk: "10", dur: "2:30" },
+      { num: 11, name: "Start of 4th Quarter",    brk: "11", dur: "2:30", note: "1st dead ball at/below 5 OR 1st TO above 5", local: "1:30" },
+      { num: 12, name: "End of 4th Quarter",      brk: "12", dur: "2:00" },
+      { num: 13, name: "Post-Game / Wrap-Up",     brk: "",   dur: "" }
+    ],
+    floaters: [
+      { letter: "A", dur: "0:30", note: "Mandatory Floater A" },
+      { letter: "B", dur: "0:30", note: "Mandatory Floater B" }
+    ],
+    notes: [
+      { title: "Overtime Procedure", body: "The first team-called timeout becomes a 1:30 timeout." }
+    ]
+  },
+  softball: {
+    name: "Softball",
+    meta: { YEAR: "2026", NETWORK: "CBS Sports Network", SPORT: "CUSA Softball Championship", FORMAT_ID: "CUSASOF2024", AIR_DATE: "Sat May 09, 2026 · 12:00–2:00 PM ET" },
+    segments: [
+      { num: 1,  name: "Open",                  brk: "1",  dur: "2:00", local: "1:30" },
+      { num: 2,  name: "Top of 1st",            brk: "2",  dur: "1:00" },
+      { num: 3,  name: "Bottom of 1st",         brk: "3",  dur: "1:00" },
+      { num: 4,  name: "Top of 2nd",            brk: "4",  dur: "1:00" },
+      { num: 5,  name: "Bottom of 2nd",         brk: "5",  dur: "1:00" },
+      { num: 6,  name: "Top of 3rd",            brk: "6",  dur: "1:45", local: "1:30" },
+      { num: 7,  name: "Bottom of 3rd",         brk: "7",  dur: "1:00" },
+      { num: 8,  name: "Top of 4th",            brk: "8",  dur: "1:00" },
+      { num: 9,  name: "Bottom of 4th",         brk: "9",  dur: "1:00" },
+      { num: 10, name: "Top of 5th",            brk: "10", dur: "1:00" },
+      { num: 11, name: "Bottom of 5th",         brk: "11", dur: "1:00" },
+      { num: 12, name: "Top of 6th",            brk: "12", dur: "1:00" },
+      { num: 13, name: "Bottom of 6th",         brk: "13", dur: "1:45", local: "1:30" },
+      { num: 14, name: "Top of 7th",            brk: "14", dur: "1:00" },
+      { num: 15, name: "Bottom of 7th",         brk: "15", dur: "2:00", local: "1:30" },
+      { num: 16, name: "Wrap-up / Close",       brk: "",   dur: "" }
+    ],
+    floaters: [
+      { letter: "A", dur: "0:30", note: "Floater A" },
+      { letter: "B", dur: "1:00", note: "Floater B" },
+      { letter: "C", dur: "1:30", note: "Floater C" }
+    ],
+    notes: [
+      { title: "Bottom of 7th Not Played", body: "If the bottom of the 7th is not played, breaks 14 and 15 combine for a 3:00 break." }
+    ]
+  },
+  baseball: {
+    name: "Baseball",
+    meta: { YEAR: "2025-26", NETWORK: "CBS Sports Network", SPORT: "CUSA Baseball Championship", FORMAT_ID: "—" },
+    segments: [],
+    floaters: [],
+    notes: [],
+    placeholder: "No CBSSN baseball format on file yet. When CBS provides the format PDF, drop it into Box → CBS Sports Network/Formats and this view will be updated."
+  }
+};
+const CHAMPIONSHIP_SPORT_KEYS = ['football', 'mens_basketball', 'womens_basketball', 'softball', 'baseball'];
+
+/* ──────────────────────────────────────────────────────────────────────────
    Constants & state
    ─────────────────────────────────────────────────────────────────────── */
 const SESSION_KEY     = 'cusa-comm-session-v2';
@@ -984,6 +1208,7 @@ let state = {
   // ui
   tab: 'status',
   loginTab: 'school',
+  champSport: 'football',
   // data (from Supabase)
   schools: [],
   commercials: [],
@@ -1298,10 +1523,11 @@ function switchTab(tab) {
 
 function renderCurrentTab() {
   const el = document.getElementById('tabContent');
-  if (state.tab === 'status')     { el.innerHTML = renderStatusTab(); return; }
-  if (state.tab === 'dashboard')  { el.innerHTML = renderDashboardTab(); return; }
-  if (state.tab === 'box')        { el.innerHTML = renderBoxTab(); return; }
-  if (state.tab === 'engagement') { renderEngagementTab(); return; }
+  if (state.tab === 'status')        { el.innerHTML = renderStatusTab(); return; }
+  if (state.tab === 'dashboard')     { el.innerHTML = renderDashboardTab(); return; }
+  if (state.tab === 'box')           { el.innerHTML = renderBoxTab(); return; }
+  if (state.tab === 'engagement')    { renderEngagementTab(); return; }
+  if (state.tab === 'championships') { el.innerHTML = renderChampionshipsTab(); return; }
   const sportData = state.formatOverrides[state.tab] || FORMAT_DATA[state.tab];
   if (!sportData) { el.innerHTML = ''; return; }
   el.innerHTML = renderFormatTab(state.tab, sportData);
@@ -1522,6 +1748,135 @@ async function assignSpot(key, commId) {
 /* ──────────────────────────────────────────────────────────────────────────
    Box tab
    ─────────────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────────────────
+   Championships tab — CBS Sports Network championship formats
+   ─────────────────────────────────────────────────────────────────────── */
+function renderChampionshipsTab() {
+  const sport = state.champSport;
+  const data = CHAMPIONSHIP_FORMAT_DATA[sport];
+  const optsHtml = CHAMPIONSHIP_SPORT_KEYS.map(k => {
+    const d = CHAMPIONSHIP_FORMAT_DATA[k];
+    return `<option value="${esc(k)}" ${k === sport ? 'selected' : ''}>${esc(d.name)}</option>`;
+  }).join('');
+
+  const headerHtml = `
+    <div class="champ-header">
+      <div class="champ-header-brand">
+        <img src="Logos/Broadcast/CBSSN_white.png" alt="CBS Sports Network" class="champ-logo"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='inline'">
+        <span class="champ-logo-fallback" style="display:none">CBS Sports Network</span>
+        <div class="champ-title">
+          <div class="champ-title-line1">CUSA Championships</div>
+          <div class="champ-title-line2">CBS Sports Network · Championship Formats</div>
+        </div>
+      </div>
+      <div class="champ-sport-select">
+        <label for="champSportSelect">Sport</label>
+        <select id="champSportSelect" onchange="setChampSport(this.value)">${optsHtml}</select>
+      </div>
+    </div>
+  `;
+
+  if (data.placeholder) {
+    return headerHtml + `
+      <div class="champ-placeholder">
+        <div class="champ-placeholder-icon">📋</div>
+        <h3>${esc(data.name)} — No CBSSN Format Yet</h3>
+        <p>${esc(data.placeholder)}</p>
+      </div>
+    `;
+  }
+
+  const m = data.meta;
+  const metaHtml = `
+    <div class="format-meta champ-meta">
+      <span><span class="meta-label">Sport</span><span class="meta-val">${esc(m.SPORT || data.name)}</span></span>
+      <span><span class="meta-label">Network</span><span class="meta-val">${esc(m.NETWORK || 'CBS Sports Network')}</span></span>
+      <span><span class="meta-label">Year</span><span class="meta-val">${esc(m.YEAR || '')}</span></span>
+      <span><span class="meta-label">Format ID</span><span class="meta-val">${esc(m.FORMAT_ID || '')}</span></span>
+      ${m.AIR_DATE ? `<span><span class="meta-label">Air</span><span class="meta-val">${esc(m.AIR_DATE)}</span></span>` : ''}
+    </div>
+  `;
+
+  let lastSegName = null;
+  const tableRows = data.segments.map(s => {
+    const isWrap = !s.dur;
+    const showSeg = s.name && s.name !== lastSegName;
+    if (s.name) lastSegName = s.name;
+    if (isWrap) {
+      return `
+        <tr class="champ-row segment-only">
+          <td class="cell-break">—</td>
+          <td colspan="5" class="cell-segment">${esc(s.name || '')} <span style="font-weight:400;color:#777;font-style:italic;font-size:11px">(no commercial)</span></td>
+        </tr>`;
+    }
+    return `
+      <tr class="champ-row${s.local || s.psa ? ' has-local' : ''}">
+        <td class="cell-break">${esc(s.brk || '')}</td>
+        <td class="cell-segment">${esc(showSeg ? s.name : '')}</td>
+        <td class="cell-dur">${esc(s.dur || '')}</td>
+        <td class="cell-note">${esc(s.note || '')}</td>
+        <td class="cell-local ${s.local ? 'filled' : ''}">${esc(s.local || '')}</td>
+        <td class="cell-psa ${s.psa ? 'filled' : ''}">${esc(s.psa || '')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const floatersHtml = data.floaters.length ? `
+    <div class="champ-floaters">
+      <h3>Floaters</h3>
+      <table class="champ-floaters-table">
+        ${data.floaters.map(f => `
+          <tr>
+            <td class="cell-break">Floater ${esc(f.letter)}</td>
+            <td class="cell-dur">${esc(f.dur)}</td>
+            <td>${esc(f.note)}</td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+  ` : '';
+
+  const notesHtml = data.notes.length ? `
+    <div class="champ-notes">
+      <h3>Report Notes</h3>
+      ${data.notes.map(n => `
+        <div class="champ-note">
+          <div class="champ-note-title">${esc(n.title)}</div>
+          <div class="champ-note-body">${esc(n.body)}</div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  return `
+    ${headerHtml}
+    ${metaHtml}
+    <div class="format-wrap">
+      <table class="format-table champ-table">
+        <thead>
+          <tr>
+            <th>Break</th>
+            <th>Segment</th>
+            <th>Duration</th>
+            <th>Notes</th>
+            <th>Local</th>
+            <th>PSA</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    ${floatersHtml}
+    ${notesHtml}
+  `;
+}
+
+function setChampSport(sport) {
+  state.champSport = sport;
+  renderCurrentTab();
+}
+
 function renderBoxTab() {
   const hasLink = !!state.boxLink;
   return `

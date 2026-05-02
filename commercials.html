@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CUSA ESPN – Commercial Formats</title>
+<title>CUSA ESPN – Commercials Hub</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js" onerror="console.warn('config.js not found — running offline')"></script>
@@ -19,6 +19,9 @@
     --conf-bg: #e0f4fd;
     --conf-fg: #00506e;
     --conf-border: #a0dcf0;
+    --warn-bg: #fef3c7;
+    --warn-fg: #92400e;
+    --warn-border: #fde68a;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: 'Segoe UI','Helvetica Neue',sans-serif; background: #f0f2f5; min-height: 100vh; color: #222; }
@@ -38,10 +41,64 @@
   .header-actions { display: flex; gap: 8px; align-items: center; }
   .header a { color: var(--gray); font-size: 11px; text-decoration: none; }
   .header a:hover { color: var(--white); }
+  .session-pill {
+    color: var(--white);
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 100px;
+    padding: 4px 12px;
+  }
+  .session-pill.admin { background: rgba(239,64,53,0.85); border-color: var(--espn-red); }
   .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
   .btn-admin { background: rgba(255,255,255,0.15); color: var(--white); border: 1px solid rgba(255,255,255,0.25); }
   .btn-admin:hover { background: rgba(255,255,255,0.25); }
   .btn-admin.active { background: var(--espn-red); border-color: var(--espn-red); }
+
+  /* ── Last modified strip ── */
+  .lastmod-strip {
+    background: #eef2f5;
+    border-bottom: 1px solid #d0d7dc;
+    padding: 6px 20px;
+    font-size: 11px;
+    color: #555;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .lastmod-strip .lm-label { font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.6px; }
+  .lastmod-strip .lm-cloud { font-weight: 600; color: #777; }
+  .lastmod-strip .lm-cloud.connected { color: var(--green); }
+
+  /* ── Change banner ── */
+  .change-banner {
+    background: var(--warn-bg);
+    border-bottom: 2px solid var(--warn-border);
+    color: var(--warn-fg);
+    padding: 10px 20px;
+    display: none;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    flex-wrap: wrap;
+  }
+  .change-banner.show { display: flex; }
+  .change-banner .cb-msg { flex: 1; min-width: 200px; }
+  .change-banner button {
+    background: var(--warn-fg);
+    color: var(--white);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .change-banner button:hover { background: #6b3408; }
 
   /* ── Active commercials bar ── */
   .active-bar {
@@ -95,9 +152,107 @@
   .tab-bar button:hover:not(.active) { background: #f5f5f5; }
 
   /* ── Content ── */
-  .content { padding: 16px 20px; max-width: 1100px; margin: 0 auto; }
+  .content { padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
 
-  /* ── Format meta header ── */
+  /* ── Dashboard ── */
+  .dash-section {
+    background: var(--white);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .dash-section-header {
+    background: var(--navy);
+    color: var(--white);
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .dash-section-header .ds-count {
+    background: rgba(255,255,255,0.2);
+    border-radius: 100px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .dash-section-header .ds-add {
+    margin-left: auto;
+    background: var(--green);
+    color: var(--navy);
+    border: none;
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .dash-section-header .ds-add:hover { filter: brightness(0.95); }
+  .dash-sub {
+    padding: 8px 16px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #888;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dash-sub.active { color: #15803d; }
+  .dash-sub.inactive { color: #9ca3af; }
+  .dash-sub-empty { font-size: 12px; color: #aaa; font-style: italic; padding: 0 16px 12px; }
+  .dash-list { padding: 4px 12px 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+  .comm-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .comm-card.inactive { opacity: 0.7; background: #f3f4f6; }
+  .comm-card .cc-name {
+    font-weight: 700;
+    color: var(--navy);
+    word-break: break-word;
+    line-height: 1.3;
+  }
+  .comm-card.inactive .cc-name { color: #6b7280; text-decoration: line-through; }
+  .comm-card .cc-meta { font-size: 11px; color: #777; display: flex; gap: 10px; flex-wrap: wrap; }
+  .comm-card .cc-sports { font-size: 10px; color: var(--conf-fg); background: var(--conf-bg); padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .comm-card .cc-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .cc-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background: var(--white);
+    color: var(--navy);
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .cc-btn.primary { background: #0061d5; color: var(--white); border-color: #0061d5; }
+  .cc-btn.primary:hover { background: #0050b0; }
+  .cc-btn.danger { color: var(--red); border-color: #fca5a5; }
+  .cc-btn.danger:hover { background: #fef2f2; }
+  .cc-btn.toggle { background: var(--gray); color: var(--navy); border-color: var(--gray); }
+  .cc-btn.toggle:hover { filter: brightness(0.95); }
+
+  /* ── Format meta header / table (sport tabs) ── */
   .format-meta {
     background: var(--navy);
     color: var(--white);
@@ -109,7 +264,6 @@
     align-items: center;
     font-size: 11px;
   }
-  .format-meta .meta-item { }
   .format-meta .meta-label { color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
   .format-meta .meta-val { color: var(--white); font-weight: 700; }
   .format-meta .upload-btn {
@@ -126,7 +280,6 @@
   }
   .format-meta .upload-btn:hover { background: rgba(255,255,255,0.25); }
 
-  /* ── Format table ── */
   .format-wrap { background: var(--white); border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none; overflow-x: auto; margin-bottom: 20px; }
   .format-table { border-collapse: collapse; width: 100%; font-size: 12px; }
   .format-table th {
@@ -140,22 +293,15 @@
     white-space: nowrap;
   }
   .format-table td { padding: 6px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
-
-  /* Network break row */
   .row-network td { color: #555; }
   .row-network td.cell-break { font-weight: 700; color: var(--navy); }
   .row-network .spot-label { color: #888; font-style: italic; }
-
-  /* Conference break row */
   .row-conference td { background: var(--conf-bg); }
   .row-conference td.cell-break { font-weight: 700; color: var(--conf-fg); }
   .row-conference td.cell-segment { font-weight: 600; color: var(--conf-fg); }
   .row-conference .spot-label { color: var(--conf-fg); font-weight: 700; }
-
-  /* Segment divider */
   .row-segment td { background: #f8f9fa; font-weight: 700; font-size: 11px; color: var(--navy); padding: 5px 12px; border-bottom: 2px solid var(--espn-red); letter-spacing: 0.3px; text-transform: uppercase; }
 
-  /* Assignment select */
   .assign-select {
     padding: 3px 8px;
     border: 1px solid var(--conf-border);
@@ -180,7 +326,6 @@
     text-align: center;
     margin-bottom: 20px;
   }
-  .box-panel img { height: 36px; margin-bottom: 20px; opacity: 0.7; }
   .box-panel h2 { font-size: 18px; color: var(--navy); margin-bottom: 8px; }
   .box-panel p { font-size: 13px; color: #666; margin-bottom: 24px; }
   .box-link-btn {
@@ -192,7 +337,6 @@
     text-decoration: none;
     font-weight: 700;
     font-size: 14px;
-    transition: background 0.15s;
   }
   .box-link-btn:hover { background: #0050b0; }
   .box-link-btn.no-link { background: #ccc; color: #777; cursor: not-allowed; pointer-events: none; }
@@ -207,39 +351,27 @@
     max-width: 100%;
     font-family: inherit;
   }
-  .box-edit-input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
   .btn-save { background: var(--green); color: var(--navy); }
   .btn-save:hover { filter: brightness(0.95); }
   .btn-cancel { background: #888; color: var(--white); }
 
-  /* ── Admin modal ── */
+  /* ── Modals ── */
   .modal-overlay {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 100;
+    align-items: center; justify-content: center; padding: 20px;
   }
   .modal-overlay.open { display: flex; }
   .modal {
-    background: var(--white);
-    border-radius: 12px;
-    width: 100%;
-    max-width: 580px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    background: var(--white); border-radius: 12px;
+    width: 100%; max-width: 720px; max-height: 90vh;
+    overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
   }
+  .modal.wide { max-width: 920px; }
   .modal-header {
-    background: var(--navy);
-    color: var(--white);
-    padding: 14px 20px;
-    border-radius: 12px 12px 0 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    background: var(--navy); color: var(--white);
+    padding: 14px 20px; border-radius: 12px 12px 0 0;
+    display: flex; justify-content: space-between; align-items: center;
   }
   .modal-header h2 { font-size: 16px; margin: 0; }
   .modal-close { background: none; border: none; color: var(--white); font-size: 22px; cursor: pointer; line-height: 1; padding: 0; }
@@ -247,174 +379,389 @@
   .modal-section { margin-bottom: 24px; }
   .modal-section h3 { font-size: 12px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid var(--espn-red); }
 
-  /* Commercial list */
-  .comm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  /* Admin commercial editor */
+  .filter-row { display:flex; gap:8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .filter-row select, .filter-row input {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .filter-row input { flex: 1; min-width: 140px; }
+  .comm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
   .comm-item {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
     gap: 8px;
     padding: 8px 10px;
     border: 1px solid #eee;
     border-radius: 6px;
     background: #fafafa;
+    align-items: center;
   }
-  .comm-item.inactive { opacity: 0.5; }
-  .comm-item .comm-name { flex: 1; font-size: 13px; font-weight: 600; }
+  .comm-item.inactive { opacity: 0.6; }
+  .comm-item .ci-name { font-size: 12px; font-weight: 600; color: var(--navy); word-break: break-word; }
+  .comm-item .ci-meta { font-size: 10px; color: #888; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .comm-item .ci-meta .ci-cat { font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .comm-item .ci-meta .ci-cat.school_psa { color: #0061d5; }
+  .comm-item .ci-meta .ci-cat.cusa_psa   { color: var(--conf-fg); }
+  .comm-item .ci-meta .ci-cat.sponsor    { color: #b45309; }
   .comm-item .comm-status {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 100px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 100px;
+    text-transform: uppercase; letter-spacing: 0.5px;
   }
   .comm-item .comm-status.active { background: #dcfce7; color: #15803d; }
   .comm-item .comm-status.inactive { background: #f3f4f6; color: #9ca3af; }
   .btn-toggle { background: none; border: 1px solid #ddd; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: #555; font-family: inherit; }
   .btn-toggle:hover { background: #f0f0f0; }
+  .btn-edit { background: var(--blue); color: var(--white); border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .btn-edit:hover { filter: brightness(0.9); }
   .btn-del { background: none; border: 1px solid #fca5a5; border-radius: 4px; padding: 3px 6px; font-size: 11px; cursor: pointer; color: var(--red); font-family: inherit; }
   .btn-del:hover { background: #fef2f2; }
 
-  /* Add commercial form */
-  .add-form { display: flex; gap: 8px; flex-wrap: wrap; }
-  .add-form input {
-    flex: 1;
-    min-width: 140px;
+  /* Add / edit form */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-grid label { display: block; font-size: 11px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .form-grid input, .form-grid select, .form-grid textarea {
+    width: 100%;
     padding: 7px 10px;
     border: 1px solid #ddd;
-    border-radius: 6px;
+    border-radius: 5px;
     font-size: 12px;
     font-family: inherit;
   }
-  .add-form input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .sport-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px 10px; padding: 8px 10px; border: 1px solid #eee; border-radius: 5px; background: #fafafa; }
+  .sport-checks label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: #333; cursor: pointer; }
+  .sport-checks input[type="checkbox"] { margin: 0; }
+  .form-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
   .btn-add { background: var(--blue); color: var(--white); border-radius: 6px; padding: 7px 14px; font-size: 12px; }
   .btn-add:hover { filter: brightness(0.9); }
 
-  /* Upload format */
+  /* Format upload list */
   .upload-list { display: flex; flex-direction: column; gap: 6px; }
   .upload-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 10px;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    background: #fafafa;
-    font-size: 12px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border: 1px solid #eee; border-radius: 6px;
+    background: #fafafa; font-size: 12px;
   }
   .upload-row .sport-label { flex: 1; font-weight: 600; color: var(--navy); }
   .upload-row .custom-badge { font-size: 10px; color: var(--blue); background: #e0f4fd; border-radius: 4px; padding: 1px 6px; font-weight: 700; }
   .upload-file-btn {
-    padding: 4px 10px;
-    font-size: 11px;
-    background: #f0f2f5;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: inherit;
-    font-weight: 600;
+    padding: 4px 10px; font-size: 11px; background: #f0f2f5;
+    border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
+    font-family: inherit; font-weight: 600;
   }
   .upload-file-btn:hover { background: #e0e2e5; }
   .upload-reset-btn {
-    padding: 4px 8px;
-    font-size: 11px;
-    background: none;
-    border: 1px solid #fca5a5;
-    border-radius: 4px;
-    cursor: pointer;
-    color: var(--red);
-    font-family: inherit;
+    padding: 4px 8px; font-size: 11px; background: none;
+    border: 1px solid #fca5a5; border-radius: 4px; cursor: pointer;
+    color: var(--red); font-family: inherit;
   }
   .upload-reset-btn:hover { background: #fef2f2; }
 
-  /* Password modal */
-  .pw-modal {
-    display: none;
+  /* Activity log */
+  .log-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .log-table th, .log-table td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; }
+  .log-table th { background: #f0f2f5; font-size: 11px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.5px; }
+  .log-action { font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 100px; display: inline-block; }
+  .log-action.login         { background: #e0f4fd; color: var(--conf-fg); }
+  .log-action.admin_login   { background: #fee2e2; color: #991b1b; }
+  .log-action.box_click     { background: #ecfccb; color: #4d7c0f; }
+  .log-action.confirm_changes { background: #dcfce7; color: #15803d; }
+  .log-action.view_dashboard { background: #f3f4f6; color: #555; }
+  .pending-list { background: #fffbeb; border: 1px solid var(--warn-border); border-radius: 6px; padding: 10px; font-size: 12px; margin-bottom: 14px; }
+  .pending-list .pl-title { font-weight: 700; color: var(--warn-fg); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; }
+  .pending-list .pl-school { display: inline-block; background: var(--white); border: 1px solid var(--warn-border); border-radius: 100px; padding: 3px 10px; margin: 2px 4px 2px 0; font-size: 11px; font-weight: 600; color: var(--warn-fg); }
+  .pending-list .pl-empty { font-size: 11px; color: #999; font-style: italic; }
+
+  /* ── Login overlay ── */
+  .login-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.6);
-    z-index: 200;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
+    background: linear-gradient(135deg, #00263A 0%, #00506e 100%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 1000;
   }
-  .pw-modal.open { display: flex; }
-  .pw-box {
+  .login-card {
     background: var(--white);
     border-radius: 12px;
-    padding: 32px;
     width: 100%;
-    max-width: 360px;
-    text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    overflow: hidden;
   }
-  .pw-box h2 { font-size: 18px; color: var(--navy); margin-bottom: 6px; }
-  .pw-box p { font-size: 12px; color: #666; margin-bottom: 20px; }
-  .pw-input {
-    width: 100%;
-    padding: 10px 14px;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    font-size: 14px;
-    text-align: center;
-    letter-spacing: 2px;
-    font-family: inherit;
-    margin-bottom: 12px;
-  }
-  .pw-input:focus { outline: none; border-color: var(--blue); }
-  .pw-error { color: var(--red); font-size: 12px; margin-bottom: 10px; display: none; }
-  .pw-actions { display: flex; gap: 8px; justify-content: center; }
-  .btn-unlock { background: var(--espn-red); color: var(--white); border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 700; }
-  .btn-unlock:hover { filter: brightness(0.9); }
-  .btn-cancel-pw { background: #eee; color: #555; border-radius: 8px; padding: 10px 18px; font-size: 13px; }
-
-  /* Misc */
-  .save-toast {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
+  .login-header {
     background: var(--navy);
     color: var(--white);
-    padding: 10px 18px;
-    border-radius: 8px;
+    padding: 18px 22px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .login-header img { height: 24px; filter: brightness(0) invert(1); }
+  .login-header h2 { font-size: 16px; margin: 0; font-weight: 700; }
+  .login-tabs {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .login-tabs button {
+    flex: 1;
+    padding: 11px;
+    border: none;
+    background: var(--white);
     font-size: 12px;
-    font-weight: 600;
-    opacity: 0;
-    transform: translateY(6px);
-    transition: all 0.25s;
-    z-index: 300;
-    pointer-events: none;
+    font-weight: 700;
+    color: #888;
+    cursor: pointer;
+    font-family: inherit;
+    border-bottom: 3px solid transparent;
+  }
+  .login-tabs button.active { color: var(--navy); border-bottom-color: var(--espn-red); background: #fafbfc; }
+  .login-body { padding: 20px 22px; }
+  .login-body label { font-size: 11px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.6px; display: block; margin-bottom: 6px; }
+  .login-body select, .login-body input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    margin-bottom: 14px;
+  }
+  .login-body select:focus, .login-body input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .login-error { color: var(--red); font-size: 12px; margin: -8px 0 12px; display: none; font-weight: 600; }
+  .login-submit {
+    width: 100%;
+    background: var(--espn-red);
+    color: var(--white);
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .login-submit:hover { filter: brightness(0.92); }
+  .login-foot { padding: 12px 22px; font-size: 11px; color: #777; background: #fafbfc; border-top: 1px solid #eee; text-align: center; }
+
+  /* ── Engagement tab ── */
+  .eng-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  @media (max-width: 900px) { .eng-grid { grid-template-columns: 1fr; } }
+  .eng-card {
+    background: var(--white);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    overflow: hidden;
+  }
+  .eng-card-header {
+    background: var(--navy);
+    color: var(--white);
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .eng-card-header.warn { background: var(--warn-fg); }
+  .eng-card-header.flag { background: var(--espn-red); }
+  .eng-card-header .ec-count {
+    background: rgba(255,255,255,0.2);
+    border-radius: 100px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .eng-card-header .ec-action {
+    margin-left: auto;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: var(--white);
+    padding: 4px 12px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .eng-card-header .ec-action:hover { background: rgba(255,255,255,0.3); }
+  .eng-card-body { padding: 12px 16px; font-size: 12px; }
+  .eng-empty { color: #888; font-style: italic; padding: 14px 0; text-align: center; }
+  .eng-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 12px;
+  }
+  .eng-row:last-child { border-bottom: none; }
+  .eng-row .er-name { font-weight: 700; color: var(--navy); }
+  .eng-row .er-meta { font-size: 11px; color: #777; }
+  .eng-row .er-stale { color: var(--red); font-weight: 700; }
+  .eng-row .er-fresh { color: #15803d; }
+  .eng-mark-btn {
+    background: var(--green);
+    color: var(--navy);
+    border: none;
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .eng-mark-btn:hover { filter: brightness(0.95); }
+  .eng-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .eng-table th {
+    padding: 8px 10px;
+    background: #f0f2f5;
+    color: var(--navy);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #ddd;
+    text-align: left;
+    cursor: pointer;
+    user-select: none;
+  }
+  .eng-table th:hover { background: #e6e9ec; }
+  .eng-table th .sort-arrow { font-size: 9px; opacity: 0.5; margin-left: 4px; }
+  .eng-table th.sorted .sort-arrow { opacity: 1; color: var(--espn-red); }
+  .eng-table td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+  .eng-table tr.zero td { background: #fefce8; }
+  .eng-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .eng-table .zero-num { color: #aaa; }
+  .eng-table .school-name { font-weight: 700; color: var(--navy); }
+  .eng-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .eng-summary {
+    background: var(--conf-bg);
+    border: 1px solid var(--conf-border);
+    color: var(--conf-fg);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .eng-summary b { font-size: 18px; font-weight: 800; display: block; margin-bottom: 1px; }
+  .eng-flag-row {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .eng-flag-row .efr-name { font-weight: 700; color: #991b1b; }
+  .eng-flag-row .efr-meta { color: #555; font-size: 11px; }
+
+  /* ── Toast ── */
+  .save-toast {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--navy); color: var(--white);
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 12px; font-weight: 600;
+    opacity: 0; transform: translateY(6px);
+    transition: all 0.25s; z-index: 300; pointer-events: none;
   }
   .save-toast.show { opacity: 1; transform: translateY(0); }
+  .save-toast.error { background: var(--red); }
 
   @media (max-width: 600px) {
     .content { padding: 12px; }
     .format-meta { gap: 12px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .comm-item { grid-template-columns: 1fr auto; row-gap: 4px; }
   }
 </style>
 </head>
 <body>
 
-<!-- Header -->
-<div class="header">
-  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
-       alt="CUSA ESPN"
-       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
-  <span class="hdr-fallback img-fallback" style="display:none">CUSA × ESPN</span>
-  <h1>Commercial Formats</h1>
-  <div class="header-actions">
-    <a href="index.html">← Hub</a>
-    <button class="btn btn-admin" id="adminBtn" onclick="handleAdminClick()">Admin Mode</button>
+<!-- Login overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-header">
+      <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN" onerror="this.style.display='none'">
+      <h2>Commercials Hub — Sign In</h2>
+    </div>
+    <div class="login-tabs">
+      <button id="loginTabSchool" class="active" onclick="switchLoginTab('school')">School Access</button>
+      <button id="loginTabAdmin" onclick="switchLoginTab('admin')">Admin</button>
+    </div>
+    <div class="login-body" id="loginBodySchool">
+      <label for="loginSchoolSelect">School</label>
+      <select id="loginSchoolSelect"><option value="">Loading schools…</option></select>
+      <label for="loginSchoolPw">Password</label>
+      <input type="password" id="loginSchoolPw" placeholder="Your school password" autocomplete="current-password">
+      <div class="login-error" id="loginSchoolErr"></div>
+      <button class="login-submit" onclick="submitSchoolLogin()">Sign In</button>
+    </div>
+    <div class="login-body" id="loginBodyAdmin" style="display:none">
+      <label for="loginAdminPw">Admin Password</label>
+      <input type="password" id="loginAdminPw" placeholder="••••••••" autocomplete="current-password">
+      <div class="login-error" id="loginAdminErr"></div>
+      <button class="login-submit" onclick="submitAdminLogin()">Unlock Admin</button>
+    </div>
+    <div class="login-foot">
+      Need access? Contact <a href="mailto:kking@conferenceusa.com" style="color:var(--conf-fg)">kking@conferenceusa.com</a>
+    </div>
   </div>
 </div>
 
-<!-- Active commercials bar -->
-<div class="active-bar" id="activeBar">
-  <span class="active-bar-label">Active Spots:</span>
-  <span class="active-bar-empty" id="activeBarEmpty">No active commercials — Admin can add spots below</span>
+<!-- Header -->
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback img-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>Commercials Hub</h1>
+  <div class="header-actions" id="headerActions">
+    <a href="index.html">← Hub</a>
+    <span class="session-pill" id="sessionPill" style="display:none"></span>
+    <button class="btn btn-admin" id="adminPanelBtn" style="display:none" onclick="openAdminModal()">Admin Panel</button>
+    <button class="btn btn-admin" id="signOutBtn" style="display:none" onclick="signOut()">Sign Out</button>
+  </div>
 </div>
 
-<!-- Sport tabs -->
-<div class="tab-bar" id="tabBar">
+<!-- Last modified strip -->
+<div class="lastmod-strip" id="lastmodStrip" style="display:none">
+  <span class="lm-label">Last Modified:</span>
+  <span id="lastmodValue">—</span>
+  <span class="lm-cloud" id="lmCloud">☁ Connecting…</span>
+</div>
+
+<!-- Change banner -->
+<div class="change-banner" id="changeBanner">
+  <span class="cb-msg" id="changeBannerMsg">There are updates since you last reviewed.</span>
+  <button onclick="confirmChanges()">Confirm I've Reviewed</button>
+</div>
+
+<!-- Active commercials bar -->
+<div class="active-bar" id="activeBar" style="display:none">
+  <span class="active-bar-label">Active Spots:</span>
+  <span class="active-bar-empty" id="activeBarEmpty">No active commercials</span>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar" id="tabBar" style="display:none">
+  <button onclick="switchTab('dashboard')" data-tab="dashboard">Dashboard</button>
   <button onclick="switchTab('baseball')" data-tab="baseball">Baseball</button>
   <button onclick="switchTab('softball')" data-tab="softball">Softball</button>
   <button onclick="switchTab('womens_basketball')" data-tab="womens_basketball">Women's Basketball</button>
@@ -423,70 +770,144 @@
   <button onclick="switchTab('volleyball')" data-tab="volleyball">Volleyball</button>
   <button onclick="switchTab('football')" data-tab="football">Football</button>
   <button onclick="switchTab('box')" data-tab="box">Box</button>
+  <button id="engagementTabBtn" onclick="switchTab('engagement')" data-tab="engagement" style="display:none;background:#fffbeb;color:var(--warn-fg);font-weight:700">📊 Engagement</button>
 </div>
 
 <!-- Tab content -->
-<div class="content" id="tabContent"></div>
+<div class="content" id="tabContent" style="display:none"></div>
 
 <!-- Save toast -->
 <div class="save-toast" id="saveToast">Saved</div>
 
-<!-- Password modal -->
-<div class="pw-modal" id="pwModal">
-  <div class="pw-box">
-    <h2>Admin Access</h2>
-    <p>Enter the admin password to manage commercials and assignments</p>
-    <input class="pw-input" id="pwInput" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitPw()">
-    <div class="pw-error" id="pwError">Incorrect password. Try again.</div>
-    <div class="pw-actions">
-      <button class="btn btn-cancel-pw" onclick="closePwModal()">Cancel</button>
-      <button class="btn btn-unlock" onclick="submitPw()">Unlock</button>
-    </div>
-  </div>
-</div>
-
-<!-- Admin panel modal -->
+<!-- Admin modal -->
 <div class="modal-overlay" id="adminModal">
-  <div class="modal">
+  <div class="modal wide">
     <div class="modal-header">
       <h2>Admin Panel</h2>
       <button class="modal-close" onclick="closeAdminModal()">×</button>
     </div>
     <div class="modal-body">
-
-      <!-- Commercial management -->
+      <!-- Commercials -->
       <div class="modal-section">
         <h3>Commercials</h3>
-        <div class="comm-list" id="commList"></div>
-        <div class="add-form">
-          <input type="text" id="addCommName" placeholder="Advertiser / spot name" onkeydown="if(event.key==='Enter')addCommercial()">
-          <button class="btn btn-add" onclick="addCommercial()">+ Add</button>
+        <div class="filter-row">
+          <select id="adminFilterCat" onchange="renderCommList()">
+            <option value="">All Categories</option>
+            <option value="school_psa">School PSA</option>
+            <option value="cusa_psa">CUSA Produced PSA</option>
+            <option value="sponsor">Sponsorship Spot</option>
+          </select>
+          <select id="adminFilterStatus" onchange="renderCommList()">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <input type="text" id="adminFilterText" placeholder="Search by name…" oninput="renderCommList()">
+          <button class="btn btn-add" onclick="openCommEditor(null,null)">+ New Commercial</button>
         </div>
+        <div class="comm-list" id="commList"></div>
       </div>
 
       <!-- Box link -->
       <div class="modal-section">
-        <h3>Box Link</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:10px;">Set the URL for the Box tab. Users will see a button linking to this address.</p>
-        <div class="add-form">
-          <input type="url" id="boxLinkInput" placeholder="https://app.box.com/..." style="flex:2">
+        <h3>Default Box Link</h3>
+        <p style="font-size:12px;color:#666;margin:0 0 10px">URL for the Box tab — typically the parent media folder.</p>
+        <div style="display:flex;gap:8px">
+          <input type="url" id="boxLinkInput" placeholder="https://app.box.com/..." style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:5px;font-size:12px;font-family:inherit">
           <button class="btn btn-save" onclick="saveBoxLink()">Save</button>
         </div>
       </div>
 
       <!-- Format uploads -->
       <div class="modal-section">
-        <h3>Upload Formats</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:10px;">Upload an updated ESPN+ commercial format Excel file (.xlsx) for any sport. The file must have a "Format" sheet matching the ESPN+ layout.</p>
+        <h3>Upload Sport Formats</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">Upload an updated ESPN+ commercial format Excel file (.xlsx) for any sport. The file must have a "Format" sheet matching the ESPN+ layout. (Stored locally in this browser.)</p>
         <div class="upload-list" id="uploadList"></div>
+      </div>
+
+      <!-- Activity log -->
+      <div class="modal-section">
+        <h3>Activity Log</h3>
+        <div class="pending-list" id="pendingList"></div>
+        <div class="filter-row">
+          <select id="logFilterAction" onchange="renderActivityLog()">
+            <option value="">All Actions</option>
+            <option value="login">School Login</option>
+            <option value="admin_login">Admin Login</option>
+            <option value="box_click">Box Click</option>
+            <option value="confirm_changes">Confirm Changes</option>
+          </select>
+          <select id="logFilterSchool" onchange="renderActivityLog()">
+            <option value="">All Schools</option>
+          </select>
+          <button class="btn btn-add" onclick="loadActivityLog()">↻ Refresh</button>
+        </div>
+        <div style="max-height:340px;overflow-y:auto;border:1px solid #eee;border-radius:6px">
+          <table class="log-table" id="logTable"></table>
+        </div>
       </div>
 
     </div>
   </div>
 </div>
 
+<!-- Commercial editor modal -->
+<div class="modal-overlay" id="commEditModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="commEditTitle">New Commercial</h2>
+      <button class="modal-close" onclick="closeCommEditor()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="full">
+          <label>Name / Filename</label>
+          <input type="text" id="commEditName" placeholder="e.g. 2025CUSAFIU1005H.mp4">
+        </div>
+        <div>
+          <label>Category</label>
+          <select id="commEditCategory">
+            <option value="school_psa">School PSA</option>
+            <option value="cusa_psa">CUSA Produced PSA</option>
+            <option value="sponsor">Sponsorship Spot</option>
+          </select>
+        </div>
+        <div>
+          <label>Status</label>
+          <select id="commEditStatus">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>Box Link (file URL)</label>
+          <input type="url" id="commEditBoxLink" placeholder="https://conferenceusa.box.com/file/…">
+        </div>
+        <div class="full">
+          <label>Box File ID (optional)</label>
+          <input type="text" id="commEditBoxFileId" placeholder="e.g. 1942877156529">
+        </div>
+        <div class="full">
+          <label>Sport Targeting <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(leave all unchecked = available for every sport)</span></label>
+          <div class="sport-checks" id="commEditSports"></div>
+        </div>
+        <div class="full">
+          <label>Notes</label>
+          <textarea id="commEditNotes" rows="2" placeholder="Internal notes (optional)"></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-cancel" onclick="closeCommEditor()">Cancel</button>
+        <button class="btn btn-save" onclick="saveCommEditor()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-/* ── Format data ── */
+/* ──────────────────────────────────────────────────────────────────────────
+   Format data — sport break templates (also editable via xlsx upload)
+   ─────────────────────────────────────────────────────────────────────── */
 const FORMAT_DATA = {
   football: {
     name: "Football",
@@ -623,284 +1044,351 @@ const FORMAT_DATA = {
   },
 };
 
-/* ── Storage keys ── */
-const COMM_KEY = 'cusa-commercials';
-const ASSIGN_KEY = 'cusa-assignments';
-const BOX_KEY = 'cusa-box-link';
-const FORMAT_OVERRIDE_KEY = 'cusa-format-overrides';
-const ADMIN_UNLOCKED_KEY = 'cusa-comm-admin';
-const PW_HASH_KEY = 'cusa-compliance-pw-hash';
-const DEFAULT_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+const SPORT_KEYS = Object.keys(FORMAT_DATA);
+const CATEGORY_LABELS = {
+  school_psa: "School PSAs",
+  cusa_psa:   "CUSA Produced PSAs",
+  sponsor:    "Sponsorship Spots"
+};
+const CATEGORY_ORDER = ['school_psa', 'cusa_psa', 'sponsor'];
 
-/* ── State ── */
+/* ──────────────────────────────────────────────────────────────────────────
+   Constants & state
+   ─────────────────────────────────────────────────────────────────────── */
+const SESSION_KEY     = 'cusa-comm-session-v2';
+const FORMAT_OVERRIDE_KEY = 'cusa-format-overrides';   // local-only — sport break templates
+const ADMIN_PW_HASH   = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+const BOX_LINK_SETTING_KEY = 'box_link';
+
+let _db = null;
+let _realtimeChannel = null;
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
 let state = {
-  tab: 'baseball',
-  adminUnlocked: false,
+  // session
+  session: null,         // { kind: 'school'|'admin', schoolId, schoolName, schoolEmail, loggedInAt }
+  // ui
+  tab: 'dashboard',
+  loginTab: 'school',
+  // data (from Supabase)
+  schools: [],
   commercials: [],
-  assignments: {},
+  assignments: {},       // key `${sport}:${brk}:${si}` → commercial_id
   boxLink: '',
-  formatOverrides: {},
+  formatOverrides: {},   // localStorage-only
+  lastSeenAck: null,     // timestamptz string
+  latestChangeAt: null,  // max(commercials.updated_at)
+  // editor
+  editingComm: null,     // { id?, name, category, status, box_link, box_file_id, sports[], notes }
 };
 
-/* ── Init ── */
-function init() {
-  if (!localStorage.getItem(PW_HASH_KEY)) {
-    localStorage.setItem(PW_HASH_KEY, DEFAULT_PW_HASH);
-  }
-  state.commercials = loadJSON(COMM_KEY, []);
-  state.assignments = loadJSON(ASSIGN_KEY, {});
-  state.boxLink = localStorage.getItem(BOX_KEY) || '';
-  state.formatOverrides = loadJSON(FORMAT_OVERRIDE_KEY, {});
-  renderActiveBar();
-  switchTab('baseball');
+/* ──────────────────────────────────────────────────────────────────────────
+   Utilities
+   ─────────────────────────────────────────────────────────────────────── */
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
-function loadJSON(key, def) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
-}
-
-function saveState() {
-  localStorage.setItem(COMM_KEY, JSON.stringify(state.commercials));
-  localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
-  localStorage.setItem(BOX_KEY, state.boxLink);
-  localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
-  showToast('Saved');
-}
-
-function showToast(msg) {
-  const el = document.getElementById('saveToast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => el.classList.remove('show'), 1600);
-}
-
-/* ── Password ── */
 async function hashPassword(pw) {
   const enc = new TextEncoder().encode(pw);
   const buf = await crypto.subtle.digest('SHA-256', enc);
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
+function showToast(msg, isErr) {
+  const el = document.getElementById('saveToast');
+  el.textContent = msg;
+  el.classList.toggle('error', !!isErr);
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 1800);
+}
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+function fmtDateShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
-function handleAdminClick() {
-  if (state.adminUnlocked) {
-    state.adminUnlocked = false;
-    document.getElementById('adminBtn').textContent = 'Admin Mode';
-    document.getElementById('adminBtn').classList.remove('active');
-    renderCurrentTab();
+/* ──────────────────────────────────────────────────────────────────────────
+   Session
+   ─────────────────────────────────────────────────────────────────────── */
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function saveSession(s) {
+  state.session = s;
+  if (s) sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+  else sessionStorage.removeItem(SESSION_KEY);
+}
+function isAdmin() { return state.session?.kind === 'admin'; }
+function isSchool() { return state.session?.kind === 'school'; }
+
+function signOut() {
+  saveSession(null);
+  if (_realtimeChannel) {
+    try { _db && _db.removeChannel(_realtimeChannel); } catch(e) {}
+    _realtimeChannel = null;
+  }
+  location.reload();
+}
+
+function switchLoginTab(which) {
+  state.loginTab = which;
+  document.getElementById('loginTabSchool').classList.toggle('active', which === 'school');
+  document.getElementById('loginTabAdmin').classList.toggle('active', which === 'admin');
+  document.getElementById('loginBodySchool').style.display = which === 'school' ? '' : 'none';
+  document.getElementById('loginBodyAdmin').style.display  = which === 'admin' ? '' : 'none';
+  document.getElementById('loginSchoolErr').style.display = 'none';
+  document.getElementById('loginAdminErr').style.display = 'none';
+  setTimeout(() => {
+    document.getElementById(which === 'school' ? 'loginSchoolPw' : 'loginAdminPw')?.focus();
+  }, 50);
+}
+
+async function populateSchoolDropdown() {
+  const sel = document.getElementById('loginSchoolSelect');
+  if (!_db) {
+    sel.innerHTML = '<option value="">(Supabase not connected)</option>';
     return;
   }
-  openPwModal();
+  const { data, error } = await _db
+    .from('schools')
+    .select('id, name, pw_hash')
+    .order('name');
+  if (error) {
+    console.error(error);
+    sel.innerHTML = '<option value="">(Error loading schools)</option>';
+    return;
+  }
+  state.schools = data || [];
+  if (!state.schools.length) {
+    sel.innerHTML = '<option value="">No schools found — run seed.sql</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">— Select your school —</option>' +
+    state.schools.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
 }
 
-function openPwModal() {
-  document.getElementById('pwInput').value = '';
-  document.getElementById('pwError').style.display = 'none';
-  document.getElementById('pwModal').classList.add('open');
-  setTimeout(() => document.getElementById('pwInput').focus(), 100);
-}
-
-function closePwModal() {
-  document.getElementById('pwModal').classList.remove('open');
-}
-
-async function submitPw() {
-  const pw = document.getElementById('pwInput').value;
-  if (!pw) return;
+async function submitSchoolLogin() {
+  const errEl = document.getElementById('loginSchoolErr');
+  errEl.style.display = 'none';
+  const id = document.getElementById('loginSchoolSelect').value;
+  const pw = document.getElementById('loginSchoolPw').value;
+  if (!id) { errEl.textContent = 'Please select your school.'; errEl.style.display = 'block'; return; }
+  if (!pw) { errEl.textContent = 'Enter your school password.'; errEl.style.display = 'block'; return; }
+  const school = state.schools.find(s => s.id === id);
+  if (!school) { errEl.textContent = 'School not found.'; errEl.style.display = 'block'; return; }
+  if (!school.pw_hash) {
+    errEl.textContent = 'No password is set for this school. Contact kking@conferenceusa.com.';
+    errEl.style.display = 'block';
+    return;
+  }
   const h = await hashPassword(pw);
-  const stored = localStorage.getItem(PW_HASH_KEY) || DEFAULT_PW_HASH;
-  if (h === stored) {
-    closePwModal();
-    state.adminUnlocked = true;
-    document.getElementById('adminBtn').textContent = '🔓 Admin Active';
-    document.getElementById('adminBtn').classList.add('active');
-    renderCurrentTab();
-    openAdminModal();
-  } else {
-    document.getElementById('pwError').style.display = 'block';
-  }
-}
-
-/* ── Admin modal ── */
-function openAdminModal() {
-  renderCommList();
-  renderUploadList();
-  document.getElementById('boxLinkInput').value = state.boxLink;
-  document.getElementById('adminModal').classList.add('open');
-}
-
-function closeAdminModal() {
-  document.getElementById('adminModal').classList.remove('open');
-}
-
-function renderCommList() {
-  const el = document.getElementById('commList');
-  if (!state.commercials.length) {
-    el.innerHTML = '<div style="font-size:12px;color:#999;padding:6px 0;">No commercials yet. Add one below.</div>';
+  if (h !== school.pw_hash) {
+    errEl.textContent = 'Incorrect password.';
+    errEl.style.display = 'block';
+    document.getElementById('loginSchoolPw').value = '';
     return;
   }
-  el.innerHTML = state.commercials.map((c, i) => `
-    <div class="comm-item ${c.status === 'inactive' ? 'inactive' : ''}">
-      <span class="comm-name">${esc(c.name)}</span>
-      <span class="comm-status ${c.status}">${c.status}</span>
-      <button class="btn-toggle" onclick="toggleCommStatus(${i})">${c.status === 'active' ? 'Deactivate' : 'Activate'}</button>
-      <button class="btn-del" onclick="deleteComm(${i})" title="Delete">✕</button>
-    </div>
-  `).join('');
+  saveSession({
+    kind: 'school',
+    schoolId: school.id,
+    schoolName: school.name,
+    loggedInAt: new Date().toISOString()
+  });
+  await logActivity('login', null, null);
+  await enterApp();
 }
 
-function renderUploadList() {
-  const el = document.getElementById('uploadList');
-  const sportKeys = Object.keys(FORMAT_DATA);
-  el.innerHTML = sportKeys.map(key => {
-    const sport = FORMAT_DATA[key];
-    const hasOverride = !!state.formatOverrides[key];
-    return `
-      <div class="upload-row">
-        <span class="sport-label">${sport.name}</span>
-        ${hasOverride ? '<span class="custom-badge">Custom</span>' : ''}
-        <button class="upload-file-btn" onclick="triggerUpload('${key}')">Upload .xlsx</button>
-        ${hasOverride ? `<button class="upload-reset-btn" onclick="resetFormat('${key}')">Reset</button>` : ''}
-        <input type="file" id="upload_${key}" accept=".xlsx" style="display:none" onchange="handleUpload(this,'${key}')">
-      </div>
-    `;
-  }).join('');
+async function submitAdminLogin() {
+  const errEl = document.getElementById('loginAdminErr');
+  errEl.style.display = 'none';
+  const pw = document.getElementById('loginAdminPw').value;
+  if (!pw) { errEl.textContent = 'Enter the admin password.'; errEl.style.display = 'block'; return; }
+  const h = await hashPassword(pw);
+  if (h !== ADMIN_PW_HASH) {
+    errEl.textContent = 'Incorrect admin password.';
+    errEl.style.display = 'block';
+    document.getElementById('loginAdminPw').value = '';
+    return;
+  }
+  saveSession({ kind: 'admin', loggedInAt: new Date().toISOString() });
+  await logActivity('admin_login', null, 'commercials');
+  await enterApp();
 }
 
-function triggerUpload(key) {
-  document.getElementById(`upload_${key}`).click();
-}
-
-function resetFormat(key) {
-  if (!confirm(`Reset ${FORMAT_DATA[key].name} format to default?`)) return;
-  delete state.formatOverrides[key];
-  localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
-  renderUploadList();
-  if (state.tab === key) renderCurrentTab();
-  showToast('Format reset');
-}
-
-function handleUpload(input, key) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const wb = XLSX.read(e.target.result, { type: 'array' });
-      const ws = wb.Sheets['Format'];
-      if (!ws) { alert('Sheet "Format" not found in the uploaded file.'); return; }
-      const parsed = parseFormatSheet(ws, FORMAT_DATA[key].name);
-      if (!parsed) { alert('Could not parse the format sheet. Make sure it follows the ESPN+ commercial format layout.'); return; }
-      state.formatOverrides[key] = parsed;
-      localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
-      renderUploadList();
-      if (state.tab === key) renderCurrentTab();
-      showToast('Format uploaded');
-    } catch(err) {
-      alert('Error reading file: ' + err.message);
-    }
+/* ──────────────────────────────────────────────────────────────────────────
+   Activity log
+   ─────────────────────────────────────────────────────────────────────── */
+async function logActivity(action, commercialId, details) {
+  if (!_db) return;
+  const row = {
+    school_id: state.session?.schoolId || null,
+    school_name: state.session?.schoolName || null,
+    action,
+    commercial_id: commercialId || null,
+    commercial_name: commercialId
+      ? (state.commercials.find(c => c.id === commercialId)?.name || null)
+      : null,
+    details: details || null
   };
-  reader.readAsArrayBuffer(file);
-  input.value = '';
+  const { error } = await _db.from('commercial_activity_log').insert(row);
+  if (error) console.warn('logActivity:', error);
 }
 
-function parseFormatSheet(ws, sportName) {
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-  const meta = {};
-  const breaks = [];
-  let currentSegment = null;
-  let currentBreak = null;
-  let done = false;
+/* ──────────────────────────────────────────────────────────────────────────
+   Boot — after login
+   ─────────────────────────────────────────────────────────────────────── */
+async function enterApp() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('lastmodStrip').style.display = '';
+  document.getElementById('activeBar').style.display = '';
+  document.getElementById('tabBar').style.display = '';
+  document.getElementById('tabContent').style.display = '';
 
-  for (const row of rows) {
-    if (done) break;
-    const c0 = row[0] != null ? String(row[0]).trim() : '';
-    const c1 = row[1];
-    const c2 = row[2];
-    const c3 = row[3] != null ? String(row[3]).trim() : '';
-
-    if (c0 === 'TALENT CLOSE COPY') { done = true; break; }
-    if (c0 === 'ESPN+ COMMERCIAL FORMATTING' || c0 === 'SEGMENT') continue;
-    if (['YEAR','NETWORK','SPORT','MINUTES','KICK/TIP'].includes(c0)) { meta[c0] = c1 ? String(c1).trim() : ''; continue; }
-
-    const brkNum = (c1 != null && c1 !== ' ') ? (Number.isInteger(c1) ? c1 : (typeof c1 === 'string' && /^[A-E]$/.test(c1.trim()) ? c1.trim() : null)) : null;
-
-    if (brkNum != null && c3) {
-      const dur = c2 != null ? fmtXLSXTime(c2) : '';
-      currentBreak = { segment: currentSegment || '', brk: brkNum, dur, spots: [{ type: c3.includes('Conference') ? 'conference' : 'network', spot: c3 }] };
-      breaks.push(currentBreak);
-    } else if (c3 && currentBreak) {
-      currentBreak.spots.push({ type: c3.includes('Conference') ? 'conference' : 'network', spot: c3 });
-    } else if (c0 && c0 !== ' ' && brkNum == null && !c3) {
-      const c1s = c1 != null ? String(c1).trim() : '';
-      if (!c1s || c1s === ' ') currentSegment = c0;
-    }
+  // session pill + admin button
+  const pill = document.getElementById('sessionPill');
+  pill.style.display = '';
+  if (isAdmin()) {
+    pill.classList.add('admin');
+    pill.textContent = '🔓 Admin';
+    document.getElementById('adminPanelBtn').style.display = '';
+    document.getElementById('engagementTabBtn').style.display = '';
+  } else {
+    pill.classList.remove('admin');
+    pill.textContent = '🏫 ' + (state.session.schoolName || 'School');
+    document.getElementById('adminPanelBtn').style.display = 'none';
+    document.getElementById('engagementTabBtn').style.display = 'none';
   }
-  if (!breaks.length) return null;
-  return { name: sportName, meta, breaks };
+  document.getElementById('signOutBtn').style.display = '';
+
+  // local-only: format overrides for sport break templates
+  try { state.formatOverrides = JSON.parse(localStorage.getItem(FORMAT_OVERRIDE_KEY) || '{}'); } catch { state.formatOverrides = {}; }
+
+  await loadAllData();
+  subscribeRealtime();
+  switchTab('dashboard');
+  setLastmodCloud(true);
 }
 
-function fmtXLSXTime(v) {
-  if (typeof v === 'number') {
-    const totalSecs = Math.round(v * 86400);
-    const m = Math.floor(totalSecs / 60);
-    const s = totalSecs % 60;
-    return s ? `${m}:${String(s).padStart(2,'0')}` : `${m}:00`;
+/* ──────────────────────────────────────────────────────────────────────────
+   Data loading
+   ─────────────────────────────────────────────────────────────────────── */
+async function loadAllData() {
+  if (!_db) return;
+  const [commRes, asgRes, settingRes, schoolsRes] = await Promise.all([
+    _db.from('commercials').select('*').order('category').order('status').order('name'),
+    _db.from('format_assignments').select('*'),
+    _db.from('app_settings').select('*').eq('key', BOX_LINK_SETTING_KEY).maybeSingle(),
+    _db.from('schools').select('id, name').order('name')
+  ]);
+  if (schoolsRes && !schoolsRes.error) state.schools = schoolsRes.data || [];
+  if (commRes.error) console.error('commercials load:', commRes.error);
+  if (asgRes.error)  console.error('assignments load:', asgRes.error);
+  state.commercials = commRes.data || [];
+  state.assignments = {};
+  (asgRes.data || []).forEach(r => {
+    if (r.commercial_id) state.assignments[`${r.sport}:${r.break_key}:${r.spot_index}`] = r.commercial_id;
+  });
+  state.boxLink = settingRes?.data?.value || '';
+  state.latestChangeAt = state.commercials.reduce((max, c) =>
+    (!max || (c.updated_at && c.updated_at > max)) ? c.updated_at : max, null);
+
+  // School ack
+  if (isSchool() && state.session.schoolId) {
+    const ackRes = await _db.from('commercial_acks').select('*').eq('school_id', state.session.schoolId).maybeSingle();
+    state.lastSeenAck = ackRes?.data?.last_seen_change_at || null;
+  } else {
+    state.lastSeenAck = null;
   }
-  return String(v);
-}
 
-function addCommercial() {
-  const name = document.getElementById('addCommName').value.trim();
-  if (!name) return;
-  state.commercials.push({ id: Date.now().toString(), name, status: 'active' });
-  saveState();
-  document.getElementById('addCommName').value = '';
-  renderCommList();
+  renderLastMod();
+  renderChangeBanner();
   renderActiveBar();
-  renderCurrentTab();
 }
 
-function toggleCommStatus(i) {
-  state.commercials[i].status = state.commercials[i].status === 'active' ? 'inactive' : 'active';
-  saveState();
-  renderCommList();
-  renderActiveBar();
-  renderCurrentTab();
-}
-
-function deleteComm(i) {
-  const c = state.commercials[i];
-  if (!confirm(`Delete "${c.name}"? Any assignments using this commercial will be cleared.`)) return;
-  const id = c.id;
-  state.commercials.splice(i, 1);
-  for (const k of Object.keys(state.assignments)) {
-    if (state.assignments[k] === id) delete state.assignments[k];
+/* ──────────────────────────────────────────────────────────────────────────
+   Realtime
+   ─────────────────────────────────────────────────────────────────────── */
+function subscribeRealtime() {
+  if (!_db) return;
+  if (_realtimeChannel) {
+    try { _db.removeChannel(_realtimeChannel); } catch(e) {}
   }
-  saveState();
-  renderCommList();
-  renderActiveBar();
-  renderCurrentTab();
+  _realtimeChannel = _db.channel('commercials-hub')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'commercials' }, () => loadAllData().then(renderCurrentTab))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'format_assignments' }, () => loadAllData().then(renderCurrentTab))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => loadAllData().then(renderCurrentTab))
+    .subscribe(s => setLastmodCloud(s === 'SUBSCRIBED'));
 }
 
-function saveBoxLink() {
-  state.boxLink = document.getElementById('boxLinkInput').value.trim();
-  saveState();
-  if (state.tab === 'box') renderCurrentTab();
-  showToast('Box link saved');
+function setLastmodCloud(connected) {
+  const el = document.getElementById('lmCloud');
+  if (connected) { el.textContent = '☁ Live sync'; el.classList.add('connected'); }
+  else { el.textContent = '☁ Offline'; el.classList.remove('connected'); }
 }
 
-/* ── Active bar ── */
+/* ──────────────────────────────────────────────────────────────────────────
+   Last modified + change banner
+   ─────────────────────────────────────────────────────────────────────── */
+function renderLastMod() {
+  document.getElementById('lastmodValue').textContent = fmtDateTime(state.latestChangeAt);
+}
+
+function renderChangeBanner() {
+  const banner = document.getElementById('changeBanner');
+  if (!isSchool()) { banner.classList.remove('show'); return; }
+  if (!state.latestChangeAt) { banner.classList.remove('show'); return; }
+  const ack = state.lastSeenAck;
+  if (ack && ack >= state.latestChangeAt) { banner.classList.remove('show'); return; }
+  // Count recent changes
+  const ackTs = ack ? new Date(ack).getTime() : 0;
+  const recent = state.commercials.filter(c => c.updated_at && new Date(c.updated_at).getTime() > ackTs);
+  const n = recent.length;
+  document.getElementById('changeBannerMsg').textContent =
+    `${n} commercial${n === 1 ? '' : 's'} ${n === 1 ? 'has' : 'have'} been updated since you last reviewed (${fmtDateTime(state.latestChangeAt)}).`;
+  banner.classList.add('show');
+}
+
+async function confirmChanges() {
+  if (!isSchool() || !_db) return;
+  const now = new Date().toISOString();
+  const row = {
+    school_id: state.session.schoolId,
+    school_name: state.session.schoolName,
+    last_seen_change_at: state.latestChangeAt || now,
+    updated_at: now
+  };
+  const { error } = await _db.from('commercial_acks').upsert(row, { onConflict: 'school_id' });
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  state.lastSeenAck = row.last_seen_change_at;
+  await logActivity('confirm_changes', null, `n=${state.commercials.length}`);
+  renderChangeBanner();
+  showToast('Confirmed — thank you');
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Active bar
+   ─────────────────────────────────────────────────────────────────────── */
 function renderActiveBar() {
   const bar = document.getElementById('activeBar');
   const empty = document.getElementById('activeBarEmpty');
+  bar.querySelectorAll('.spot-pill').forEach(e => e.remove());
   const active = state.commercials.filter(c => c.status === 'active');
-  const existing = bar.querySelectorAll('.spot-pill');
-  existing.forEach(e => e.remove());
-  if (!active.length) {
-    empty.style.display = '';
-    return;
-  }
+  if (!active.length) { empty.style.display = ''; return; }
   empty.style.display = 'none';
   active.forEach(c => {
     const pill = document.createElement('span');
@@ -910,7 +1398,9 @@ function renderActiveBar() {
   });
 }
 
-/* ── Tab rendering ── */
+/* ──────────────────────────────────────────────────────────────────────────
+   Tab routing
+   ─────────────────────────────────────────────────────────────────────── */
 function switchTab(tab) {
   state.tab = tab;
   document.querySelectorAll('.tab-bar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
@@ -919,36 +1409,118 @@ function switchTab(tab) {
 
 function renderCurrentTab() {
   const el = document.getElementById('tabContent');
-  if (state.tab === 'box') { el.innerHTML = renderBoxTab(); return; }
+  if (state.tab === 'dashboard')  { el.innerHTML = renderDashboardTab(); return; }
+  if (state.tab === 'box')        { el.innerHTML = renderBoxTab(); return; }
+  if (state.tab === 'engagement') { renderEngagementTab(); return; }
   const sportData = state.formatOverrides[state.tab] || FORMAT_DATA[state.tab];
   if (!sportData) { el.innerHTML = ''; return; }
   el.innerHTML = renderFormatTab(state.tab, sportData);
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Dashboard tab
+   ─────────────────────────────────────────────────────────────────────── */
+function renderDashboardTab() {
+  return CATEGORY_ORDER.map(cat => {
+    const list = state.commercials.filter(c => c.category === cat);
+    const active = list.filter(c => c.status === 'active');
+    const inactive = list.filter(c => c.status === 'inactive');
+    return `
+      <div class="dash-section">
+        <div class="dash-section-header">
+          <span>${esc(CATEGORY_LABELS[cat])}</span>
+          <span class="ds-count">${active.length} active</span>
+          <span class="ds-count" style="background:rgba(255,255,255,0.1)">${inactive.length} inactive</span>
+          ${isAdmin() ? `<button class="ds-add" onclick="openCommEditor(null,'${cat}')">+ Add</button>` : ''}
+        </div>
+        <div class="dash-sub active">● Active <span style="color:#aaa;font-weight:400">(${active.length})</span></div>
+        ${active.length
+          ? `<div class="dash-list">${active.map(renderCommCard).join('')}</div>`
+          : `<div class="dash-sub-empty">No active commercials in this category.</div>`}
+        <div class="dash-sub inactive">○ Inactive <span style="color:#aaa;font-weight:400">(${inactive.length})</span></div>
+        ${inactive.length
+          ? `<div class="dash-list">${inactive.map(renderCommCard).join('')}</div>`
+          : `<div class="dash-sub-empty">No inactive commercials.</div>`}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCommCard(c) {
+  const sportTags = (c.sports && c.sports.length)
+    ? c.sports.map(s => `<span class="cc-sports">${esc(prettySport(s))}</span>`).join('')
+    : `<span class="cc-sports" style="background:#f3f4f6;color:#666">All Sports</span>`;
+  const boxBtn = c.box_link
+    ? `<a class="cc-btn primary" href="${esc(c.box_link)}" target="_blank" rel="noopener" onclick="onBoxClick(event,'${esc(c.id)}')">📦 Open in Box</a>`
+    : `<span class="cc-btn" style="opacity:0.4;cursor:not-allowed">No Box link</span>`;
+  const adminBtns = isAdmin() ? `
+    <button class="cc-btn toggle" onclick="toggleStatus('${esc(c.id)}')">${c.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+    <button class="cc-btn" onclick="openCommEditor('${esc(c.id)}',null)">Edit</button>
+    <button class="cc-btn danger" onclick="deleteComm('${esc(c.id)}')" title="Delete">✕</button>
+  ` : '';
+  return `
+    <div class="comm-card ${c.status === 'inactive' ? 'inactive' : ''}">
+      <div class="cc-name">${esc(c.name)}</div>
+      <div class="cc-meta">
+        <span>Updated ${fmtDateShort(c.updated_at)}</span>
+        ${sportTags}
+      </div>
+      <div class="cc-actions">
+        ${boxBtn}
+        ${adminBtns}
+      </div>
+    </div>
+  `;
+}
+
+function prettySport(key) {
+  const map = {
+    baseball: 'Baseball',
+    softball: 'Softball',
+    volleyball: 'Volleyball',
+    soccer: 'Soccer',
+    football: 'Football',
+    mens_basketball: "Men's BB",
+    womens_basketball: "Women's BB"
+  };
+  return map[key] || key;
+}
+
+async function onBoxClick(ev, commId) {
+  await logActivity('box_click', commId, null);
+  // let the link proceed
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Sport tabs (format table)
+   ─────────────────────────────────────────────────────────────────────── */
 function renderFormatTab(key, sportData) {
   const meta = sportData.meta;
   const isCustom = !!state.formatOverrides[key];
-  // adminUploadBtn handled inline in metaHtml below
 
   const metaHtml = `
     <div class="format-meta">
-      <span class="meta-item"><span class="meta-label">Sport</span><span class="meta-val">${esc(meta.SPORT || sportData.name)}</span></span>
-      <span class="meta-item"><span class="meta-label">Network</span><span class="meta-val">${esc(meta.NETWORK || 'ESPN+')}</span></span>
-      <span class="meta-item"><span class="meta-label">Year</span><span class="meta-val">${esc(meta.YEAR || '')}</span></span>
-      <span class="meta-item"><span class="meta-label">Total Mins</span><span class="meta-val">${esc(meta.MINUTES || '')}</span></span>
-      <span class="meta-item"><span class="meta-label">Kick/Tip</span><span class="meta-val">${esc(meta['KICK/TIP'] || '')}</span></span>
+      <span><span class="meta-label">Sport</span><span class="meta-val">${esc(meta.SPORT || sportData.name)}</span></span>
+      <span><span class="meta-label">Network</span><span class="meta-val">${esc(meta.NETWORK || 'ESPN+')}</span></span>
+      <span><span class="meta-label">Year</span><span class="meta-val">${esc(meta.YEAR || '')}</span></span>
+      <span><span class="meta-label">Total Mins</span><span class="meta-val">${esc(meta.MINUTES || '')}</span></span>
+      <span><span class="meta-label">Kick/Tip</span><span class="meta-val">${esc(meta['KICK/TIP'] || '')}</span></span>
       ${isCustom ? '<span style="font-size:10px;color:#a0dcf0;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Custom Upload</span>' : ''}
-      ${state.adminUnlocked ? `<button class="upload-btn" onclick="document.getElementById('fmtup_${key}').click()">⬆ Upload Format</button><input type="file" id="fmtup_${key}" accept=".xlsx" style="display:none" onchange="handleUpload(this,'${key}')">` : ''}
+      ${isAdmin() ? `<button class="upload-btn" onclick="document.getElementById('fmtup_${key}').click()">⬆ Upload Format</button><input type="file" id="fmtup_${key}" accept=".xlsx" style="display:none" onchange="handleFormatUpload(this,'${key}')">` : ''}
     </div>
   `;
 
-  const activeComms = state.commercials.filter(c => c.status === 'active');
+  // Active commercials available for this sport (sports[] empty = all sports)
+  const eligible = state.commercials.filter(c =>
+    c.status === 'active' &&
+    (!c.sports || !c.sports.length || c.sports.includes(key))
+  );
+
   let tableRows = '';
   let lastSegment = null;
 
   for (let bi = 0; bi < sportData.breaks.length; bi++) {
     const b = sportData.breaks[bi];
-    const isConf = b.spots.some(s => s.type === 'conference');
     const allNet = b.spots.every(s => s.type === 'network');
 
     if (b.segment && b.segment !== lastSegment) {
@@ -975,12 +1547,16 @@ function renderFormatTab(key, sportData) {
 
         let assignCell = '';
         if (spot.type === 'conference') {
-          if (state.adminUnlocked) {
-            const opts = activeComms.map(c =>
+          if (isAdmin()) {
+            // Show eligible options + currently-assigned commercial even if no longer eligible
+            const opts = eligible.map(c =>
               `<option value="${esc(c.id)}" ${c.id === assignedId ? 'selected' : ''}>${esc(c.name)}</option>`
             ).join('');
+            const orphan = (assignedComm && !eligible.find(e => e.id === assignedId))
+              ? `<option value="${esc(assignedId)}" selected>${esc(assignedComm.name)} (no longer targeted)</option>`
+              : '';
             assignCell = `<select class="assign-select" onchange="assignSpot('${assignKey}', this.value)">
-              <option value="">— Unassigned —</option>${opts}
+              <option value="">— Unassigned —</option>${orphan}${opts}
             </select>`;
           } else {
             assignCell = assignedComm
@@ -1014,6 +1590,30 @@ function renderFormatTab(key, sportData) {
   `;
 }
 
+async function assignSpot(key, commId) {
+  if (!_db) { showToast('Offline — cannot save', true); return; }
+  const [sport, breakKey, spotIndexStr] = key.split(':');
+  const spot_index = parseInt(spotIndexStr, 10);
+  if (commId) {
+    state.assignments[key] = commId;
+    const { error } = await _db.from('format_assignments').upsert({
+      sport, break_key: breakKey, spot_index, commercial_id: commId,
+      updated_at: new Date().toISOString(),
+      updated_by: state.session?.schoolName || 'admin'
+    }, { onConflict: 'sport,break_key,spot_index' });
+    if (error) { showToast('Save failed: ' + error.message, true); return; }
+  } else {
+    delete state.assignments[key];
+    await _db.from('format_assignments')
+      .delete()
+      .eq('sport', sport).eq('break_key', breakKey).eq('spot_index', spot_index);
+  }
+  showToast('Assignment saved');
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Box tab
+   ─────────────────────────────────────────────────────────────────────── */
 function renderBoxTab() {
   const hasLink = !!state.boxLink;
   return `
@@ -1021,39 +1621,635 @@ function renderBoxTab() {
       <h2>Box — CUSA Media Resources</h2>
       <p>${hasLink ? 'Access shared files, assets, and media resources on Box.' : 'No Box link has been set yet. Admin can add one below.'}</p>
       ${hasLink
-        ? `<a class="box-link-btn" href="${esc(state.boxLink)}" target="_blank" rel="noopener">Open in Box →</a>`
+        ? `<a class="box-link-btn" href="${esc(state.boxLink)}" target="_blank" rel="noopener" onclick="logActivity('box_click',null,'general-box-link')">Open in Box →</a>`
         : `<span class="box-link-btn no-link">No link set</span>`
       }
-      <div class="box-edit-row ${state.adminUnlocked ? 'visible' : ''}">
+      <div class="box-edit-row ${isAdmin() ? 'visible' : ''}">
         <input class="box-edit-input" type="url" id="boxLinkInline" value="${esc(state.boxLink)}" placeholder="https://app.box.com/...">
         <button class="btn btn-save" onclick="saveBoxLinkInline()">Save</button>
       </div>
     </div>
   `;
 }
-
-function saveBoxLinkInline() {
+async function saveBoxLinkInline() {
   state.boxLink = document.getElementById('boxLinkInline').value.trim();
-  saveState();
+  await persistBoxLink();
   renderCurrentTab();
 }
 
-function assignSpot(key, commId) {
-  if (commId) {
-    state.assignments[key] = commId;
-  } else {
-    delete state.assignments[key];
+/* ──────────────────────────────────────────────────────────────────────────
+   Engagement tab (admin)
+   ─────────────────────────────────────────────────────────────────────── */
+let _engSort = { col: 'school', dir: 'asc' };
+
+async function renderEngagementTab() {
+  if (!isAdmin()) {
+    document.getElementById('tabContent').innerHTML = '<div style="padding:40px;text-align:center;color:#888">Admin access required.</div>';
+    return;
   }
-  localStorage.setItem(ASSIGN_KEY, JSON.stringify(state.assignments));
-  showToast('Assignment saved');
+  document.getElementById('tabContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <h2 style="margin:0;color:var(--navy);font-size:18px">School Engagement</h2>
+      <span style="font-size:12px;color:#666">Latest commercial change: <b>${esc(fmtDateTime(state.latestChangeAt))}</b></span>
+      <button class="btn btn-add" style="margin-left:auto" onclick="loadEngagement()">↻ Refresh</button>
+      <button class="btn" style="background:var(--green);color:var(--navy)" onclick="exportEngagementCsv()">⬇ Export CSV</button>
+    </div>
+    <div id="engContent"><div class="eng-empty">Loading…</div></div>
+  `;
+  await loadEngagement();
 }
 
-/* ── Helpers ── */
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+async function loadEngagement() {
+  if (!_db || !isAdmin()) return;
+  const sevenDaysAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+  const [acksRes, logRes, schoolsRes] = await Promise.all([
+    _db.from('commercial_acks').select('*'),
+    _db.from('commercial_activity_log').select('*').gte('occurred_at', sevenDaysAgo).order('occurred_at', { ascending: false }),
+    _db.from('schools').select('id, name').order('name')
+  ]);
+  if (acksRes.error) console.error(acksRes.error);
+  if (logRes.error) console.error(logRes.error);
+  state._engAcks = acksRes.data || [];
+  state._engLog = logRes.data || [];
+  state.schools = schoolsRes.data || state.schools;
+  renderEngagementContent();
 }
 
-/* ── Start ── */
+function renderEngagementContent() {
+  const el = document.getElementById('engContent');
+  if (!el) return;
+  const latest = state.latestChangeAt;
+  const acks = state._engAcks || [];
+  const log = state._engLog || [];
+  const schools = state.schools || [];
+  const ackMap = new Map(acks.map(a => [a.school_id, a]));
+
+  // Per-school engagement counts (last 7 days)
+  const tally = new Map();   // school_name → { logins, box_clicks, confirms, last_active, school_id }
+  for (const s of schools) tally.set(s.name, { school_id: s.id, school_name: s.name, logins: 0, box_clicks: 0, confirms: 0, last_active: null });
+  for (const r of log) {
+    if (!r.school_name) continue;
+    let row = tally.get(r.school_name);
+    if (!row) { row = { school_id: r.school_id, school_name: r.school_name, logins: 0, box_clicks: 0, confirms: 0, last_active: null }; tally.set(r.school_name, row); }
+    if (r.action === 'login') row.logins++;
+    if (r.action === 'box_click') row.box_clicks++;
+    if (r.action === 'confirm_changes') row.confirms++;
+    if (!row.last_active || r.occurred_at > row.last_active) row.last_active = r.occurred_at;
+  }
+
+  // Stragglers (schools that have not confirmed the latest change)
+  const stragglers = schools
+    .map(s => {
+      const ack = ackMap.get(s.id);
+      const t = tally.get(s.name);
+      const isStraggler = !!latest && (!ack || !ack.last_seen_change_at || ack.last_seen_change_at < latest);
+      return { school: s, ack, last_active: t?.last_active || null, isStraggler };
+    })
+    .filter(x => x.isStraggler);
+
+  // Flagged: saw changes in last 7 days but zero box_clicks since the latest change
+  const flagged = stragglers
+    .filter(x => {
+      const t = tally.get(x.school.name);
+      return t && t.box_clicks === 0;
+    });
+
+  // Summary tiles
+  const totalSchools = schools.length;
+  const confirmed = totalSchools - stragglers.length;
+  const totalLogins = log.filter(r => r.action === 'login').length;
+  const totalClicks = log.filter(r => r.action === 'box_click').length;
+  const summary = `
+    <div class="eng-summary">
+      <div><b>${confirmed}/${totalSchools}</b><span>confirmed latest</span></div>
+      <div><b>${stragglers.length}</b><span>not yet confirmed</span></div>
+      <div><b>${totalLogins}</b><span>school logins (7d)</span></div>
+      <div><b>${totalClicks}</b><span>Box clicks (7d)</span></div>
+      <div><b>${flagged.length}</b><span>flagged: changed but no Box click</span></div>
+    </div>
+  `;
+
+  // Stragglers card
+  const stragglerHtml = !stragglers.length
+    ? `<div class="eng-empty">All schools have confirmed the latest change. ✅</div>`
+    : stragglers.map(x => {
+        const lastConfirmed = x.ack?.last_seen_change_at;
+        const lastActive = x.last_active;
+        return `
+          <div class="eng-row">
+            <div>
+              <div class="er-name">${esc(x.school.name)}</div>
+              <div class="er-meta">
+                Last confirmed: <span class="${lastConfirmed ? 'er-fresh' : 'er-stale'}">${esc(lastConfirmed ? fmtDateTime(lastConfirmed) : 'Never')}</span>
+                · Last activity: ${esc(lastActive ? fmtDateTime(lastActive) : '—')}
+              </div>
+            </div>
+            <button class="eng-mark-btn" onclick="markConfirmedOnBehalf('${esc(x.school.id)}','${esc(x.school.name)}')">Mark Confirmed</button>
+          </div>
+        `;
+      }).join('');
+
+  // Flagged card
+  const flaggedHtml = !flagged.length
+    ? `<div class="eng-empty">No schools flagged. 🎉</div>`
+    : flagged.map(x => {
+        const t = tally.get(x.school.name);
+        return `
+          <div class="eng-flag-row">
+            <span class="efr-name">${esc(x.school.name)}</span>
+            <span class="efr-meta">Logins (7d): ${t?.logins || 0} · Confirms (7d): ${t?.confirms || 0} · Box clicks: 0</span>
+          </div>
+        `;
+      }).join('');
+
+  // Engagement table
+  const tableRows = Array.from(tally.values());
+  const sorted = sortEngRows(tableRows);
+  const arrow = (col) => _engSort.col === col ? `<span class="sort-arrow">${_engSort.dir === 'asc' ? '▲' : '▼'}</span>` : '<span class="sort-arrow">▲▼</span>';
+  const tableHtml = `
+    <table class="eng-table">
+      <thead>
+        <tr>
+          <th class="${_engSort.col === 'school' ? 'sorted' : ''}" onclick="setEngSort('school')">School ${arrow('school')}</th>
+          <th class="num ${_engSort.col === 'logins' ? 'sorted' : ''}" onclick="setEngSort('logins')">Logins ${arrow('logins')}</th>
+          <th class="num ${_engSort.col === 'box_clicks' ? 'sorted' : ''}" onclick="setEngSort('box_clicks')">Box Clicks ${arrow('box_clicks')}</th>
+          <th class="num ${_engSort.col === 'confirms' ? 'sorted' : ''}" onclick="setEngSort('confirms')">Confirms ${arrow('confirms')}</th>
+          <th class="${_engSort.col === 'last_active' ? 'sorted' : ''}" onclick="setEngSort('last_active')">Last Activity ${arrow('last_active')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.length ? sorted.map(r => {
+          const isZero = r.logins === 0 && r.box_clicks === 0 && r.confirms === 0;
+          return `
+            <tr class="${isZero ? 'zero' : ''}">
+              <td class="school-name">${esc(r.school_name)}</td>
+              <td class="num ${r.logins === 0 ? 'zero-num' : ''}">${r.logins}</td>
+              <td class="num ${r.box_clicks === 0 ? 'zero-num' : ''}">${r.box_clicks}</td>
+              <td class="num ${r.confirms === 0 ? 'zero-num' : ''}">${r.confirms}</td>
+              <td>${esc(r.last_active ? fmtDateTime(r.last_active) : 'No activity')}</td>
+            </tr>
+          `;
+        }).join('') : `<tr><td colspan="5" class="eng-empty">No schools loaded.</td></tr>`}
+      </tbody>
+    </table>
+  `;
+
+  el.innerHTML = `
+    ${summary}
+    <div class="eng-grid">
+      <div class="eng-card">
+        <div class="eng-card-header warn">
+          Stragglers — Have Not Confirmed Latest Change
+          <span class="ec-count">${stragglers.length}</span>
+        </div>
+        <div class="eng-card-body">${stragglerHtml}</div>
+      </div>
+      <div class="eng-card">
+        <div class="eng-card-header flag">
+          Flagged: Saw Changes, No Box Click
+          <span class="ec-count">${flagged.length}</span>
+        </div>
+        <div class="eng-card-body">${flaggedHtml}</div>
+      </div>
+    </div>
+    <div class="eng-card">
+      <div class="eng-card-header">
+        7-Day Engagement by School
+        <span class="ec-count">${tableRows.length} schools</span>
+      </div>
+      <div class="eng-card-body" style="padding:0">
+        ${tableHtml}
+      </div>
+    </div>
+  `;
+}
+
+function sortEngRows(rows) {
+  const { col, dir } = _engSort;
+  const m = dir === 'asc' ? 1 : -1;
+  return rows.slice().sort((a, b) => {
+    let av = a[col], bv = b[col];
+    if (col === 'school') { av = a.school_name; bv = b.school_name; }
+    if (av == null) av = '';
+    if (bv == null) bv = '';
+    if (av < bv) return -1 * m;
+    if (av > bv) return 1 * m;
+    return 0;
+  });
+}
+
+function setEngSort(col) {
+  if (_engSort.col === col) _engSort.dir = _engSort.dir === 'asc' ? 'desc' : 'asc';
+  else { _engSort.col = col; _engSort.dir = (col === 'school' ? 'asc' : 'desc'); }
+  renderEngagementContent();
+}
+
+async function markConfirmedOnBehalf(schoolId, schoolName) {
+  if (!isAdmin() || !_db) return;
+  if (!confirm(`Mark "${schoolName}" as having reviewed the latest commercial changes? This is logged as an admin action.`)) return;
+  const note = prompt('Optional note (e.g. "Confirmed by phone with Jane"):', '') || '';
+  const now = new Date().toISOString();
+  // Upsert ack row
+  const ackRow = {
+    school_id: schoolId,
+    school_name: schoolName,
+    last_seen_change_at: state.latestChangeAt || now,
+    updated_at: now
+  };
+  const ackRes = await _db.from('commercial_acks').upsert(ackRow, { onConflict: 'school_id' });
+  if (ackRes.error) { showToast('Failed: ' + ackRes.error.message, true); return; }
+  // Audit entry
+  const logRow = {
+    school_id: schoolId,
+    school_name: schoolName,
+    action: 'confirm_changes',
+    details: 'by-admin' + (note ? `: ${note}` : '')
+  };
+  await _db.from('commercial_activity_log').insert(logRow);
+  showToast(`Confirmed on behalf of ${schoolName}`);
+  await loadEngagement();
+}
+
+function exportEngagementCsv() {
+  const tally = new Map();
+  const schools = state.schools || [];
+  for (const s of schools) tally.set(s.name, { school_id: s.id, school_name: s.name, logins: 0, box_clicks: 0, confirms: 0, last_active: null });
+  for (const r of (state._engLog || [])) {
+    if (!r.school_name) continue;
+    let row = tally.get(r.school_name);
+    if (!row) { row = { school_id: r.school_id, school_name: r.school_name, logins: 0, box_clicks: 0, confirms: 0, last_active: null }; tally.set(r.school_name, row); }
+    if (r.action === 'login') row.logins++;
+    if (r.action === 'box_click') row.box_clicks++;
+    if (r.action === 'confirm_changes') row.confirms++;
+    if (!row.last_active || r.occurred_at > row.last_active) row.last_active = r.occurred_at;
+  }
+  const ackMap = new Map((state._engAcks || []).map(a => [a.school_id, a.last_seen_change_at]));
+  const rows = [['School', 'Logins (7d)', 'Box Clicks (7d)', 'Confirms (7d)', 'Last Activity', 'Last Confirmed', 'Confirmed Latest?']];
+  Array.from(tally.values()).forEach(r => {
+    const lastConfirmed = ackMap.get(r.school_id) || '';
+    const ok = state.latestChangeAt && lastConfirmed && lastConfirmed >= state.latestChangeAt ? 'Yes' : 'No';
+    rows.push([r.school_name, r.logins, r.box_clicks, r.confirms, r.last_active || '', lastConfirmed, ok]);
+  });
+  const csv = rows.map(r => r.map(v => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `commercials-engagement-${stamp}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Admin modal
+   ─────────────────────────────────────────────────────────────────────── */
+function openAdminModal() {
+  if (!isAdmin()) return;
+  document.getElementById('boxLinkInput').value = state.boxLink;
+  renderCommList();
+  renderUploadList();
+  loadActivityLog();
+  document.getElementById('adminModal').classList.add('open');
+}
+function closeAdminModal() { document.getElementById('adminModal').classList.remove('open'); }
+
+function renderCommList() {
+  const cat = document.getElementById('adminFilterCat').value;
+  const status = document.getElementById('adminFilterStatus').value;
+  const text = (document.getElementById('adminFilterText').value || '').toLowerCase();
+  let list = state.commercials.slice();
+  if (cat) list = list.filter(c => c.category === cat);
+  if (status) list = list.filter(c => c.status === status);
+  if (text) list = list.filter(c => (c.name || '').toLowerCase().includes(text));
+
+  const el = document.getElementById('commList');
+  if (!list.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#999;padding:14px 4px">No commercials match.</div>';
+    return;
+  }
+  el.innerHTML = list.map(c => `
+    <div class="comm-item ${c.status === 'inactive' ? 'inactive' : ''}">
+      <div>
+        <div class="ci-name">${esc(c.name)}</div>
+        <div class="ci-meta">
+          <span class="ci-cat ${esc(c.category || '')}">${esc(CATEGORY_LABELS[c.category] || c.category || '—')}</span>
+          <span>${(c.sports && c.sports.length) ? c.sports.map(prettySport).join(', ') : 'All sports'}</span>
+          ${c.box_link ? `<a href="${esc(c.box_link)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">Box ↗</a>` : ''}
+          <span style="color:#aaa">${fmtDateShort(c.updated_at)}</span>
+        </div>
+      </div>
+      <span class="comm-status ${esc(c.status)}">${esc(c.status)}</span>
+      <button class="btn-toggle" onclick="toggleStatus('${esc(c.id)}')">${c.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+      <span style="display:flex;gap:4px">
+        <button class="btn-edit" onclick="openCommEditor('${esc(c.id)}',null)">Edit</button>
+        <button class="btn-del" onclick="deleteComm('${esc(c.id)}')" title="Delete">✕</button>
+      </span>
+    </div>
+  `).join('');
+}
+
+function renderUploadList() {
+  const el = document.getElementById('uploadList');
+  el.innerHTML = SPORT_KEYS.map(key => {
+    const sport = FORMAT_DATA[key];
+    const hasOverride = !!state.formatOverrides[key];
+    return `
+      <div class="upload-row">
+        <span class="sport-label">${esc(sport.name)}</span>
+        ${hasOverride ? '<span class="custom-badge">Custom</span>' : ''}
+        <button class="upload-file-btn" onclick="document.getElementById('upload_${key}').click()">Upload .xlsx</button>
+        ${hasOverride ? `<button class="upload-reset-btn" onclick="resetFormat('${key}')">Reset</button>` : ''}
+        <input type="file" id="upload_${key}" accept=".xlsx" style="display:none" onchange="handleFormatUpload(this,'${key}')">
+      </div>
+    `;
+  }).join('');
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Commercial editor modal
+   ─────────────────────────────────────────────────────────────────────── */
+function openCommEditor(id, defaultCategory) {
+  if (!isAdmin()) return;
+  const existing = id ? state.commercials.find(c => c.id === id) : null;
+  state.editingComm = existing
+    ? { ...existing }
+    : { name: '', category: defaultCategory || 'school_psa', status: 'active', box_link: '', box_file_id: '', sports: [], notes: '' };
+  document.getElementById('commEditTitle').textContent = existing ? 'Edit Commercial' : 'New Commercial';
+  document.getElementById('commEditName').value = state.editingComm.name || '';
+  document.getElementById('commEditCategory').value = state.editingComm.category || 'school_psa';
+  document.getElementById('commEditStatus').value = state.editingComm.status || 'active';
+  document.getElementById('commEditBoxLink').value = state.editingComm.box_link || '';
+  document.getElementById('commEditBoxFileId').value = state.editingComm.box_file_id || '';
+  document.getElementById('commEditNotes').value = state.editingComm.notes || '';
+  // Sports checkboxes
+  const sportsEl = document.getElementById('commEditSports');
+  const selected = new Set(state.editingComm.sports || []);
+  sportsEl.innerHTML = SPORT_KEYS.map(k => `
+    <label><input type="checkbox" value="${esc(k)}" ${selected.has(k) ? 'checked' : ''}>${esc(prettySport(k))}</label>
+  `).join('');
+  document.getElementById('commEditModal').classList.add('open');
+  setTimeout(() => document.getElementById('commEditName').focus(), 50);
+}
+
+function closeCommEditor() {
+  document.getElementById('commEditModal').classList.remove('open');
+  state.editingComm = null;
+}
+
+async function saveCommEditor() {
+  const name = document.getElementById('commEditName').value.trim();
+  if (!name) { showToast('Name is required', true); return; }
+  const sports = Array.from(document.querySelectorAll('#commEditSports input:checked')).map(i => i.value);
+  let boxLink = document.getElementById('commEditBoxLink').value.trim();
+  const boxFileId = document.getElementById('commEditBoxFileId').value.trim();
+  // If box file id given but no link, auto-construct
+  if (!boxLink && boxFileId) boxLink = `https://conferenceusa.box.com/file/${boxFileId}`;
+  const row = {
+    name,
+    category: document.getElementById('commEditCategory').value,
+    status: document.getElementById('commEditStatus').value,
+    box_link: boxLink || null,
+    box_file_id: boxFileId || null,
+    sports,
+    notes: document.getElementById('commEditNotes').value.trim() || null
+  };
+  if (!_db) { showToast('Offline — cannot save', true); return; }
+  let res;
+  if (state.editingComm.id) {
+    res = await _db.from('commercials').update(row).eq('id', state.editingComm.id);
+  } else {
+    res = await _db.from('commercials').insert(row);
+  }
+  if (res.error) { showToast('Save failed: ' + res.error.message, true); return; }
+  showToast('Saved');
+  closeCommEditor();
+  await loadAllData();
+  renderCurrentTab();
+  if (document.getElementById('adminModal').classList.contains('open')) renderCommList();
+}
+
+async function toggleStatus(id) {
+  if (!isAdmin() || !_db) return;
+  const c = state.commercials.find(x => x.id === id);
+  if (!c) return;
+  const next = c.status === 'active' ? 'inactive' : 'active';
+  const { error } = await _db.from('commercials').update({ status: next }).eq('id', id);
+  if (error) { showToast('Failed: ' + error.message, true); return; }
+  showToast(next === 'active' ? 'Activated' : 'Deactivated');
+  await loadAllData();
+  renderCurrentTab();
+  if (document.getElementById('adminModal').classList.contains('open')) renderCommList();
+}
+
+async function deleteComm(id) {
+  if (!isAdmin() || !_db) return;
+  const c = state.commercials.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`Delete "${c.name}"? Any sport-break assignments using this commercial will be cleared.`)) return;
+  const { error } = await _db.from('commercials').delete().eq('id', id);
+  if (error) { showToast('Delete failed: ' + error.message, true); return; }
+  showToast('Deleted');
+  await loadAllData();
+  renderCurrentTab();
+  if (document.getElementById('adminModal').classList.contains('open')) renderCommList();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   App settings (Box link)
+   ─────────────────────────────────────────────────────────────────────── */
+async function persistBoxLink() {
+  if (!_db) return;
+  const row = { key: BOX_LINK_SETTING_KEY, value: state.boxLink || '', updated_at: new Date().toISOString(), updated_by: state.session?.schoolName || 'admin' };
+  const { error } = await _db.from('app_settings').upsert(row, { onConflict: 'key' });
+  if (error) showToast('Save failed: ' + error.message, true);
+  else showToast('Box link saved');
+}
+async function saveBoxLink() {
+  state.boxLink = document.getElementById('boxLinkInput').value.trim();
+  await persistBoxLink();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Format upload (local-only)
+   ─────────────────────────────────────────────────────────────────────── */
+function handleFormatUpload(input, key) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets['Format'];
+      if (!ws) { alert('Sheet "Format" not found.'); return; }
+      const parsed = parseFormatSheet(ws, FORMAT_DATA[key].name);
+      if (!parsed) { alert('Could not parse the format sheet.'); return; }
+      state.formatOverrides[key] = parsed;
+      localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
+      renderUploadList();
+      if (state.tab === key) renderCurrentTab();
+      showToast('Format uploaded');
+    } catch(err) {
+      alert('Error: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+function resetFormat(key) {
+  if (!confirm(`Reset ${FORMAT_DATA[key].name} format to default?`)) return;
+  delete state.formatOverrides[key];
+  localStorage.setItem(FORMAT_OVERRIDE_KEY, JSON.stringify(state.formatOverrides));
+  renderUploadList();
+  if (state.tab === key) renderCurrentTab();
+  showToast('Format reset');
+}
+
+function parseFormatSheet(ws, sportName) {
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  const meta = {};
+  const breaks = [];
+  let currentSegment = null;
+  let currentBreak = null;
+  let done = false;
+  for (const row of rows) {
+    if (done) break;
+    const c0 = row[0] != null ? String(row[0]).trim() : '';
+    const c1 = row[1];
+    const c2 = row[2];
+    const c3 = row[3] != null ? String(row[3]).trim() : '';
+    if (c0 === 'TALENT CLOSE COPY') { done = true; break; }
+    if (c0 === 'ESPN+ COMMERCIAL FORMATTING' || c0 === 'SEGMENT') continue;
+    if (['YEAR','NETWORK','SPORT','MINUTES','KICK/TIP'].includes(c0)) {
+      meta[c0] = c1 ? String(c1).trim() : ''; continue;
+    }
+    const brkNum = (c1 != null && c1 !== ' ')
+      ? (Number.isInteger(c1) ? c1 : (typeof c1 === 'string' && /^[A-E]$/.test(c1.trim()) ? c1.trim() : null))
+      : null;
+    if (brkNum != null && c3) {
+      const dur = c2 != null ? fmtXLSXTime(c2) : '';
+      currentBreak = { segment: currentSegment || '', brk: brkNum, dur, spots: [{ type: c3.includes('Conference') ? 'conference' : 'network', spot: c3 }] };
+      breaks.push(currentBreak);
+    } else if (c3 && currentBreak) {
+      currentBreak.spots.push({ type: c3.includes('Conference') ? 'conference' : 'network', spot: c3 });
+    } else if (c0 && c0 !== ' ' && brkNum == null && !c3) {
+      const c1s = c1 != null ? String(c1).trim() : '';
+      if (!c1s || c1s === ' ') currentSegment = c0;
+    }
+  }
+  if (!breaks.length) return null;
+  return { name: sportName, meta, breaks };
+}
+
+function fmtXLSXTime(v) {
+  if (typeof v === 'number') {
+    const totalSecs = Math.round(v * 86400);
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
+    return s ? `${m}:${String(s).padStart(2,'0')}` : `${m}:00`;
+  }
+  return String(v);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Activity log viewer (admin)
+   ─────────────────────────────────────────────────────────────────────── */
+async function loadActivityLog() {
+  if (!_db || !isAdmin()) return;
+  const { data, error } = await _db
+    .from('commercial_activity_log')
+    .select('*')
+    .order('occurred_at', { ascending: false })
+    .limit(300);
+  if (error) { console.error(error); return; }
+  state._log = data || [];
+  // populate school filter
+  const schoolFilter = document.getElementById('logFilterSchool');
+  const schools = Array.from(new Set(state._log.map(r => r.school_name).filter(Boolean))).sort();
+  schoolFilter.innerHTML = '<option value="">All Schools</option>' +
+    schools.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  renderActivityLog();
+  renderPendingList();
+}
+
+function renderActivityLog() {
+  const log = state._log || [];
+  const action = document.getElementById('logFilterAction').value;
+  const school = document.getElementById('logFilterSchool').value;
+  let filtered = log;
+  if (action) filtered = filtered.filter(r => r.action === action);
+  if (school) filtered = filtered.filter(r => r.school_name === school);
+
+  const tbl = document.getElementById('logTable');
+  if (!filtered.length) {
+    tbl.innerHTML = '<thead><tr><th>When</th><th>School</th><th>Action</th><th>Detail</th></tr></thead><tbody><tr><td colspan="4" style="color:#aaa;font-style:italic;padding:14px">No activity matches.</td></tr></tbody>';
+    return;
+  }
+  tbl.innerHTML = `
+    <thead><tr><th>When</th><th>School</th><th>Action</th><th>Detail</th></tr></thead>
+    <tbody>
+      ${filtered.map(r => `
+        <tr>
+          <td>${esc(fmtDateTime(r.occurred_at))}</td>
+          <td>${esc(r.school_name || (r.action === 'admin_login' ? '(admin)' : '—'))}</td>
+          <td><span class="log-action ${esc(r.action)}">${esc(r.action.replace('_',' '))}</span></td>
+          <td>${esc(r.commercial_name || r.details || '')}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+}
+
+async function renderPendingList() {
+  if (!_db) return;
+  const { data: acks } = await _db.from('commercial_acks').select('*');
+  const ackMap = new Map((acks || []).map(a => [a.school_id, a.last_seen_change_at]));
+  const latest = state.latestChangeAt;
+  const pending = (state.schools || []).filter(s => {
+    const a = ackMap.get(s.id);
+    return latest && (!a || a < latest);
+  });
+  const el = document.getElementById('pendingList');
+  if (!latest) { el.innerHTML = '<div class="pl-empty">No commercial changes recorded yet.</div>'; return; }
+  if (!pending.length) {
+    el.innerHTML = `<div class="pl-title">All schools have confirmed the latest change (${esc(fmtDateTime(latest))})</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="pl-title">${pending.length} school${pending.length === 1 ? '' : 's'} have not confirmed the latest change (${esc(fmtDateTime(latest))})</div>
+    ${pending.map(s => `<span class="pl-school">${esc(s.name)}</span>`).join('')}
+  `;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Init
+   ─────────────────────────────────────────────────────────────────────── */
+async function init() {
+  initSupabase();
+  if (!_db) {
+    document.getElementById('loginSchoolErr').textContent =
+      'Supabase is not configured. Run build.sh to populate config.js.';
+    document.getElementById('loginSchoolErr').style.display = 'block';
+    return;
+  }
+  // Resume session if present
+  const existing = loadSession();
+  if (existing) {
+    state.session = existing;
+    await enterApp();
+    return;
+  }
+  // Otherwise show login
+  await populateSchoolDropdown();
+  document.getElementById('loginSchoolPw').addEventListener('keydown', e => { if (e.key === 'Enter') submitSchoolLogin(); });
+  document.getElementById('loginAdminPw').addEventListener('keydown', e => { if (e.key === 'Enter') submitAdminLogin(); });
+  setTimeout(() => document.getElementById('loginSchoolPw').focus(), 100);
+}
+
 init();
 </script>
 </body>

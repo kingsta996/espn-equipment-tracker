@@ -892,8 +892,8 @@
           <select id="psaSchool" onchange="psaSchoolPicked()"><option value="">Loading schools…</option></select>
         </div>
         <div class="full">
-          <label>School Code <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(auto-filled — shorten if needed to stay under 15 chars)</span></label>
-          <input type="text" id="psaSchoolCode" placeholder="e.g. FIU" maxlength="10" oninput="psaUpdatePreview()" style="text-transform:uppercase">
+          <label>School Code <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(set by CUSA — required for agency submission)</span></label>
+          <input type="text" id="psaSchoolCode" placeholder="—" readonly style="text-transform:uppercase;background:#f1f5f9;color:var(--navy);font-weight:700;letter-spacing:0.5px">
         </div>
         <div class="full">
           <label>Filename Preview</label>
@@ -1466,7 +1466,7 @@ async function populateSchoolDropdown() {
   }
   const { data, error } = await _db
     .from('schools')
-    .select('id, name, pw_hash')
+    .select('id, name, code, pw_hash')
     .order('name');
   if (error) {
     console.error(error);
@@ -1537,17 +1537,6 @@ async function submitAdminLogin() {
 const PSA_SUFFIX = '_PSAH';
 const PSA_MAX_LEN = 15;
 
-function psaDefaultCode(name) {
-  // Auto-derive a short code from a school name. Multi-word → first letter
-  // of each word ("Sam Houston" → SH). Single word → first 4 chars
-  // ("Liberty" → LIBE). Always uppercase, alphanumerics only.
-  const clean = String(name || '').replace(/[^A-Za-z0-9 ]/g, '').trim();
-  if (!clean) return '';
-  const words = clean.split(/\s+/);
-  if (words.length > 1) return words.map(w => w[0]).join('').toUpperCase().slice(0, 6);
-  return words[0].toUpperCase().slice(0, 4);
-}
-
 function psaBuildFilename(year, code) {
   const y = String(year || '').replace(/\D/g, '').slice(0, 4);
   const c = String(code || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -1578,9 +1567,7 @@ function closeSchoolPsaModal() {
 function psaSchoolPicked() {
   const schoolId = document.getElementById('psaSchool').value;
   const school = (state.schools || []).find(s => s.id === schoolId);
-  // Auto-fill the editable code with a sensible default whenever a different
-  // school is picked. The user can shorten it if needed to stay under 15 chars.
-  document.getElementById('psaSchoolCode').value = psaDefaultCode(school?.name);
+  document.getElementById('psaSchoolCode').value = (school?.code || '').toUpperCase();
   psaUpdatePreview();
 }
 
@@ -1588,11 +1575,20 @@ function psaUpdatePreview() {
   const year = document.getElementById('psaYear').value;
   const code = document.getElementById('psaSchoolCode').value;
   const schoolId = document.getElementById('psaSchool').value;
+  const school = (state.schools || []).find(s => s.id === schoolId);
   const filename = psaBuildFilename(year, code);
   const previewEl = document.getElementById('psaFilenamePreview');
   const hintEl = document.getElementById('psaFilenameHint');
   const btn = document.getElementById('psaContinueBtn');
 
+  if (schoolId && !school?.code) {
+    previewEl.textContent = '—';
+    previewEl.classList.remove('too-long');
+    hintEl.textContent = 'No school code on file — contact CUSA admin to assign one.';
+    hintEl.classList.add('error');
+    btn.disabled = true;
+    return;
+  }
   if (!filename || filename === PSA_SUFFIX) {
     previewEl.textContent = '—';
     previewEl.classList.remove('too-long');
@@ -1605,7 +1601,7 @@ function psaUpdatePreview() {
   const tooLong = filename.length > PSA_MAX_LEN;
   previewEl.classList.toggle('too-long', tooLong);
   if (tooLong) {
-    hintEl.textContent = `Filename is ${filename.length} characters — must be ${PSA_MAX_LEN} or fewer. Try a shorter school code.`;
+    hintEl.textContent = `Filename is ${filename.length} characters — must be ${PSA_MAX_LEN} or fewer. Contact CUSA admin to shorten the school code.`;
     hintEl.classList.add('error');
     btn.disabled = true;
   } else {

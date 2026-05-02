@@ -525,6 +525,40 @@
   }
   .login-body select:focus, .login-body input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
   .login-error { color: var(--red); font-size: 12px; margin: -8px 0 12px; display: none; font-weight: 600; }
+  .login-divider {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 22px 0;
+    color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
+  }
+  .login-divider::before, .login-divider::after {
+    content: ''; flex: 1; height: 1px; background: #e5e7eb;
+  }
+  .login-upload-btn {
+    width: 100%;
+    background: var(--conf-fg);
+    color: var(--white);
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-top: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .login-upload-btn:hover { filter: brightness(0.95); }
+  .psa-filename-preview {
+    background: var(--navy); color: var(--white);
+    padding: 10px 14px; border-radius: 6px;
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.5px;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  .psa-filename-preview.too-long { background: #991b1b; }
+  .psa-filename-hint { font-size: 11px; color: #64748b; font-style: italic; text-align: center; }
+  .psa-filename-hint.error { color: #b91c1c; font-style: normal; font-weight: 600; }
   .login-submit {
     width: 100%;
     background: var(--espn-red);
@@ -825,8 +859,52 @@
       <div class="login-error" id="loginAdminErr"></div>
       <button class="login-submit" onclick="submitAdminLogin()">Unlock Admin</button>
     </div>
+    <div class="login-divider"><span>or no sign-in needed</span></div>
+    <div style="padding: 0 22px 18px">
+      <button class="login-upload-btn" onclick="openSchoolPsaModal()">📤 Upload a School PSA</button>
+    </div>
     <div class="login-foot">
       Need access? Contact <a href="mailto:kking@conferenceusa.com" style="color:var(--conf-fg)">kking@conferenceusa.com</a>
+    </div>
+  </div>
+</div>
+
+<!-- School PSA upload modal (ungated; reachable from login screen) -->
+<div class="modal-overlay" id="schoolPsaModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Upload a School PSA</h2>
+      <button class="modal-close" onclick="closeSchoolPsaModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:#475569;margin:0 0 14px">
+        We'll generate the required filename for your spot, then hand you off to the
+        Box File Request to upload it. The total filename must be <b>15 characters or fewer</b>
+        and ends with <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">_PSAH</code>.
+      </p>
+      <div class="form-grid">
+        <div>
+          <label>Year</label>
+          <input type="number" id="psaYear" min="2024" max="2099" maxlength="4" placeholder="2026" oninput="psaUpdatePreview()">
+        </div>
+        <div>
+          <label>School</label>
+          <select id="psaSchool" onchange="psaSchoolPicked()"><option value="">Loading schools…</option></select>
+        </div>
+        <div class="full">
+          <label>School Code <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(auto-filled — shorten if needed to stay under 15 chars)</span></label>
+          <input type="text" id="psaSchoolCode" placeholder="e.g. FIU" maxlength="10" oninput="psaUpdatePreview()" style="text-transform:uppercase">
+        </div>
+        <div class="full">
+          <label>Filename Preview</label>
+          <div id="psaFilenamePreview" class="psa-filename-preview">—</div>
+          <div id="psaFilenameHint" class="psa-filename-hint">Pick a year and a school to preview the filename.</div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-cancel" onclick="closeSchoolPsaModal()">Cancel</button>
+        <button class="btn btn-save" id="psaContinueBtn" onclick="submitSchoolPsa()" disabled>Continue to Upload</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1450,6 +1528,134 @@ async function submitAdminLogin() {
   saveSession({ kind: 'admin', loggedInAt: new Date().toISOString() });
   await logActivity('admin_login', null, 'commercials');
   await enterApp();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   School PSA upload flow (ungated — reachable from the login screen).
+   Filename pattern: <YEAR><SCHOOL_CODE>_PSAH, total ≤ 15 characters.
+   ─────────────────────────────────────────────────────────────────────── */
+const PSA_SUFFIX = '_PSAH';
+const PSA_MAX_LEN = 15;
+
+function psaDefaultCode(name) {
+  // Auto-derive a short code from a school name. Multi-word → first letter
+  // of each word ("Sam Houston" → SH). Single word → first 4 chars
+  // ("Liberty" → LIBE). Always uppercase, alphanumerics only.
+  const clean = String(name || '').replace(/[^A-Za-z0-9 ]/g, '').trim();
+  if (!clean) return '';
+  const words = clean.split(/\s+/);
+  if (words.length > 1) return words.map(w => w[0]).join('').toUpperCase().slice(0, 6);
+  return words[0].toUpperCase().slice(0, 4);
+}
+
+function psaBuildFilename(year, code) {
+  const y = String(year || '').replace(/\D/g, '').slice(0, 4);
+  const c = String(code || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (!y && !c) return '';
+  return `${y}${c}${PSA_SUFFIX}`;
+}
+
+async function openSchoolPsaModal() {
+  // Make sure we have schools loaded — login screen normally already populated state.schools.
+  if (!state.schools || !state.schools.length) {
+    await populateSchoolDropdown();
+  }
+  const sel = document.getElementById('psaSchool');
+  sel.innerHTML = '<option value="">— Select your school —</option>' +
+    (state.schools || []).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  document.getElementById('psaYear').value = String(new Date().getFullYear());
+  document.getElementById('psaSchoolCode').value = '';
+  sel.value = '';
+  psaUpdatePreview();
+  document.getElementById('schoolPsaModal').classList.add('open');
+  setTimeout(() => sel.focus(), 50);
+}
+
+function closeSchoolPsaModal() {
+  document.getElementById('schoolPsaModal').classList.remove('open');
+}
+
+function psaSchoolPicked() {
+  const schoolId = document.getElementById('psaSchool').value;
+  const school = (state.schools || []).find(s => s.id === schoolId);
+  // Auto-fill the editable code with a sensible default whenever a different
+  // school is picked. The user can shorten it if needed to stay under 15 chars.
+  document.getElementById('psaSchoolCode').value = psaDefaultCode(school?.name);
+  psaUpdatePreview();
+}
+
+function psaUpdatePreview() {
+  const year = document.getElementById('psaYear').value;
+  const code = document.getElementById('psaSchoolCode').value;
+  const schoolId = document.getElementById('psaSchool').value;
+  const filename = psaBuildFilename(year, code);
+  const previewEl = document.getElementById('psaFilenamePreview');
+  const hintEl = document.getElementById('psaFilenameHint');
+  const btn = document.getElementById('psaContinueBtn');
+
+  if (!filename || filename === PSA_SUFFIX) {
+    previewEl.textContent = '—';
+    previewEl.classList.remove('too-long');
+    hintEl.textContent = 'Pick a year and a school to preview the filename.';
+    hintEl.classList.remove('error');
+    btn.disabled = true;
+    return;
+  }
+  previewEl.textContent = filename;
+  const tooLong = filename.length > PSA_MAX_LEN;
+  previewEl.classList.toggle('too-long', tooLong);
+  if (tooLong) {
+    hintEl.textContent = `Filename is ${filename.length} characters — must be ${PSA_MAX_LEN} or fewer. Try a shorter school code.`;
+    hintEl.classList.add('error');
+    btn.disabled = true;
+  } else {
+    hintEl.textContent = `${filename.length}/${PSA_MAX_LEN} characters. We'll log this upload, then open the Box File Request.`;
+    hintEl.classList.remove('error');
+    btn.disabled = !year || !schoolId || !code;
+  }
+}
+
+async function submitSchoolPsa() {
+  const year = parseInt(document.getElementById('psaYear').value, 10);
+  const code = document.getElementById('psaSchoolCode').value;
+  const schoolId = document.getElementById('psaSchool').value;
+  const school = (state.schools || []).find(s => s.id === schoolId);
+  if (!school || !year || !code) return;
+  const filename = psaBuildFilename(year, code);
+  if (!filename || filename.length > PSA_MAX_LEN) return;
+
+  // Look up the configured Box File Request URL.
+  let fileRequestUrl = '';
+  if (_db) {
+    const { data, error } = await _db.from('psa_config').select('file_request_url').eq('category', 'school_psa').maybeSingle();
+    if (!error) fileRequestUrl = (data?.file_request_url || '').trim();
+  }
+  if (!fileRequestUrl) {
+    showToast('Upload link not configured yet — contact CUSA admin.', true);
+    return;
+  }
+
+  // Log the upload event so the tracker tab sees it. Failure is non-fatal —
+  // we still hand the user off to Box rather than blocking the upload.
+  if (_db) {
+    try {
+      await _db.from('psa_uploads').insert({
+        category: 'school_psa',
+        school_id: school.id,
+        school_name: school.name,
+        year,
+        filename
+      });
+    } catch (e) {
+      console.warn('psa_uploads insert failed:', e);
+    }
+  }
+
+  // Copy the filename for the user, then send them to Box.
+  try { await navigator.clipboard?.writeText(filename); } catch (e) {}
+  showToast(`Filename ${filename} copied — opening Box File Request…`);
+  window.open(fileRequestUrl, '_blank', 'noopener');
+  closeSchoolPsaModal();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

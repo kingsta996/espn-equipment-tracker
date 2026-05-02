@@ -362,37 +362,6 @@
     font-family: inherit;
   }
   .filter-row input { flex: 1; min-width: 140px; }
-  .comm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
-  .comm-item {
-    display: grid;
-    grid-template-columns: 1fr auto auto auto;
-    gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    background: #fafafa;
-    align-items: center;
-  }
-  .comm-item.inactive { opacity: 0.6; }
-  .comm-item .ci-name { font-size: 12px; font-weight: 600; color: var(--navy); word-break: break-word; }
-  .comm-item .ci-meta { font-size: 10px; color: #888; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
-  .comm-item .ci-meta .ci-cat { font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-  .comm-item .ci-meta .ci-cat.school_psa { color: #0061d5; }
-  .comm-item .ci-meta .ci-cat.cusa_psa   { color: var(--conf-fg); }
-  .comm-item .ci-meta .ci-cat.sponsor    { color: #b45309; }
-  .comm-item .comm-status {
-    font-size: 10px; font-weight: 700;
-    padding: 2px 7px; border-radius: 100px;
-    text-transform: uppercase; letter-spacing: 0.5px;
-  }
-  .comm-item .comm-status.active { background: #dcfce7; color: #15803d; }
-  .comm-item .comm-status.inactive { background: #f3f4f6; color: #9ca3af; }
-  .btn-toggle { background: none; border: 1px solid #ddd; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: #555; font-family: inherit; }
-  .btn-toggle:hover { background: #f0f0f0; }
-  .btn-edit { background: var(--blue); color: var(--white); border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit; }
-  .btn-edit:hover { filter: brightness(0.9); }
-  .btn-del { background: none; border: 1px solid #fca5a5; border-radius: 4px; padding: 3px 6px; font-size: 11px; cursor: pointer; color: var(--red); font-family: inherit; }
-  .btn-del:hover { background: #fef2f2; }
 
   /* Add / edit form */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -662,7 +631,6 @@
     .content { padding: 12px; }
     .format-meta { gap: 12px; }
     .form-grid { grid-template-columns: 1fr; }
-    .comm-item { grid-template-columns: 1fr auto; row-gap: 4px; }
   }
 </style>
 </head>
@@ -755,36 +723,9 @@
       <button class="modal-close" onclick="closeAdminModal()">×</button>
     </div>
     <div class="modal-body">
-      <!-- Commercials -->
-      <div class="modal-section">
-        <h3>Commercials</h3>
-        <div class="filter-row">
-          <select id="adminFilterCat" onchange="renderCommList()">
-            <option value="">All Categories</option>
-            <option value="school_psa">School PSA</option>
-            <option value="cusa_psa">CUSA Produced PSA</option>
-            <option value="sponsor">Sponsorship Spot</option>
-          </select>
-          <select id="adminFilterStatus" onchange="renderCommList()">
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <input type="text" id="adminFilterText" placeholder="Search by name…" oninput="renderCommList()">
-          <button class="btn btn-add" onclick="openCommEditor(null,null)">+ New Commercial</button>
-        </div>
-        <div class="comm-list" id="commList"></div>
-      </div>
-
-      <!-- Box link -->
-      <div class="modal-section">
-        <h3>Default Box Link</h3>
-        <p style="font-size:12px;color:#666;margin:0 0 10px">URL for the Box tab — typically the parent media folder.</p>
-        <div style="display:flex;gap:8px">
-          <input type="url" id="boxLinkInput" placeholder="https://app.box.com/..." style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:5px;font-size:12px;font-family:inherit">
-          <button class="btn btn-save" onclick="saveBoxLink()">Save</button>
-        </div>
-      </div>
+      <p style="font-size:12px;color:#666;margin:0 0 18px">
+        Manage commercial spots from the <b>Dashboard</b> tab. The Admin Panel is for sport-format uploads and reviewing activity.
+      </p>
 
       <!-- Format uploads -->
       <div class="modal-section">
@@ -1876,48 +1817,11 @@ function exportEngagementCsv() {
    ─────────────────────────────────────────────────────────────────────── */
 function openAdminModal() {
   if (!isAdmin()) return;
-  document.getElementById('boxLinkInput').value = state.boxLink;
-  renderCommList();
   renderUploadList();
   loadActivityLog();
   document.getElementById('adminModal').classList.add('open');
 }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('open'); }
-
-function renderCommList() {
-  const cat = document.getElementById('adminFilterCat').value;
-  const status = document.getElementById('adminFilterStatus').value;
-  const text = (document.getElementById('adminFilterText').value || '').toLowerCase();
-  let list = state.commercials.slice();
-  if (cat) list = list.filter(c => c.category === cat);
-  if (status) list = list.filter(c => c.status === status);
-  if (text) list = list.filter(c => (c.name || '').toLowerCase().includes(text));
-
-  const el = document.getElementById('commList');
-  if (!list.length) {
-    el.innerHTML = '<div style="font-size:12px;color:#999;padding:14px 4px">No commercials match.</div>';
-    return;
-  }
-  el.innerHTML = list.map(c => `
-    <div class="comm-item ${c.status === 'inactive' ? 'inactive' : ''}">
-      <div>
-        <div class="ci-name">${esc(c.name)}</div>
-        <div class="ci-meta">
-          <span class="ci-cat ${esc(c.category || '')}">${esc(CATEGORY_LABELS[c.category] || c.category || '—')}</span>
-          <span>${(c.sports && c.sports.length) ? c.sports.map(prettySport).join(', ') : 'All sports'}</span>
-          ${c.box_link ? `<a href="${esc(c.box_link)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">Box ↗</a>` : ''}
-          <span style="color:#aaa">${fmtDateShort(c.updated_at)}</span>
-        </div>
-      </div>
-      <span class="comm-status ${esc(c.status)}">${esc(c.status)}</span>
-      <button class="btn-toggle" onclick="toggleStatus('${esc(c.id)}')">${c.status === 'active' ? 'Deactivate' : 'Activate'}</button>
-      <span style="display:flex;gap:4px">
-        <button class="btn-edit" onclick="openCommEditor('${esc(c.id)}',null)">Edit</button>
-        <button class="btn-del" onclick="deleteComm('${esc(c.id)}')" title="Delete">✕</button>
-      </span>
-    </div>
-  `).join('');
-}
 
 function renderUploadList() {
   const el = document.getElementById('uploadList');
@@ -1996,7 +1900,6 @@ async function saveCommEditor() {
   closeCommEditor();
   await loadAllData();
   renderCurrentTab();
-  if (document.getElementById('adminModal').classList.contains('open')) renderCommList();
 }
 
 async function toggleStatus(id) {
@@ -2009,7 +1912,6 @@ async function toggleStatus(id) {
   showToast(next === 'active' ? 'Activated' : 'Deactivated');
   await loadAllData();
   renderCurrentTab();
-  if (document.getElementById('adminModal').classList.contains('open')) renderCommList();
 }
 
 async function deleteComm(id) {
@@ -2022,7 +1924,6 @@ async function deleteComm(id) {
   showToast('Deleted');
   await loadAllData();
   renderCurrentTab();
-  if (document.getElementById('adminModal').classList.contains('open')) renderCommList();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -2035,11 +1936,6 @@ async function persistBoxLink() {
   if (error) showToast('Save failed: ' + error.message, true);
   else showToast('Box link saved');
 }
-async function saveBoxLink() {
-  state.boxLink = document.getElementById('boxLinkInput').value.trim();
-  await persistBoxLink();
-}
-
 /* ──────────────────────────────────────────────────────────────────────────
    Format upload (local-only)
    ─────────────────────────────────────────────────────────────────────── */

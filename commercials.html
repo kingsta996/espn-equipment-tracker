@@ -658,9 +658,33 @@
   .champ-row.segment-only td { background: #f0f4f8; }
   .champ-row .cell-dur { font-weight: 700; color: #002b5b; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .champ-row .cell-note { color: #555; font-size: 11px; font-style: italic; }
-  .champ-row .cell-local, .champ-row .cell-psa { font-variant-numeric: tabular-nums; color: #aaa; font-size: 11px; }
-  .champ-row .cell-local.filled { color: var(--conf-fg); font-weight: 700; background: var(--conf-bg); }
+  .champ-row .cell-local, .champ-row .cell-psa { font-variant-numeric: tabular-nums; color: #aaa; font-size: 11px; vertical-align: top; }
+  .champ-row .cell-local.filled { background: var(--conf-bg); }
   .champ-row .cell-psa.filled { color: #4d7c0f; font-weight: 700; background: #ecfccb; }
+  .local-slots { display: flex; flex-direction: column; gap: 3px; min-width: 180px; }
+  .local-slots-header { font-size: 10px; font-weight: 700; color: var(--conf-fg); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
+  .local-slot-select {
+    padding: 3px 6px;
+    border: 1px solid var(--conf-border);
+    border-radius: 4px;
+    font-size: 11px;
+    background: var(--white);
+    color: var(--conf-fg);
+    font-family: inherit;
+    width: 100%;
+    cursor: pointer;
+  }
+  .local-slot-select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .local-slot-display {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--white);
+    color: var(--conf-fg);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--conf-border);
+  }
+  .local-slot-display.unassigned { color: #bbb; font-style: italic; font-weight: 400; background: transparent; border: 1px dashed #ccc; }
   .champ-row.has-local .cell-segment { color: var(--navy); }
 
   .champ-floaters {
@@ -817,9 +841,17 @@
 
       <!-- Format uploads -->
       <div class="modal-section">
-        <h3>Upload Sport Formats</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:10px;">Upload an updated ESPN+ commercial format Excel file (.xlsx) for any sport. The file must have a "Format" sheet matching the ESPN+ layout. (Stored locally in this browser.)</p>
+        <h3>Upload Sport Formats <span style="font-size:10px;color:#888;font-weight:400;text-transform:none;letter-spacing:0">(ESPN+)</span></h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">Upload an updated ESPN+ commercial format Excel file (.xlsx). The file must have a "Format" sheet matching the ESPN+ layout. <b>Stored locally in this browser.</b></p>
         <div class="upload-list" id="uploadList"></div>
+      </div>
+
+      <!-- CBSSN format uploads -->
+      <div class="modal-section">
+        <h3>Upload CBSSN Championship Formats</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">Upload a Championship format .xlsx for any sport. Use the template (linked below) to ensure parsing works. <b>Saved to Supabase — schools see updates in real time.</b></p>
+        <div style="margin-bottom:10px"><a href="#" onclick="downloadCBSSNTemplate(event)" style="font-size:12px;color:var(--blue);font-weight:600">↓ Download CBSSN Template (.xlsx)</a></div>
+        <div class="upload-list" id="champUploadList"></div>
       </div>
 
       <!-- Activity log -->
@@ -1209,6 +1241,7 @@ let state = {
   tab: 'status',
   loginTab: 'school',
   champSport: 'football',
+  champOverrides: {},      // Supabase-backed: { [sport_key]: parsed_format }
   // data (from Supabase)
   schools: [],
   commercials: [],
@@ -1422,10 +1455,10 @@ async function enterApp() {
    ─────────────────────────────────────────────────────────────────────── */
 async function loadAllData() {
   if (!_db) return;
-  const [commRes, asgRes, settingRes, schoolsRes] = await Promise.all([
+  const [commRes, asgRes, settingsRes, schoolsRes] = await Promise.all([
     _db.from('commercials').select('*').order('category').order('status').order('name'),
     _db.from('format_assignments').select('*'),
-    _db.from('app_settings').select('*').eq('key', BOX_LINK_SETTING_KEY).maybeSingle(),
+    _db.from('app_settings').select('*'),
     _db.from('schools').select('id, name').order('name')
   ]);
   if (schoolsRes && !schoolsRes.error) state.schools = schoolsRes.data || [];
@@ -1436,7 +1469,16 @@ async function loadAllData() {
   (asgRes.data || []).forEach(r => {
     if (r.commercial_id) state.assignments[`${r.sport}:${r.break_key}:${r.spot_index}`] = r.commercial_id;
   });
-  state.boxLink = settingRes?.data?.value || '';
+  // Parse app_settings: box_link + champ_format_<sport>
+  state.boxLink = '';
+  state.champOverrides = {};
+  (settingsRes?.data || []).forEach(r => {
+    if (r.key === BOX_LINK_SETTING_KEY) state.boxLink = r.value || '';
+    else if (r.key && r.key.startsWith('champ_format_')) {
+      try { state.champOverrides[r.key.replace('champ_format_', '')] = JSON.parse(r.value); }
+      catch (e) { console.warn('bad champ override JSON for', r.key, e); }
+    }
+  });
   state.latestChangeAt = state.commercials.reduce((max, c) =>
     (!max || (c.updated_at && c.updated_at > max)) ? c.updated_at : max, null);
 
@@ -1753,7 +1795,8 @@ async function assignSpot(key, commId) {
    ─────────────────────────────────────────────────────────────────────── */
 function renderChampionshipsTab() {
   const sport = state.champSport;
-  const data = CHAMPIONSHIP_FORMAT_DATA[sport];
+  const data = state.champOverrides[sport] || CHAMPIONSHIP_FORMAT_DATA[sport];
+  const isCustom = !!state.champOverrides[sport];
   const optsHtml = CHAMPIONSHIP_SPORT_KEYS.map(k => {
     const d = CHAMPIONSHIP_FORMAT_DATA[k];
     return `<option value="${esc(k)}" ${k === sport ? 'selected' : ''}>${esc(d.name)}</option>`;
@@ -1787,7 +1830,7 @@ function renderChampionshipsTab() {
     `;
   }
 
-  const m = data.meta;
+  const m = data.meta || {};
   const metaHtml = `
     <div class="format-meta champ-meta">
       <span><span class="meta-label">Sport</span><span class="meta-val">${esc(m.SPORT || data.name)}</span></span>
@@ -1795,6 +1838,7 @@ function renderChampionshipsTab() {
       <span><span class="meta-label">Year</span><span class="meta-val">${esc(m.YEAR || '')}</span></span>
       <span><span class="meta-label">Format ID</span><span class="meta-val">${esc(m.FORMAT_ID || '')}</span></span>
       ${m.AIR_DATE ? `<span><span class="meta-label">Air</span><span class="meta-val">${esc(m.AIR_DATE)}</span></span>` : ''}
+      ${isCustom ? '<span style="font-size:10px;color:#a0dcf0;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Custom Upload</span>' : ''}
     </div>
   `;
 
@@ -1816,7 +1860,7 @@ function renderChampionshipsTab() {
         <td class="cell-segment">${esc(showSeg ? s.name : '')}</td>
         <td class="cell-dur">${esc(s.dur || '')}</td>
         <td class="cell-note">${esc(s.note || '')}</td>
-        <td class="cell-local ${s.local ? 'filled' : ''}">${esc(s.local || '')}</td>
+        <td class="cell-local ${s.local ? 'filled' : ''}">${renderLocalSlots(sport, s.brk, s.local)}</td>
         <td class="cell-psa ${s.psa ? 'filled' : ''}">${esc(s.psa || '')}</td>
       </tr>
     `;
@@ -1875,6 +1919,54 @@ function renderChampionshipsTab() {
 function setChampSport(sport) {
   state.champSport = sport;
   renderCurrentTab();
+}
+
+function parseDurationToSec(dur) {
+  if (!dur) return 0;
+  const s = String(dur).trim();
+  // "1:30" → 90; ":30" → 30; "30" → 30; "2:00" → 120
+  if (s.includes(':')) {
+    const [m, sec] = s.split(':');
+    return (parseInt(m || '0', 10) || 0) * 60 + (parseInt(sec || '0', 10) || 0);
+  }
+  return parseInt(s, 10) || 0;
+}
+
+function renderLocalSlots(sport, brk, localStr) {
+  if (!localStr) return '';
+  const seconds = parseDurationToSec(localStr);
+  const numSpots = Math.floor(seconds / 30);
+  if (numSpots <= 0 || !brk) return `<span style="font-weight:700">${esc(localStr)}</span>`;
+
+  const eligible = state.commercials.filter(c =>
+    c.status === 'active' &&
+    (!c.sports || !c.sports.length || c.sports.includes(sport))
+  );
+
+  const assignSport = `champ_${sport}`;
+  const slots = [];
+  for (let i = 0; i < numSpots; i++) {
+    const assignKey = `${assignSport}:${brk}:${i}`;
+    const assignedId = state.assignments[assignKey] || '';
+    const assignedComm = state.commercials.find(c => c.id === assignedId);
+    if (isAdmin()) {
+      const opts = eligible.map(c =>
+        `<option value="${esc(c.id)}" ${c.id === assignedId ? 'selected' : ''}>${esc(c.name)}</option>`
+      ).join('');
+      const orphan = (assignedComm && !eligible.find(e => e.id === assignedId))
+        ? `<option value="${esc(assignedId)}" selected>${esc(assignedComm.name)} (no longer targeted)</option>`
+        : '';
+      slots.push(`<select class="local-slot-select" onchange="assignSpot('${assignKey}', this.value)">
+        <option value="">— :30 unassigned —</option>${orphan}${opts}
+      </select>`);
+    } else {
+      slots.push(`<div class="local-slot-display ${assignedComm ? '' : 'unassigned'}">${assignedComm ? esc(assignedComm.name) : '— :30 —'}</div>`);
+    }
+  }
+  return `<div class="local-slots">
+    <div class="local-slots-header">${esc(localStr)} · ${numSpots} × :30</div>
+    ${slots.join('')}
+  </div>`;
 }
 
 function renderBoxTab() {
@@ -2173,6 +2265,7 @@ function exportEngagementCsv() {
 function openAdminModal() {
   if (!isAdmin()) return;
   renderUploadList();
+  renderChampUploadList();
   loadActivityLog();
   document.getElementById('adminModal').classList.add('open');
 }
@@ -2190,6 +2283,24 @@ function renderUploadList() {
         <button class="upload-file-btn" onclick="document.getElementById('upload_${key}').click()">Upload .xlsx</button>
         ${hasOverride ? `<button class="upload-reset-btn" onclick="resetFormat('${key}')">Reset</button>` : ''}
         <input type="file" id="upload_${key}" accept=".xlsx" style="display:none" onchange="handleFormatUpload(this,'${key}')">
+      </div>
+    `;
+  }).join('');
+}
+
+function renderChampUploadList() {
+  const el = document.getElementById('champUploadList');
+  if (!el) return;
+  el.innerHTML = CHAMPIONSHIP_SPORT_KEYS.map(key => {
+    const sport = CHAMPIONSHIP_FORMAT_DATA[key];
+    const hasOverride = !!state.champOverrides[key];
+    return `
+      <div class="upload-row">
+        <span class="sport-label">${esc(sport.name)}</span>
+        ${hasOverride ? '<span class="custom-badge">Custom</span>' : ''}
+        <button class="upload-file-btn" onclick="document.getElementById('champup_${key}').click()">Upload .xlsx</button>
+        ${hasOverride ? `<button class="upload-reset-btn" onclick="resetChampFormat('${key}')">Reset</button>` : ''}
+        <input type="file" id="champup_${key}" accept=".xlsx" style="display:none" onchange="handleChampUpload(this,'${key}')">
       </div>
     `;
   }).join('');
@@ -2371,6 +2482,166 @@ function fmtXLSXTime(v) {
     return s ? `${m}:${String(s).padStart(2,'0')}` : `${m}:00`;
   }
   return String(v);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   CBSSN Championship format upload (Supabase-backed)
+   ─────────────────────────────────────────────────────────────────────── */
+function handleChampUpload(input, key) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets['CBSSN Format'] || wb.Sheets['Format'] || wb.Sheets[wb.SheetNames[0]];
+      if (!ws) { alert('Workbook is empty.'); return; }
+      const parsed = parseCBSSNFormatSheet(ws, CHAMPIONSHIP_FORMAT_DATA[key].name);
+      if (!parsed) { alert('Could not parse the CBSSN format. Make sure it follows the template structure.'); return; }
+      if (!_db) { alert('Supabase is not connected — cannot save.'); return; }
+      const row = {
+        key: `champ_format_${key}`,
+        value: JSON.stringify(parsed),
+        updated_at: new Date().toISOString(),
+        updated_by: 'admin'
+      };
+      const { error } = await _db.from('app_settings').upsert(row, { onConflict: 'key' });
+      if (error) { alert('Save failed: ' + error.message); return; }
+      state.champOverrides[key] = parsed;
+      renderChampUploadList();
+      if (state.tab === 'championships') renderCurrentTab();
+      showToast(`${CHAMPIONSHIP_FORMAT_DATA[key].name} format uploaded`);
+    } catch (err) {
+      console.error(err);
+      alert('Error reading file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+async function resetChampFormat(key) {
+  if (!_db) return;
+  if (!confirm(`Reset ${CHAMPIONSHIP_FORMAT_DATA[key].name} format to the built-in default? Schools will see the change immediately.`)) return;
+  const { error } = await _db.from('app_settings').delete().eq('key', `champ_format_${key}`);
+  if (error) { showToast('Reset failed: ' + error.message, true); return; }
+  delete state.champOverrides[key];
+  renderChampUploadList();
+  if (state.tab === 'championships') renderCurrentTab();
+  showToast('Format reset to built-in default');
+}
+
+function parseCBSSNFormatSheet(ws, fallbackName) {
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  const meta = {};
+  const segments = [];
+  const floaters = [];
+  const notes = [];
+  let mode = 'meta';
+  const META_KEYS = ['YEAR','NETWORK','SPORT','FORMAT_ID','AIR_DATE'];
+
+  const cellStr = v => v == null ? '' : (typeof v === 'string' ? v.trim() : String(v).trim());
+  const cellTime = v => {
+    if (v == null || v === '') return '';
+    if (typeof v === 'number') return fmtXLSXTime(v);
+    return String(v).trim();
+  };
+
+  for (const row of rows) {
+    const c0 = cellStr(row[0]);
+    const c0u = c0.toUpperCase();
+    if (!c0 && row.every(c => c == null || c === '')) continue;
+
+    if (c0u === 'SEGMENTS' || c0u === 'BREAKS') { mode = 'segments_header'; continue; }
+    if (c0u === 'FLOATERS')                     { mode = 'floaters_header'; continue; }
+    if (c0u === 'NOTES' || c0u === 'REPORT NOTES'){ mode = 'notes_header'; continue; }
+
+    if (mode === 'meta') {
+      if (META_KEYS.includes(c0u)) meta[c0u] = cellStr(row[1]);
+      continue;
+    }
+    if (mode === 'segments_header') {
+      // Header row: "Break | Segment | Duration | Notes | Local | PSA"
+      // Skip if first cell is the literal "Break" header, otherwise treat as data.
+      if (c0u === 'BREAK' || c0u === 'BREAK#' || c0u === 'BREAK #') { mode = 'segments'; continue; }
+      mode = 'segments'; // fall through and handle this row
+    }
+    if (mode === 'segments') {
+      const brk = cellStr(row[0]);
+      const name = cellStr(row[1]);
+      const dur  = cellTime(row[2]);
+      const note = cellStr(row[3]);
+      const local = cellTime(row[4]);
+      const psa = cellTime(row[5]);
+      // skip totally blank rows
+      if (!brk && !name && !dur) continue;
+      const seg = { num: segments.length + 1, brk, name, dur };
+      if (note) seg.note = note;
+      if (local) seg.local = local;
+      if (psa) seg.psa = psa;
+      segments.push(seg);
+      continue;
+    }
+    if (mode === 'floaters_header') {
+      if (c0u === 'LETTER' || c0u === 'FLOATER') { mode = 'floaters'; continue; }
+      mode = 'floaters';
+    }
+    if (mode === 'floaters') {
+      const letter = cellStr(row[0]).replace(/^Floater\s+/i, '');
+      const dur = cellTime(row[1]);
+      const note = cellStr(row[2]);
+      if (!letter && !dur && !note) continue;
+      floaters.push({ letter, dur, note });
+      continue;
+    }
+    if (mode === 'notes_header') {
+      if (c0u === 'TITLE') { mode = 'notes'; continue; }
+      mode = 'notes';
+    }
+    if (mode === 'notes') {
+      const title = cellStr(row[0]);
+      const body = cellStr(row[1]);
+      if (!title && !body) continue;
+      notes.push({ title, body });
+      continue;
+    }
+  }
+
+  if (!segments.length) return null;
+  return { name: meta.SPORT || fallbackName, meta, segments, floaters, notes };
+}
+
+function downloadCBSSNTemplate(ev) {
+  if (ev) ev.preventDefault();
+  const aoa = [
+    ['CBSSN Championship Format Template'],
+    [],
+    ['META'],
+    ['YEAR',       '2025-26'],
+    ['NETWORK',    'CBS Sports Network'],
+    ['SPORT',      '(e.g. CUSA Baseball Championship)'],
+    ['FORMAT_ID',  '(e.g. CUSABASE2026)'],
+    ['AIR_DATE',   '(optional, e.g. Sat May 09, 2026 · 12:00–2:00 PM ET)'],
+    [],
+    ['SEGMENTS'],
+    ['Break', 'Segment', 'Duration', 'Notes', 'Local', 'PSA'],
+    ['1', 'Pre-Game / Open', '2:00', '', '1:30', ''],
+    ['2', 'Top of 1st',      '1:00', '', '',      ''],
+    ['',  'Wrap-up / Close', '',     '', '',      ''],
+    [],
+    ['FLOATERS'],
+    ['Letter', 'Duration', 'Notes'],
+    ['A', '0:30', 'Mandatory Floater A'],
+    [],
+    ['NOTES'],
+    ['Title', 'Body'],
+    ['Overtime Procedure', 'The first team-called timeout becomes a 1:30 timeout.'],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 14 }, { wch: 36 }, { wch: 12 }, { wch: 40 }, { wch: 10 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'CBSSN Format');
+  XLSX.writeFile(wb, 'CBSSN_Format_Template.xlsx');
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

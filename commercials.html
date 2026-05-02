@@ -6,6 +6,8 @@
 <title>CUSA ESPN – Commercials Hub</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="config.js" onerror="console.warn('config.js not found — running offline')"></script>
 <style>
   :root {
@@ -1727,7 +1729,7 @@ function renderFormatTab(key, sportData) {
       <span><span class="meta-label">Kick/Tip</span><span class="meta-val">${esc(meta['KICK/TIP'] || '')}</span></span>
       ${isCustom ? '<span style="font-size:10px;color:#a0dcf0;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Custom Upload</span>' : ''}
       <span style="margin-left:auto;display:flex;gap:8px">
-        <button class="upload-btn" onclick="exportEspnFormat('${key}')" title="Download this format with current assignments as .xlsx">⬇ Export</button>
+        <button class="upload-btn" onclick="exportEspnFormatPdf('${key}')" title="Download this format with current assignments as a branded PDF">⬇ Export PDF</button>
         ${isAdmin() ? `<button class="upload-btn" onclick="document.getElementById('fmtup_${key}').click()">⬆ Upload Format</button><input type="file" id="fmtup_${key}" accept=".xlsx" style="display:none" onchange="handleFormatUpload(this,'${key}')">` : ''}
       </span>
     </div>
@@ -1931,7 +1933,7 @@ function renderChampionshipsTab() {
       <div class="champ-sport-select">
         <label for="champSportSelect">Sport</label>
         <select id="champSportSelect" onchange="setChampSport(this.value)">${optsHtml}</select>
-        <button class="champ-export-btn" onclick="exportChampFormat('${esc(sport)}')" title="Download this championship format with current assignments as .xlsx">⬇ Export</button>
+        <button class="champ-export-btn" onclick="exportChampFormatPdf('${esc(sport)}')" title="Download this championship format with current assignments as a branded PDF">⬇ Export PDF</button>
       </div>
     </div>
   `;
@@ -2481,112 +2483,360 @@ async function deleteComm(id) {
 /* ──────────────────────────────────────────────────────────────────────────
    Format export — .xlsx of the format with current assignments
    ─────────────────────────────────────────────────────────────────────── */
-function exportEspnFormat(key) {
+/* ──────────────────────────────────────────────────────────────────────────
+   PDF exports — mirror the on-screen format UI with network branding
+   ─────────────────────────────────────────────────────────────────────── */
+const _logoCache = {};
+function loadLogo(path) {
+  if (_logoCache[path] !== undefined) return Promise.resolve(_logoCache[path]);
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        _logoCache[path] = { dataUrl: c.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight };
+      } catch (e) {
+        _logoCache[path] = null;
+      }
+      resolve(_logoCache[path]);
+    };
+    img.onerror = () => { _logoCache[path] = null; resolve(null); };
+    img.src = path;
+  });
+}
+
+function _pdfFooter(doc, margin) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  doc.setFontSize(7);
+  doc.setTextColor(150);
+  doc.setFont('helvetica', 'normal');
+  const stamp = new Date().toLocaleString();
+  doc.text(`Generated ${stamp}  ·  Page ${doc.internal.getNumberOfPages()}`, pageW - margin, pageH - 14, { align: 'right' });
+  doc.text('CUSA · Commercials Hub', margin, pageH - 14);
+}
+
+async function exportEspnFormatPdf(key) {
   const sportData = state.formatOverrides[key] || FORMAT_DATA[key];
   if (!sportData) { showToast('Nothing to export', true); return; }
+  if (!window.jspdf) { showToast('PDF library not loaded', true); return; }
   const meta = sportData.meta || {};
-  const aoa = [
-    [`${sportData.name} — ESPN+ Commercial Format`],
-    [],
-    ['META'],
-    ['YEAR',      meta.YEAR || ''],
-    ['NETWORK',   meta.NETWORK || 'ESPN+'],
-    ['SPORT',     meta.SPORT || sportData.name],
-    ['MINUTES',   meta.MINUTES || ''],
-    ['KICK/TIP',  meta['KICK/TIP'] || ''],
-    [],
-    ['BREAKS'],
-    ['Segment', 'Break', 'Duration', 'Spot #', 'Spot', 'Type', 'Assignment']
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 36;
+
+  // Navy header band with red accent (matches site nav)
+  doc.setFillColor(0, 38, 58);
+  doc.rect(0, 0, pageW, 64, 'F');
+  doc.setFillColor(239, 64, 53);
+  doc.rect(0, 64, pageW, 4, 'F');
+
+  // ESPN logo (left)
+  const logo = await loadLogo('Logos/ESPN/ESPN_WHITE.PNG');
+  if (logo) {
+    const lh = 28;
+    const lw = (logo.w / logo.h) * lh;
+    doc.addImage(logo.dataUrl, 'PNG', margin, 18, lw, lh);
+  }
+
+  // Title (right)
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text(`${sportData.name} — ESPN+ Commercial Format`, pageW - margin, 32, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(160, 220, 240);
+  const subParts = [];
+  if (meta.YEAR) subParts.push(`Year ${meta.YEAR}`);
+  if (meta.MINUTES) subParts.push(`${meta.MINUTES} min`);
+  if (meta['KICK/TIP']) subParts.push(`Kick/Tip ${meta['KICK/TIP']}`);
+  doc.text(subParts.join('  ·  '), pageW - margin, 50, { align: 'right' });
+
+  // Meta strip below header
+  let mx = margin;
+  const my = 88;
+  const metaPairs = [
+    ['Sport', meta.SPORT || sportData.name],
+    ['Network', meta.NETWORK || 'ESPN+'],
+    ['Year', meta.YEAR || '—'],
+    ['Total Mins', meta.MINUTES || '—'],
+    ['Kick/Tip', meta['KICK/TIP'] || '—']
   ];
+  doc.setFontSize(8);
+  metaPairs.forEach(([label, val]) => {
+    doc.setTextColor(120, 130, 140);
+    doc.setFont('helvetica', 'bold');
+    const lbl = label.toUpperCase();
+    doc.text(lbl, mx, my);
+    const lblW = doc.getTextWidth(lbl);
+    doc.setTextColor(0, 38, 58);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(String(val), mx + lblW + 5, my);
+    const valW = doc.getTextWidth(String(val));
+    doc.setFontSize(8);
+    mx += lblW + valW + 22;
+  });
+
+  // Build table body mirroring on-screen format-table
+  const body = [];
+  let lastSegment = null;
   for (const b of sportData.breaks) {
+    if (b.segment && b.segment !== lastSegment) {
+      body.push([{
+        content: b.segment.toUpperCase(),
+        colSpan: 5,
+        styles: { fillColor: [248, 249, 250], textColor: [0, 38, 58], fontStyle: 'bold', fontSize: 8, halign: 'left', cellPadding: { top: 4, bottom: 4, left: 6, right: 6 } }
+      }]);
+      lastSegment = b.segment;
+    }
     const allNet = b.spots.every(s => s.type === 'network');
     if (allNet) {
-      aoa.push([b.segment || '', String(b.brk), b.dur || '', '', `${b.spots.length} × :30 Network`, 'network', '']);
+      body.push([
+        { content: String(b.brk), styles: { fontStyle: 'bold', textColor: [0, 38, 58], halign: 'center' } },
+        { content: b.dur || '', styles: { halign: 'center' } },
+        { content: `${b.spots.length} × :30 Network`, colSpan: 3, styles: { fontStyle: 'italic', textColor: [136, 136, 136] } }
+      ]);
     } else {
       b.spots.forEach((spot, si) => {
+        const isFirst = si === 0;
+        const isConf = spot.type === 'conference';
         let assignment = '';
-        if (spot.type === 'conference') {
+        if (isConf) {
           const aid = state.assignments[`${key}:${b.brk}:${si}`] || '';
           const c = state.commercials.find(x => x.id === aid);
-          assignment = c ? c.name : '';
+          assignment = c ? c.name : '— Unassigned —';
         }
-        aoa.push([
-          si === 0 ? (b.segment || '') : '',
-          si === 0 ? String(b.brk) : '',
-          si === 0 ? (b.dur || '') : '',
-          si + 1,
-          spot.spot,
-          spot.type,
-          assignment
+        const rowFill = isConf ? [224, 244, 253] : null;
+        const baseText = isConf ? [0, 80, 110] : [136, 136, 136];
+        const rowStyles = rowFill ? { fillColor: rowFill, textColor: baseText } : { textColor: baseText };
+        body.push([
+          { content: isFirst ? String(b.brk) : '', styles: { ...rowStyles, fontStyle: 'bold', halign: 'center' } },
+          { content: isFirst ? (b.dur || '') : '', styles: { ...rowStyles, halign: 'center' } },
+          { content: spot.spot || '', styles: { ...rowStyles, fontStyle: isConf ? 'bold' : 'italic' } },
+          { content: isConf ? 'CONFERENCE' : 'NETWORK', styles: { ...rowStyles, fontSize: 7, fontStyle: 'bold', halign: 'center' } },
+          {
+            content: assignment,
+            styles: assignment === '— Unassigned —'
+              ? { ...rowStyles, fontStyle: 'italic', textColor: [180, 180, 180] }
+              : { ...rowStyles, fontStyle: isConf ? 'bold' : 'normal' }
+          }
         ]);
       });
     }
   }
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 30 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 18 }, { wch: 12 }, { wch: 36 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Format');
+
+  doc.autoTable({
+    startY: 102,
+    head: [['Break', 'Duration', 'Spot', 'Type', 'Assignment']],
+    body,
+    margin: { left: margin, right: margin },
+    headStyles: { fillColor: [0, 38, 58], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', halign: 'left', cellPadding: { top: 6, bottom: 6, left: 6, right: 6 } },
+    bodyStyles: { fontSize: 9, cellPadding: 5, valign: 'middle' },
+    columnStyles: {
+      0: { cellWidth: 50 },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 70 },
+      4: { cellWidth: 240 }
+    },
+    didDrawPage: () => _pdfFooter(doc, margin)
+  });
+
   const stamp = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `CUSA_${sportData.name.replace(/[^A-Za-z0-9]+/g, '_')}_Format_${stamp}.xlsx`);
-  showToast('Format exported');
+  doc.save(`CUSA_${sportData.name.replace(/[^A-Za-z0-9]+/g, '_')}_ESPN_Format_${stamp}.pdf`);
+  showToast('PDF exported');
 }
 
-function exportChampFormat(sport) {
+async function exportChampFormatPdf(sport) {
   const data = state.champOverrides[sport] || CHAMPIONSHIP_FORMAT_DATA[sport];
   if (!data || !data.segments || !data.segments.length) { showToast('No format on file', true); return; }
+  if (!window.jspdf) { showToast('PDF library not loaded', true); return; }
   const meta = data.meta || {};
-  const aoa = [
-    [`${data.name} — CBSSN Championship Format`],
-    [],
-    ['META'],
-    ['YEAR',      meta.YEAR || ''],
-    ['NETWORK',   meta.NETWORK || 'CBS Sports Network'],
-    ['SPORT',     meta.SPORT || data.name],
-    ['FORMAT_ID', meta.FORMAT_ID || ''],
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 36;
+
+  // Navy header with conference-blue accent (matches CBSSN tab styling)
+  doc.setFillColor(0, 38, 58);
+  doc.rect(0, 0, pageW, 72, 'F');
+  doc.setFillColor(160, 220, 240);
+  doc.rect(0, 72, pageW, 3, 'F');
+
+  // CBSSN logo (left)
+  const logo = await loadLogo('Logos/Broadcast/CBSSN_white.png');
+  if (logo) {
+    const lh = 38;
+    const lw = (logo.w / logo.h) * lh;
+    doc.addImage(logo.dataUrl, 'PNG', margin, 17, lw, lh);
+  }
+
+  // Title (right)
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('CUSA Championships', pageW - margin, 34, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(160, 220, 240);
+  doc.text('CBS Sports Network · Championship Formats', pageW - margin, 52, { align: 'right' });
+
+  // Meta strip below header
+  let mx = margin;
+  const my = 96;
+  const metaPairs = [
+    ['Sport', meta.SPORT || data.name],
+    ['Network', meta.NETWORK || 'CBS Sports Network'],
+    ['Year', meta.YEAR || '—'],
+    ['Format ID', meta.FORMAT_ID || '—']
   ];
-  if (meta.AIR_DATE) aoa.push(['AIR_DATE', meta.AIR_DATE]);
-  aoa.push([]);
-  aoa.push(['SEGMENTS']);
-  aoa.push(['Break', 'Segment', 'Duration', 'Notes', 'Local', 'Local Slot Assignments', 'PSA']);
+  if (meta.AIR_DATE) metaPairs.push(['Air', meta.AIR_DATE]);
+  doc.setFontSize(8);
+  metaPairs.forEach(([label, val]) => {
+    doc.setTextColor(120, 130, 140);
+    doc.setFont('helvetica', 'bold');
+    const lbl = label.toUpperCase();
+    doc.text(lbl, mx, my);
+    const lblW = doc.getTextWidth(lbl);
+    doc.setTextColor(0, 38, 58);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(String(val), mx + lblW + 5, my);
+    const valW = doc.getTextWidth(String(val));
+    doc.setFontSize(8);
+    mx += lblW + valW + 22;
+  });
+
+  // Build segments table
+  const body = [];
   const assignSport = `champ_${sport}`;
   for (const s of data.segments) {
-    const localSec = parseDurationToSec(s.local || '');
-    const numSlots = Math.floor(localSec / 30);
-    const assignments = [];
-    for (let i = 0; i < numSlots; i++) {
-      const aid = state.assignments[`${assignSport}:${s.brk}:${i}`] || '';
-      const c = state.commercials.find(x => x.id === aid);
-      assignments.push(c ? `:30 ${i + 1}: ${c.name}` : `:30 ${i + 1}: —`);
+    const isWrap = !s.dur;
+    if (isWrap) {
+      body.push([
+        { content: s.brk || '—', styles: { halign: 'center', fontStyle: 'bold', textColor: [0, 38, 58] } },
+        { content: `${s.name || ''}  (no commercial)`, colSpan: 5, styles: { fillColor: [248, 249, 250], fontStyle: 'italic', textColor: [136, 136, 136] } }
+      ]);
+      continue;
     }
-    aoa.push([
-      s.brk || '',
-      s.name || '',
-      s.dur || '',
-      s.note || '',
-      s.local || '',
-      assignments.join(' | '),
-      s.psa || ''
+
+    let localContent = '';
+    let localFilled = false;
+    if (s.local) {
+      const sec = parseDurationToSec(s.local);
+      const numSlots = Math.floor(sec / 30);
+      if (numSlots > 0 && s.brk) {
+        const lines = [`${s.local} · ${numSlots} × :30`];
+        for (let i = 0; i < numSlots; i++) {
+          const aid = state.assignments[`${assignSport}:${s.brk}:${i}`] || '';
+          const c = state.commercials.find(x => x.id === aid);
+          lines.push(c ? `:30 #${i + 1}  ${c.name}` : `:30 #${i + 1}  —`);
+        }
+        localContent = lines.join('\n');
+      } else {
+        localContent = s.local;
+      }
+      localFilled = true;
+    }
+
+    body.push([
+      { content: s.brk || '', styles: { halign: 'center', fontStyle: 'bold', textColor: [0, 38, 58] } },
+      { content: s.name || '', styles: { fontStyle: s.name ? 'bold' : 'normal', textColor: [0, 38, 58] } },
+      { content: s.dur || '', styles: { halign: 'center', fontStyle: 'bold' } },
+      { content: s.note || '', styles: { fontSize: 8, fontStyle: 'italic', textColor: [85, 85, 85] } },
+      {
+        content: localContent || '',
+        styles: localFilled
+          ? { fillColor: [224, 244, 253], textColor: [0, 80, 110], fontSize: 8, fontStyle: 'bold' }
+          : { textColor: [170, 170, 170], fontSize: 8 }
+      },
+      {
+        content: s.psa || '',
+        styles: s.psa
+          ? { fillColor: [236, 252, 203], textColor: [77, 124, 15], fontStyle: 'bold', halign: 'center' }
+          : { textColor: [170, 170, 170], halign: 'center' }
+      }
     ]);
   }
+
+  doc.autoTable({
+    startY: 112,
+    head: [['Break', 'Segment', 'Duration', 'Notes', 'Local', 'PSA']],
+    body,
+    margin: { left: margin, right: margin },
+    headStyles: { fillColor: [0, 38, 58], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', cellPadding: { top: 6, bottom: 6, left: 6, right: 6 } },
+    bodyStyles: { fontSize: 9, cellPadding: 5, valign: 'top' },
+    columnStyles: {
+      0: { cellWidth: 42 },
+      1: { cellWidth: 130 },
+      2: { cellWidth: 50 },
+      3: { cellWidth: 'auto' },
+      4: { cellWidth: 200 },
+      5: { cellWidth: 50 }
+    },
+    didDrawPage: () => _pdfFooter(doc, margin)
+  });
+
+  // Floaters
   if (data.floaters && data.floaters.length) {
-    aoa.push([]);
-    aoa.push(['FLOATERS']);
-    aoa.push(['Letter', 'Duration', 'Notes']);
-    data.floaters.forEach(f => aoa.push([f.letter, f.dur, f.note]));
+    let y = doc.lastAutoTable.finalY + 18;
+    const pageH = doc.internal.pageSize.getHeight();
+    if (y > pageH - 120) { doc.addPage(); y = 60; }
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 38, 58);
+    doc.text('Floaters', margin, y);
+    doc.autoTable({
+      startY: y + 8,
+      head: [['Floater', 'Duration', 'Notes']],
+      body: data.floaters.map(f => [`Floater ${f.letter || ''}`, f.dur || '', f.note || '']),
+      margin: { left: margin, right: margin },
+      headStyles: { fillColor: [0, 80, 110], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, cellPadding: 5 },
+      columnStyles: { 0: { cellWidth: 90, fontStyle: 'bold' }, 1: { cellWidth: 70, halign: 'center' } },
+      didDrawPage: () => _pdfFooter(doc, margin)
+    });
   }
+
+  // Notes
   if (data.notes && data.notes.length) {
-    aoa.push([]);
-    aoa.push(['NOTES']);
-    aoa.push(['Title', 'Body']);
-    data.notes.forEach(n => aoa.push([n.title, n.body]));
+    let y = (doc.lastAutoTable?.finalY || 200) + 18;
+    const pageH = doc.internal.pageSize.getHeight();
+    if (y > pageH - 100) { doc.addPage(); y = 60; }
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 38, 58);
+    doc.text('Report Notes', margin, y);
+    y += 14;
+    data.notes.forEach(n => {
+      const titleH = 14;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(n.body || '', pageW - margin * 2);
+      const blockH = titleH + lines.length * 11 + 8;
+      if (y + blockH > pageH - 30) { doc.addPage(); y = 60; }
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 38, 58);
+      doc.text(n.title || '', margin, y);
+      y += titleH;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      doc.text(lines, margin, y);
+      y += lines.length * 11 + 8;
+    });
   }
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 8 }, { wch: 30 }, { wch: 10 }, { wch: 36 }, { wch: 8 }, { wch: 50 }, { wch: 8 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'CBSSN Format');
+
   const stamp = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `CUSA_${data.name.replace(/[^A-Za-z0-9]+/g, '_')}_Championship_Format_${stamp}.xlsx`);
-  showToast('Format exported');
+  doc.save(`CUSA_${data.name.replace(/[^A-Za-z0-9]+/g, '_')}_CBSSN_Format_${stamp}.pdf`);
+  showToast('PDF exported');
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

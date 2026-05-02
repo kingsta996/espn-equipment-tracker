@@ -100,33 +100,6 @@
   }
   .change-banner button:hover { background: #6b3408; }
 
-  /* ── Active commercials bar ── */
-  .active-bar {
-    background: var(--white);
-    border-bottom: 2px solid var(--blue);
-    padding: 8px 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    min-height: 42px;
-  }
-  .active-bar-label { font-size: 11px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
-  .active-bar-empty { font-size: 11px; color: #999; font-style: italic; }
-  .spot-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: var(--conf-bg);
-    border: 1px solid var(--conf-border);
-    color: var(--conf-fg);
-    border-radius: 100px;
-    padding: 3px 10px;
-    font-size: 11px;
-    font-weight: 600;
-  }
-  .spot-pill .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
-
   /* ── Tab bar ── */
   .tab-bar {
     background: var(--white);
@@ -753,14 +726,9 @@
   <button onclick="confirmChanges()">Confirm I've Reviewed</button>
 </div>
 
-<!-- Active commercials bar -->
-<div class="active-bar" id="activeBar" style="display:none">
-  <span class="active-bar-label">Active Spots:</span>
-  <span class="active-bar-empty" id="activeBarEmpty">No active commercials</span>
-</div>
-
 <!-- Tabs -->
 <div class="tab-bar" id="tabBar" style="display:none">
+  <button onclick="switchTab('status')" data-tab="status">Status</button>
   <button onclick="switchTab('dashboard')" data-tab="dashboard">Dashboard</button>
   <button onclick="switchTab('baseball')" data-tab="baseball">Baseball</button>
   <button onclick="switchTab('softball')" data-tab="softball">Softball</button>
@@ -1073,7 +1041,7 @@ let state = {
   // session
   session: null,         // { kind: 'school'|'admin', schoolId, schoolName, schoolEmail, loggedInAt }
   // ui
-  tab: 'dashboard',
+  tab: 'status',
   loginTab: 'school',
   // data (from Supabase)
   schools: [],
@@ -1255,7 +1223,6 @@ async function logActivity(action, commercialId, details) {
 async function enterApp() {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('lastmodStrip').style.display = '';
-  document.getElementById('activeBar').style.display = '';
   document.getElementById('tabBar').style.display = '';
   document.getElementById('tabContent').style.display = '';
 
@@ -1280,7 +1247,7 @@ async function enterApp() {
 
   await loadAllData();
   subscribeRealtime();
-  switchTab('dashboard');
+  switchTab('status');
   setLastmodCloud(true);
 }
 
@@ -1317,7 +1284,6 @@ async function loadAllData() {
 
   renderLastMod();
   renderChangeBanner();
-  renderActiveBar();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -1381,24 +1347,6 @@ async function confirmChanges() {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Active bar
-   ─────────────────────────────────────────────────────────────────────── */
-function renderActiveBar() {
-  const bar = document.getElementById('activeBar');
-  const empty = document.getElementById('activeBarEmpty');
-  bar.querySelectorAll('.spot-pill').forEach(e => e.remove());
-  const active = state.commercials.filter(c => c.status === 'active');
-  if (!active.length) { empty.style.display = ''; return; }
-  empty.style.display = 'none';
-  active.forEach(c => {
-    const pill = document.createElement('span');
-    pill.className = 'spot-pill';
-    pill.innerHTML = `<span class="pill-dot"></span>${esc(c.name)}`;
-    bar.appendChild(pill);
-  });
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
    Tab routing
    ─────────────────────────────────────────────────────────────────────── */
 function switchTab(tab) {
@@ -1409,6 +1357,7 @@ function switchTab(tab) {
 
 function renderCurrentTab() {
   const el = document.getElementById('tabContent');
+  if (state.tab === 'status')     { el.innerHTML = renderStatusTab(); return; }
   if (state.tab === 'dashboard')  { el.innerHTML = renderDashboardTab(); return; }
   if (state.tab === 'box')        { el.innerHTML = renderBoxTab(); return; }
   if (state.tab === 'engagement') { renderEngagementTab(); return; }
@@ -1418,42 +1367,60 @@ function renderCurrentTab() {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Dashboard tab
+   Status tab — read-only snapshot of all spots, organized by category
+   ─────────────────────────────────────────────────────────────────────── */
+function renderStatusTab() {
+  const intro = `
+    <div style="background:var(--conf-bg);border:1px solid var(--conf-border);color:var(--conf-fg);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px">
+      <b>Snapshot of all commercial spots.</b> Active spots are currently in rotation; inactive spots have been retired. Click any card to open the file in Box. To see how spots are scheduled inside a broadcast, switch to the sport tabs.
+    </div>
+  `;
+  return intro + renderCategorySections({ readOnly: true });
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Dashboard tab — same layout, admin-aware (add / edit / toggle / delete)
    ─────────────────────────────────────────────────────────────────────── */
 function renderDashboardTab() {
+  return renderCategorySections({ readOnly: false });
+}
+
+function renderCategorySections({ readOnly }) {
   return CATEGORY_ORDER.map(cat => {
     const list = state.commercials.filter(c => c.category === cat);
     const active = list.filter(c => c.status === 'active');
     const inactive = list.filter(c => c.status === 'inactive');
+    const showAdmin = isAdmin() && !readOnly;
     return `
       <div class="dash-section">
         <div class="dash-section-header">
           <span>${esc(CATEGORY_LABELS[cat])}</span>
           <span class="ds-count">${active.length} active</span>
           <span class="ds-count" style="background:rgba(255,255,255,0.1)">${inactive.length} inactive</span>
-          ${isAdmin() ? `<button class="ds-add" onclick="openCommEditor(null,'${cat}')">+ Add</button>` : ''}
+          ${showAdmin ? `<button class="ds-add" onclick="openCommEditor(null,'${cat}')">+ Add</button>` : ''}
         </div>
         <div class="dash-sub active">● Active <span style="color:#aaa;font-weight:400">(${active.length})</span></div>
         ${active.length
-          ? `<div class="dash-list">${active.map(renderCommCard).join('')}</div>`
+          ? `<div class="dash-list">${active.map(c => renderCommCard(c, readOnly)).join('')}</div>`
           : `<div class="dash-sub-empty">No active commercials in this category.</div>`}
         <div class="dash-sub inactive">○ Inactive <span style="color:#aaa;font-weight:400">(${inactive.length})</span></div>
         ${inactive.length
-          ? `<div class="dash-list">${inactive.map(renderCommCard).join('')}</div>`
+          ? `<div class="dash-list">${inactive.map(c => renderCommCard(c, readOnly)).join('')}</div>`
           : `<div class="dash-sub-empty">No inactive commercials.</div>`}
       </div>
     `;
   }).join('');
 }
 
-function renderCommCard(c) {
+function renderCommCard(c, readOnly) {
   const sportTags = (c.sports && c.sports.length)
     ? c.sports.map(s => `<span class="cc-sports">${esc(prettySport(s))}</span>`).join('')
     : `<span class="cc-sports" style="background:#f3f4f6;color:#666">All Sports</span>`;
   const boxBtn = c.box_link
     ? `<a class="cc-btn primary" href="${esc(c.box_link)}" target="_blank" rel="noopener" onclick="onBoxClick(event,'${esc(c.id)}')">📦 Open in Box</a>`
     : `<span class="cc-btn" style="opacity:0.4;cursor:not-allowed">No Box link</span>`;
-  const adminBtns = isAdmin() ? `
+  const showAdmin = isAdmin() && !readOnly;
+  const adminBtns = showAdmin ? `
     <button class="cc-btn toggle" onclick="toggleStatus('${esc(c.id)}')">${c.status === 'active' ? 'Deactivate' : 'Activate'}</button>
     <button class="cc-btn" onclick="openCommEditor('${esc(c.id)}',null)">Edit</button>
     <button class="cc-btn danger" onclick="deleteComm('${esc(c.id)}')" title="Delete">✕</button>

@@ -290,40 +290,6 @@
   .assign-display { font-size: 11px; font-weight: 600; color: var(--conf-fg); }
   .assign-display.unassigned { color: #bbb; font-style: italic; font-weight: 400; }
 
-  /* ── Box tab ── */
-  .box-panel {
-    background: var(--white);
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    padding: 40px;
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  .box-panel h2 { font-size: 18px; color: var(--navy); margin-bottom: 8px; }
-  .box-panel p { font-size: 13px; color: #666; margin-bottom: 24px; }
-  .box-link-btn {
-    display: inline-block;
-    background: #0061d5;
-    color: var(--white);
-    padding: 12px 32px;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: 700;
-    font-size: 14px;
-  }
-  .box-link-btn:hover { background: #0050b0; }
-  .box-link-btn.no-link { background: #ccc; color: #777; cursor: not-allowed; pointer-events: none; }
-  .box-edit-row { margin-top: 20px; display: none; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
-  .box-edit-row.visible { display: flex; }
-  .box-edit-input {
-    padding: 7px 12px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 13px;
-    width: 340px;
-    max-width: 100%;
-    font-family: inherit;
-  }
   .btn-save { background: var(--green); color: var(--navy); }
   .btn-save:hover { filter: brightness(0.95); }
   .btn-cancel { background: #888; color: var(--white); }
@@ -648,6 +614,19 @@
   }
   .champ-sport-select select option { color: var(--navy); background: var(--white); }
   .champ-sport-select select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .champ-export-btn {
+    padding: 8px 14px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: var(--white);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    margin-left: 8px;
+  }
+  .champ-export-btn:hover { background: rgba(255,255,255,0.2); }
 
   .champ-meta { background: var(--navy); }
 
@@ -817,7 +796,6 @@
   <button onclick="switchTab('volleyball')" data-tab="volleyball">Volleyball</button>
   <button onclick="switchTab('football')" data-tab="football">Football</button>
   <button onclick="switchTab('championships')" data-tab="championships">🏆 Championships</button>
-  <button onclick="switchTab('box')" data-tab="box">Box</button>
   <button id="engagementTabBtn" onclick="switchTab('engagement')" data-tab="engagement" style="display:none;background:#fffbeb;color:var(--warn-fg);font-weight:700">📊 Engagement</button>
 </div>
 
@@ -1223,8 +1201,6 @@ const CHAMPIONSHIP_SPORT_KEYS = ['football', 'mens_basketball', 'womens_basketba
 const SESSION_KEY     = 'cusa-comm-session-v2';
 const FORMAT_OVERRIDE_KEY = 'cusa-format-overrides';   // local-only — sport break templates
 const ADMIN_PW_HASH   = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
-const BOX_LINK_SETTING_KEY = 'box_link';
-
 let _db = null;
 let _realtimeChannel = null;
 
@@ -1246,7 +1222,6 @@ let state = {
   schools: [],
   commercials: [],
   assignments: {},       // key `${sport}:${brk}:${si}` → commercial_id
-  boxLink: '',
   formatOverrides: {},   // localStorage-only
   lastSeenAck: null,     // timestamptz string
   latestChangeAt: null,  // max(commercials.updated_at)
@@ -1469,12 +1444,10 @@ async function loadAllData() {
   (asgRes.data || []).forEach(r => {
     if (r.commercial_id) state.assignments[`${r.sport}:${r.break_key}:${r.spot_index}`] = r.commercial_id;
   });
-  // Parse app_settings: box_link + champ_format_<sport>
-  state.boxLink = '';
+  // Parse app_settings: champ_format_<sport>
   state.champOverrides = {};
   (settingsRes?.data || []).forEach(r => {
-    if (r.key === BOX_LINK_SETTING_KEY) state.boxLink = r.value || '';
-    else if (r.key && r.key.startsWith('champ_format_')) {
+    if (r.key && r.key.startsWith('champ_format_')) {
       try { state.champOverrides[r.key.replace('champ_format_', '')] = JSON.parse(r.value); }
       catch (e) { console.warn('bad champ override JSON for', r.key, e); }
     }
@@ -1567,7 +1540,6 @@ function renderCurrentTab() {
   const el = document.getElementById('tabContent');
   if (state.tab === 'status')        { el.innerHTML = renderStatusTab(); return; }
   if (state.tab === 'dashboard')     { el.innerHTML = renderDashboardTab(); return; }
-  if (state.tab === 'box')           { el.innerHTML = renderBoxTab(); return; }
   if (state.tab === 'engagement')    { renderEngagementTab(); return; }
   if (state.tab === 'championships') { el.innerHTML = renderChampionshipsTab(); return; }
   const sportData = state.formatOverrides[state.tab] || FORMAT_DATA[state.tab];
@@ -1682,7 +1654,10 @@ function renderFormatTab(key, sportData) {
       <span><span class="meta-label">Total Mins</span><span class="meta-val">${esc(meta.MINUTES || '')}</span></span>
       <span><span class="meta-label">Kick/Tip</span><span class="meta-val">${esc(meta['KICK/TIP'] || '')}</span></span>
       ${isCustom ? '<span style="font-size:10px;color:#a0dcf0;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Custom Upload</span>' : ''}
-      ${isAdmin() ? `<button class="upload-btn" onclick="document.getElementById('fmtup_${key}').click()">⬆ Upload Format</button><input type="file" id="fmtup_${key}" accept=".xlsx" style="display:none" onchange="handleFormatUpload(this,'${key}')">` : ''}
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="upload-btn" onclick="exportEspnFormat('${key}')" title="Download this format with current assignments as .xlsx">⬇ Export</button>
+        ${isAdmin() ? `<button class="upload-btn" onclick="document.getElementById('fmtup_${key}').click()">⬆ Upload Format</button><input type="file" id="fmtup_${key}" accept=".xlsx" style="display:none" onchange="handleFormatUpload(this,'${key}')">` : ''}
+      </span>
     </div>
   `;
 
@@ -1816,6 +1791,7 @@ function renderChampionshipsTab() {
       <div class="champ-sport-select">
         <label for="champSportSelect">Sport</label>
         <select id="champSportSelect" onchange="setChampSport(this.value)">${optsHtml}</select>
+        <button class="champ-export-btn" onclick="exportChampFormat('${esc(sport)}')" title="Download this championship format with current assignments as .xlsx">⬇ Export</button>
       </div>
     </div>
   `;
@@ -1967,29 +1943,6 @@ function renderLocalSlots(sport, brk, localStr) {
     <div class="local-slots-header">${esc(localStr)} · ${numSpots} × :30</div>
     ${slots.join('')}
   </div>`;
-}
-
-function renderBoxTab() {
-  const hasLink = !!state.boxLink;
-  return `
-    <div class="box-panel">
-      <h2>Box — CUSA Media Resources</h2>
-      <p>${hasLink ? 'Access shared files, assets, and media resources on Box.' : 'No Box link has been set yet. Admin can add one below.'}</p>
-      ${hasLink
-        ? `<a class="box-link-btn" href="${esc(state.boxLink)}" target="_blank" rel="noopener" onclick="logActivity('box_click',null,'general-box-link')">Open in Box →</a>`
-        : `<span class="box-link-btn no-link">No link set</span>`
-      }
-      <div class="box-edit-row ${isAdmin() ? 'visible' : ''}">
-        <input class="box-edit-input" type="url" id="boxLinkInline" value="${esc(state.boxLink)}" placeholder="https://app.box.com/...">
-        <button class="btn btn-save" onclick="saveBoxLinkInline()">Save</button>
-      </div>
-    </div>
-  `;
-}
-async function saveBoxLinkInline() {
-  state.boxLink = document.getElementById('boxLinkInline').value.trim();
-  await persistBoxLink();
-  renderCurrentTab();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -2393,15 +2346,116 @@ async function deleteComm(id) {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   App settings (Box link)
+   Format export — .xlsx of the format with current assignments
    ─────────────────────────────────────────────────────────────────────── */
-async function persistBoxLink() {
-  if (!_db) return;
-  const row = { key: BOX_LINK_SETTING_KEY, value: state.boxLink || '', updated_at: new Date().toISOString(), updated_by: state.session?.schoolName || 'admin' };
-  const { error } = await _db.from('app_settings').upsert(row, { onConflict: 'key' });
-  if (error) showToast('Save failed: ' + error.message, true);
-  else showToast('Box link saved');
+function exportEspnFormat(key) {
+  const sportData = state.formatOverrides[key] || FORMAT_DATA[key];
+  if (!sportData) { showToast('Nothing to export', true); return; }
+  const meta = sportData.meta || {};
+  const aoa = [
+    [`${sportData.name} — ESPN+ Commercial Format`],
+    [],
+    ['META'],
+    ['YEAR',      meta.YEAR || ''],
+    ['NETWORK',   meta.NETWORK || 'ESPN+'],
+    ['SPORT',     meta.SPORT || sportData.name],
+    ['MINUTES',   meta.MINUTES || ''],
+    ['KICK/TIP',  meta['KICK/TIP'] || ''],
+    [],
+    ['BREAKS'],
+    ['Segment', 'Break', 'Duration', 'Spot #', 'Spot', 'Type', 'Assignment']
+  ];
+  for (const b of sportData.breaks) {
+    const allNet = b.spots.every(s => s.type === 'network');
+    if (allNet) {
+      aoa.push([b.segment || '', String(b.brk), b.dur || '', '', `${b.spots.length} × :30 Network`, 'network', '']);
+    } else {
+      b.spots.forEach((spot, si) => {
+        let assignment = '';
+        if (spot.type === 'conference') {
+          const aid = state.assignments[`${key}:${b.brk}:${si}`] || '';
+          const c = state.commercials.find(x => x.id === aid);
+          assignment = c ? c.name : '';
+        }
+        aoa.push([
+          si === 0 ? (b.segment || '') : '',
+          si === 0 ? String(b.brk) : '',
+          si === 0 ? (b.dur || '') : '',
+          si + 1,
+          spot.spot,
+          spot.type,
+          assignment
+        ]);
+      });
+    }
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 30 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 18 }, { wch: 12 }, { wch: 36 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Format');
+  const stamp = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `CUSA_${sportData.name.replace(/[^A-Za-z0-9]+/g, '_')}_Format_${stamp}.xlsx`);
+  showToast('Format exported');
 }
+
+function exportChampFormat(sport) {
+  const data = state.champOverrides[sport] || CHAMPIONSHIP_FORMAT_DATA[sport];
+  if (!data || !data.segments || !data.segments.length) { showToast('No format on file', true); return; }
+  const meta = data.meta || {};
+  const aoa = [
+    [`${data.name} — CBSSN Championship Format`],
+    [],
+    ['META'],
+    ['YEAR',      meta.YEAR || ''],
+    ['NETWORK',   meta.NETWORK || 'CBS Sports Network'],
+    ['SPORT',     meta.SPORT || data.name],
+    ['FORMAT_ID', meta.FORMAT_ID || ''],
+  ];
+  if (meta.AIR_DATE) aoa.push(['AIR_DATE', meta.AIR_DATE]);
+  aoa.push([]);
+  aoa.push(['SEGMENTS']);
+  aoa.push(['Break', 'Segment', 'Duration', 'Notes', 'Local', 'Local Slot Assignments', 'PSA']);
+  const assignSport = `champ_${sport}`;
+  for (const s of data.segments) {
+    const localSec = parseDurationToSec(s.local || '');
+    const numSlots = Math.floor(localSec / 30);
+    const assignments = [];
+    for (let i = 0; i < numSlots; i++) {
+      const aid = state.assignments[`${assignSport}:${s.brk}:${i}`] || '';
+      const c = state.commercials.find(x => x.id === aid);
+      assignments.push(c ? `:30 ${i + 1}: ${c.name}` : `:30 ${i + 1}: —`);
+    }
+    aoa.push([
+      s.brk || '',
+      s.name || '',
+      s.dur || '',
+      s.note || '',
+      s.local || '',
+      assignments.join(' | '),
+      s.psa || ''
+    ]);
+  }
+  if (data.floaters && data.floaters.length) {
+    aoa.push([]);
+    aoa.push(['FLOATERS']);
+    aoa.push(['Letter', 'Duration', 'Notes']);
+    data.floaters.forEach(f => aoa.push([f.letter, f.dur, f.note]));
+  }
+  if (data.notes && data.notes.length) {
+    aoa.push([]);
+    aoa.push(['NOTES']);
+    aoa.push(['Title', 'Body']);
+    data.notes.forEach(n => aoa.push([n.title, n.body]));
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 8 }, { wch: 30 }, { wch: 10 }, { wch: 36 }, { wch: 8 }, { wch: 50 }, { wch: 8 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'CBSSN Format');
+  const stamp = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `CUSA_${data.name.replace(/[^A-Za-z0-9]+/g, '_')}_Championship_Format_${stamp}.xlsx`);
+  showToast('Format exported');
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    Format upload (local-only)
    ─────────────────────────────────────────────────────────────────────── */

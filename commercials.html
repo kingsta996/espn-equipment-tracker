@@ -2531,36 +2531,30 @@ async function exportEspnFormatPdf(key) {
   const margin = 36;
 
   // Navy header band with red accent (matches site nav)
+  const headerH = 72;
+  const logoPad = 10;
+  const logoH = headerH - logoPad * 2;
   doc.setFillColor(0, 38, 58);
-  doc.rect(0, 0, pageW, 64, 'F');
+  doc.rect(0, 0, pageW, headerH, 'F');
   doc.setFillColor(239, 64, 53);
-  doc.rect(0, 64, pageW, 4, 'F');
+  doc.rect(0, headerH, pageW, 4, 'F');
 
-  // ESPN logo (left)
-  const logo = await loadLogo('Logos/ESPN/ESPN_WHITE.PNG');
-  if (logo) {
-    const lh = 28;
-    const lw = (logo.w / logo.h) * lh;
-    doc.addImage(logo.dataUrl, 'PNG', margin, 18, lw, lh);
+  // ESPN logo (left, full header height)
+  const netLogo = await loadLogo('Logos/ESPN/ESPN_WHITE.PNG');
+  if (netLogo) {
+    const lw = (netLogo.w / netLogo.h) * logoH;
+    doc.addImage(netLogo.dataUrl, 'PNG', margin, logoPad, lw, logoH);
   }
-
-  // Title (right)
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(`${sportData.name} — ESPN+ Commercial Format`, pageW - margin, 32, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(160, 220, 240);
-  const subParts = [];
-  if (meta.YEAR) subParts.push(`Year ${meta.YEAR}`);
-  if (meta.MINUTES) subParts.push(`${meta.MINUTES} min`);
-  if (meta['KICK/TIP']) subParts.push(`Kick/Tip ${meta['KICK/TIP']}`);
-  doc.text(subParts.join('  ·  '), pageW - margin, 50, { align: 'right' });
+  // CUSA Stacked Alt logo (right, full header height)
+  const cusaLogo = await loadLogo('Logos/CUSA/CUSA_Stacked_Alt_1C_White.png');
+  if (cusaLogo) {
+    const lw = (cusaLogo.w / cusaLogo.h) * logoH;
+    doc.addImage(cusaLogo.dataUrl, 'PNG', pageW - margin - lw, logoPad, lw, logoH);
+  }
 
   // Meta strip below header
   let mx = margin;
-  const my = 88;
+  const my = headerH + 24;
   const metaPairs = [
     ['Sport', meta.SPORT || sportData.name],
     ['Network', meta.NETWORK || 'ESPN+'],
@@ -2633,7 +2627,7 @@ async function exportEspnFormatPdf(key) {
   }
 
   doc.autoTable({
-    startY: 102,
+    startY: my + 16,
     head: [['Break', 'Duration', 'Spot', 'Type', 'Assignment']],
     body,
     margin: { left: margin, right: margin },
@@ -2665,32 +2659,30 @@ async function exportChampFormatPdf(sport) {
   const margin = 36;
 
   // Navy header with conference-blue accent (matches CBSSN tab styling)
+  const headerH = 72;
+  const logoPad = 10;
+  const logoH = headerH - logoPad * 2;
   doc.setFillColor(0, 38, 58);
-  doc.rect(0, 0, pageW, 72, 'F');
+  doc.rect(0, 0, pageW, headerH, 'F');
   doc.setFillColor(160, 220, 240);
-  doc.rect(0, 72, pageW, 3, 'F');
+  doc.rect(0, headerH, pageW, 3, 'F');
 
-  // CBSSN logo (left)
-  const logo = await loadLogo('Logos/Broadcast/CBSSN_white.png');
-  if (logo) {
-    const lh = 38;
-    const lw = (logo.w / logo.h) * lh;
-    doc.addImage(logo.dataUrl, 'PNG', margin, 17, lw, lh);
+  // CBSSN logo (left, full header height)
+  const netLogo = await loadLogo('Logos/Broadcast/CBSSN_white.png');
+  if (netLogo) {
+    const lw = (netLogo.w / netLogo.h) * logoH;
+    doc.addImage(netLogo.dataUrl, 'PNG', margin, logoPad, lw, logoH);
   }
-
-  // Title (right)
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('CUSA Championships', pageW - margin, 34, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.setTextColor(160, 220, 240);
-  doc.text('CBS Sports Network · Championship Formats', pageW - margin, 52, { align: 'right' });
+  // CUSA Stacked Alt logo (right, full header height)
+  const cusaLogo = await loadLogo('Logos/CUSA/CUSA_Stacked_Alt_1C_White.png');
+  if (cusaLogo) {
+    const lw = (cusaLogo.w / cusaLogo.h) * logoH;
+    doc.addImage(cusaLogo.dataUrl, 'PNG', pageW - margin - lw, logoPad, lw, logoH);
+  }
 
   // Meta strip below header
   let mx = margin;
-  const my = 96;
+  const my = headerH + 24;
   const metaPairs = [
     ['Sport', meta.SPORT || data.name],
     ['Network', meta.NETWORK || 'CBS Sports Network'],
@@ -2767,7 +2759,7 @@ async function exportChampFormatPdf(sport) {
   }
 
   doc.autoTable({
-    startY: 112,
+    startY: my + 16,
     head: [['Break', 'Segment', 'Duration', 'Notes', 'Local', 'PSA']],
     body,
     margin: { left: margin, right: margin },

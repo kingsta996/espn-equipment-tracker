@@ -387,7 +387,7 @@
         parsePdf:   (text) => parseFootballPdfSections(text),
         buildRows:  (sections) => buildFootballPlayerRows(sections),
         renderRows: () => renderFootballPlayerStatsTable(),
-        writeRows:  (ws) => writeFootballPlayerStatsRows(ws),
+        writeRows:  (wb) => writeFootballPlayerStatsRows(wb),
         outputFilename: (school, today) => `${school}_FB_HOME_TEAM_PlayerStats_${today}.xlsx`
       }
     },
@@ -407,11 +407,30 @@
         parsePdf:   (text) => parseVolleyballPdf(text),
         buildRows:  (sections) => buildVolleyballPlayerRows(sections),
         renderRows: () => renderVolleyballPlayerStatsTable(),
-        writeRows:  (ws) => writeVolleyballPlayerStatsRows(ws),
+        writeRows:  (wb) => writeVolleyballPlayerStatsRows(wb),
         outputFilename: (school, today) => `${school}_VB_HOME_PlayerStats_${today}.xlsx`
       }
     },
-    Soccer:               { team: null, player: null },
+    Soccer: {
+      team: {
+        template:   'templates/master-schedule/soccer.xlsx',
+        sheetName:  'Team Stats',
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=wsoc&year=${year}` + (scope === 'conference' ? '&conf=true' : ''),
+        statsMap:   () => SOC_TEAM_STATS_MAP,
+        writeRows:  (wb, rows, side) => writeVbTeamStatsRows(wb, rows, side),  // same shape as VB — appends new sheet
+        outputFilename: (school, today, side) => `${school}_SOCCER_${side === 'home' ? 'HOME' : 'AWAY'}_TeamStats_${today}.xlsx`
+      },
+      player: {
+        template:   'templates/master-schedule/soccer.xlsx',
+        sheetName:  'Season Stats',
+        defaultUrl: (school, year) => `https://${SCHOOL_HOST_VB[school] || ''}/sports/womens-soccer/stats/${year}`,
+        parsePdf:   (text) => parseSoccerPdf(text),
+        buildRows:  (sections) => buildSoccerPlayerRows(sections),
+        renderRows: () => renderSoccerPlayerStatsTable(),
+        writeRows:  (wb) => writeSoccerPlayerStatsRows(wb),
+        outputFilename: (school, today) => `${school}_SOCCER_HOME_PlayerStats_${today}.xlsx`
+      }
+    },
     "Men's Basketball":   { team: null, player: null },
     "Women's Basketball": { team: null, player: null },
     Baseball:             { team: null, player: null },
@@ -797,6 +816,7 @@
     switch (spec.fmt) {
       case 'dec1':   { const n = parseFloat(raw); return Number.isFinite(n) ? n.toFixed(1) : ''; }
       case 'dec2':   { const n = parseFloat(raw); return Number.isFinite(n) ? n.toFixed(2) : ''; }
+      case 'dec3':   { const n = parseFloat(raw); return Number.isFinite(n) ? n.toFixed(3) : ''; }
       case 'int':    { const n = parseInt(raw, 10); return Number.isFinite(n) ? String(n) : ''; }
       case 'pct':    { const n = parseFloat(raw); return Number.isFinite(n) ? `${n.toFixed(1)}%` : ''; }
       case 'pctVB':  { const n = parseFloat(raw); return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : ''; }
@@ -1041,7 +1061,14 @@
       const sectionCount = (sections && Object.values(sections).filter(t => t && t.length).length) || 0;
       _playerRows = cfg.buildRows(sections);
       _playerSchool = school;
-      if (!_playerRows.length) throw new Error(`Parsed PDF but no players with valid jersey numbers.`);
+      if (!_playerRows.length) {
+        // Surface a diagnostic so we can see what the PDF actually looked like.
+        console.warn('Stats PDF text (first 4000 chars):\n', text.slice(0, 4000));
+        const summary = Object.entries(sections || {})
+          .map(([k, v]) => `${k}=${Array.isArray(v) ? v.length : '?'}`)
+          .join(', ');
+        throw new Error(`Parsed PDF but no players with valid jersey numbers (sections: ${summary || 'none'}). Open the browser console for the raw PDF text — check whether the column headers / row format match what the parser expects.`);
+      }
       cfg.renderRows();
       document.getElementById('playerDownloadBtn').disabled = false;
       setPlayerStatus(`Loaded ${_playerRows.length} player${_playerRows.length === 1 ? '' : 's'} for ${school} ${year}.`, 'ok');
@@ -1656,7 +1683,9 @@
   /* Volleyball writer — Season Stats sheet, jersey+1 row offset, columns
      D / F / H (CAT1 / CAT2 / CAT3). Per spec §18 leave A/B/C formulas,
      E/G/I HILITE columns, J STAT HILITE NOTE, and L-U broken refs alone. */
-  function writeVolleyballPlayerStatsRows(ws) {
+  function writeVolleyballPlayerStatsRows(wb) {
+    const ws = wb.Sheets['Season Stats'];
+    if (!ws) throw new Error('Template missing "Season Stats" sheet');
     const writeCell = (r1, c1, val) => {
       const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
       if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
@@ -1677,8 +1706,218 @@
     ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
   }
 
+  /* ── Soccer PDF parser ────────────────────────────────────────────────
+     Two sections in cume.pdf:
+       Field players: "# Player GP G A PTS SH SH% SOG SOG% YC-RC GW PK-ATT"
+       Goalies:       "# Goalie GP MIN GA GAA SAVE PCT W-L-T SHO"
+     Each player gets one row; goalkeepers join via Goalie section keyed
+     by jersey. */
+  function parseSoccerPdf(text) {
+    const lines = text.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const sections = { field: [], goalies: [] };
+    let mode = null, headers = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      // Header detection — distinctive marker is "# Player"/"# Goalie" alone.
+      // Don't require any specific stat column since school PDFs vary.
+      if (/^#\s+Player\b/i.test(l)) {
+        mode = 'field';
+        headers = l.replace(/^#\s+Player\s+/i, '').split(/\s+/);
+        continue;
+      }
+      if (/^#\s+Goalie\b/i.test(l)) {
+        mode = 'goalies';
+        headers = l.replace(/^#\s+Goalie\s+/i, '').split(/\s+/);
+        continue;
+      }
+      if (!mode) continue;
+      if (/^(Total|Opponents?|Team|Goals?|Shots|Saves|Corners|Fouls|by Period)/i.test(l)) { mode = null; continue; }
+      const m = l.match(/^(\d{1,3})\s+(.+)$/);
+      if (!m) continue;
+      const jersey = parseInt(m[1], 10);
+      if (jersey < 0 || jersey > 99) continue;
+      const rest = m[2].split(/\s+/);
+      if (rest.length < headers.length + 1) continue;
+      const values = rest.slice(-headers.length);
+      const name   = rest.slice(0, rest.length - headers.length).join(' ');
+      const row = { jersey, name };
+      headers.forEach((h, idx) => { row[h.toLowerCase()] = values[idx] || ''; });
+      sections[mode].push(row);
+    }
+    return sections;
+  }
+
+  // Position → CAT slot mapping (spec §17.3).
+  const SOC_SLOT_MAPPERS = {
+    F:  r => ({ cat1: socCount(r, 'g', 'G'),    cat2: socCount(r, 'a', 'A'),    cat3: socCount(r, 'pts', 'PTS') }),
+    M:  r => ({ cat1: socCount(r, 'a', 'A'),    cat2: socCount(r, 'g', 'G'),    cat3: socCount(r, 'pts', 'PTS') }),
+    D:  r => ({ cat1: socCount(r, 'g', 'G'),    cat2: socCount(r, 'sh', 'SH'),  cat3: socCount(r, 'sog', 'SOG') }),
+    GK: r => ({ cat1: socCount(r, 'save', 'SAVES'), cat2: socGAA(r), cat3: socCount(r, 'sho', 'SHUTOUTS') })
+  };
+  const SOC_POSITIONS = Object.keys(SOC_SLOT_MAPPERS);
+
+  function socCount(r, key, label) {
+    // Goalies use 'save' (or 'saves') for the saves count column.
+    const v = r[key] != null ? r[key] : r[`${key}s`];
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? `${n} ${label}` : '';
+  }
+  function socGAA(r) {
+    const n = parseFloat(r['gaa']);
+    return Number.isFinite(n) ? `${n.toFixed(2)} GAA` : '';
+  }
+
+  function buildSoccerPlayerRows(sections) {
+    const fieldByJersey = new Map();
+    (sections.field || []).forEach(r => fieldByJersey.set(r.jersey, r));
+    const all = new Map();
+    // Start with field players.
+    fieldByJersey.forEach((r, j) => all.set(j, { jersey: j, name: r.name, raw: r, position: 'F' }));
+    // Layer goalkeepers — they may also appear in the field section as a
+    // backup field player with 0 stats; goalkeeper data wins for their row.
+    (sections.goalies || []).forEach(r => {
+      const merged = all.get(r.jersey) || { jersey: r.jersey, name: r.name, raw: {} };
+      merged.raw = { ...merged.raw, ...r };
+      merged.position = 'GK';
+      all.set(r.jersey, merged);
+    });
+    return Array.from(all.values()).sort((a, b) => a.jersey - b.jersey).map(p => {
+      const slots = SOC_SLOT_MAPPERS[p.position](p.raw);
+      return { ...p, ...slots };
+    });
+  }
+
+  function renderSoccerPlayerStatsTable() {
+    const c = document.getElementById('playerContent');
+    if (!_playerRows.length) {
+      c.innerHTML = `<div class="empty"><h3>No players parsed.</h3></div>`;
+      return;
+    }
+    const posOptions = SOC_POSITIONS.map(p => `<option value="${p}">${p}</option>`).join('');
+    const rows = _playerRows.map((row, idx) => `
+      <tr data-idx="${idx}">
+        <td style="text-align:center;font-weight:700"><input type="text" data-key="jersey" value="${escapeHtml(row.jersey)}" style="text-align:center"></td>
+        <td><input type="text" data-key="name" value="${escapeHtml(row.name)}"></td>
+        <td>
+          <select data-key="position">
+            ${posOptions.replace(`value="${row.position}"`, `value="${row.position}" selected`)}
+          </select>
+        </td>
+        <td><input type="text" data-key="cat1" value="${escapeHtml(row.cat1)}"></td>
+        <td><input type="text" data-key="cat2" value="${escapeHtml(row.cat2)}"></td>
+        <td><input type="text" data-key="cat3" value="${escapeHtml(row.cat3)}"></td>
+        <td style="text-align:center"><button class="remove-btn" data-action="remove" title="Remove player" style="background:transparent;border:0;color:#c00;cursor:pointer;font-size:14px;padding:4px 6px">✕</button></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:60px">#</th>
+              <th style="min-width:180px">Player</th>
+              <th style="min-width:80px">Pos</th>
+              <th style="min-width:130px">CAT1 (D)</th>
+              <th style="min-width:130px">CAT2 (F)</th>
+              <th style="min-width:130px">CAT3 (H)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 0;font-size:11px;color:#666">
+        ${_playerRows.length} player${_playerRows.length===1?'':'s'} · changing Position auto-recomputes CAT1/2/3 from raw stats · Goals also written to Roster!M for the Next Goal tab · jersey-aligned (Season Stats row = jersey + 1)
+      </div>
+    `;
+    c.querySelectorAll('input,select').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.closest('tr').dataset.idx;
+        const key = inp.dataset.key;
+        if (!_playerRows[idx]) return;
+        if (key === 'position' && SOC_SLOT_MAPPERS[inp.value]) {
+          _playerRows[idx].position = inp.value;
+          Object.assign(_playerRows[idx], SOC_SLOT_MAPPERS[inp.value](_playerRows[idx].raw));
+          renderSoccerPlayerStatsTable();
+          return;
+        }
+        _playerRows[idx][key] = inp.value;
+      });
+    });
+    c.querySelectorAll('button[data-action="remove"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.closest('tr').dataset.idx;
+        _playerRows.splice(idx, 1);
+        renderSoccerPlayerStatsTable();
+      });
+    });
+  }
+
+  /* Soccer writer — writes to TWO sheets (per spec §17):
+       1. Roster!M{jersey+3} = Goals  (so Next Goal tab auto-pulls)
+       2. Season Stats D/F/H{jersey+1} = CAT1/CAT2/CAT3 */
+  function writeSoccerPlayerStatsRows(wb) {
+    const roster      = wb.Sheets['Roster'];
+    const seasonStats = wb.Sheets['Season Stats'];
+    if (!seasonStats) throw new Error('Template missing "Season Stats" sheet');
+
+    const writeStr = (ws, r1, c1, val) => {
+      const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
+      if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+      ws[addr] = { t: 's', v: String(val) };
+    };
+    const writeNum = (ws, r1, c1, val) => {
+      const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
+      const n = Number(val);
+      if (!Number.isFinite(n)) return;
+      ws[addr] = { t: 'n', v: n };
+    };
+
+    _playerRows.forEach(p => {
+      const j = parseInt(p.jersey, 10);
+      if (!Number.isFinite(j) || j < 0 || j > 99) return;
+
+      // Roster!M (col 13) = Goals — feeds the Next Goal tab.
+      if (roster) {
+        const goals = parseInt(p.raw?.g, 10);
+        if (Number.isFinite(goals)) writeNum(roster, j + 3, 13, goals);
+      }
+
+      // Season Stats D / F / H = CAT1 / CAT2 / CAT3
+      const r = j + 1;
+      writeStr(seasonStats, r, 4, p.cat1);
+      writeStr(seasonStats, r, 6, p.cat2);
+      writeStr(seasonStats, r, 8, p.cat3);
+    });
+
+    const existingRef = seasonStats['!ref'] ? XLSX.utils.decode_range(seasonStats['!ref']) : { s:{r:0,c:0}, e:{r:101, c:25} };
+    const lastJersey = Math.max(...(_playerRows.map(p => parseInt(p.jersey, 10) || 0)));
+    const lastRow = Math.max(existingRef.e.r, (lastJersey + 1) - 1);
+    const lastCol = Math.max(existingRef.e.c, 7);
+    seasonStats['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
+  }
+
+  /* Soccer Team Stats mapping — sourced from conferenceusa.com wsoc page.
+     Same shape as VB's mapping (writer appends a new "Team Stats" sheet). */
+  const SOC_TEAM_STATS_MAP = [
+    { row: 2,  label: 'Goals Per Game',         caption: 'Team Stats Goals',         col: 'Avg/G',   fmt: 'dec2', rank: 'desc' },
+    { row: 3,  label: 'Shots Per Game',         caption: 'Team Stats Shots',         col: 'Avg/G',   fmt: 'dec2', rank: 'desc' },
+    { row: 4,  label: 'Shots on Goal Per Game', caption: 'Team Stats Shots',         col: 'SOG/G',   fmt: 'dec2', rank: 'desc' },
+    { row: 5,  label: 'Points Per Game',        caption: 'Team Stats Points',        col: 'Avg/G',   fmt: 'dec2', rank: 'desc' },
+    { row: 6,  label: 'Assists Per Game',       caption: 'Team Stats Assists',       col: 'Avg/G',   fmt: 'dec3', rank: 'desc' },
+    { row: 7,  label: 'Goals Allowed Per Game', caption: 'Team Stats Goals Allowed', col: 'GA Avg/G',fmt: 'dec2', rank: 'asc'  },
+    { row: 8,  label: 'GAA',                    caption: 'Team Stats Goals Allowed', col: 'Gaa Avg/G',fmt: 'dec2',rank: 'asc'  },
+    { row: 9,  label: 'Save %',                 caption: 'Team Stats Saves',         col: 'Save%',   fmt: 'pctVB',rank: 'desc' },
+    { row: 10, label: 'Saves Per Game',         caption: 'Team Stats Saves',         col: 'Sa/G',    fmt: 'dec2', rank: 'desc' },
+    { row: 11, label: 'Shutouts',               caption: 'Team Stats Saves',         col: 'Sho',     fmt: 'int',  rank: 'desc' },
+    { row: 12, label: 'Fouls Per Game',         caption: 'Team Stats Fouls',         col: 'F/G',     fmt: 'dec2', rank: 'asc'  },
+    { row: 13, label: 'Corners Per Game',       caption: 'Team Stats Misc',          col: 'C/G',     fmt: 'dec2', rank: 'desc' },
+    { row: 14, label: 'Offsides Per Game',      caption: 'Team Stats Misc',          col: 'Off/G',   fmt: 'dec2', rank: 'asc'  }
+  ];
+
   /* Football writer — extracted from the old monolithic downloadPlayerStats. */
-  function writeFootballPlayerStatsRows(ws) {
+  function writeFootballPlayerStatsRows(wb) {
+    const ws = wb.Sheets['Player Stats'];
+    if (!ws) throw new Error('Template missing "Player Stats" sheet');
     const writeCell = (r1, c1, val) => {
       const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
       if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
@@ -1722,8 +1961,10 @@
       const ws = wb.Sheets[cfg.sheetName];
       if (!ws) throw new Error(`Template missing "${cfg.sheetName}" sheet`);
 
-      // Per-sport writer fills the right cells.
-      cfg.writeRows(ws);
+      // Per-sport writer fills the right cells. Passes the whole workbook
+      // since some writers (Soccer) touch multiple sheets — Roster!M for
+      // Goals + Season Stats CAT slots.
+      cfg.writeRows(wb);
 
       const today = new Date().toISOString().split('T')[0];
       const safe  = (_playerSchool || 'School').replace(/[^A-Za-z0-9]+/g, '_');

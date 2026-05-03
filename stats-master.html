@@ -310,11 +310,38 @@
   let _teamScope = 'overall';
   let _playerScope = 'overall';
 
+  // Per-sport "this season's stats are available starting…" month. Before
+  // that month we default the year input to the previous calendar year
+  // because the current year's data doesn't exist yet (season hasn't started
+  // / hasn't generated stats). Tuned for fall sports starting in Aug,
+  // basketball stats settling by May, diamond starting in Feb.
+  const SEASON_START_MONTH = {
+    'Football':           8,
+    'Volleyball':         8,
+    'Soccer':             8,
+    "Men's Basketball":   5,
+    "Women's Basketball": 5,
+    'Baseball':           2,
+    'Softball':           2
+  };
+  function defaultStatsYear(sport) {
+    const now = new Date();
+    const start = SEASON_START_MONTH[sport] || 1;
+    return (now.getMonth() + 1) >= start ? now.getFullYear() : now.getFullYear() - 1;
+  }
+
   /* ── Init ───────────────────────────────────────────────────────────── */
   document.addEventListener('DOMContentLoaded', () => {
     const sportSel = document.getElementById('sportSel');
     SPORTS.forEach(s => sportSel.appendChild(new Option(s, s)));
-    sportSel.addEventListener('change', () => { _sport = sportSel.value; resetSections(); });
+    sportSel.addEventListener('change', () => {
+      _sport = sportSel.value;
+      // Pick the right year for the new sport (most-recent-completed season).
+      const yr = defaultStatsYear(_sport);
+      document.getElementById('teamYearInput').value = yr;
+      document.getElementById('playerYearInput').value = yr;
+      resetSections();
+    });
 
     ['teamSchoolSel', 'playerSchoolSel'].forEach(id => {
       const sel = document.getElementById(id);
@@ -322,9 +349,9 @@
       SCHOOLS.forEach(s => sel.appendChild(new Option(s, s)));
     });
 
-    const thisYear = new Date().getFullYear();
-    document.getElementById('teamYearInput').value = thisYear;
-    document.getElementById('playerYearInput').value = thisYear;
+    const initialYear = defaultStatsYear(_sport);
+    document.getElementById('teamYearInput').value = initialYear;
+    document.getElementById('playerYearInput').value = initialYear;
 
     wireScopeToggle('teamScopeToggle',   v => { _teamScope = v; });
     wireScopeToggle('playerScopeToggle', v => { _playerScope = v; });

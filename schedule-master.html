@@ -531,8 +531,10 @@
      so this strips the "No." / "#" annotation while keeping the digit. */
   function stripRankPrefix(name) {
     if (!name) return '';
+    // Require the literal "No." (period) or "#" AND a digit immediately
+    // after, so legitimate names like "Notre Dame" stay intact.
     return String(name)
-      .replace(/^\s*(no\.?|#)\s*/i, '')   // "No. 23 Wisconsin" → "23 Wisconsin"
+      .replace(/^\s*(no\.|#)\s*(?=\d)/i, '')   // "No. 23 Wisconsin" → "23 Wisconsin"
       .trim();
   }
 
@@ -545,8 +547,9 @@
     if (!opponentRaw || !logos || !logos.length) return '';
     let s = String(opponentRaw).trim();
     // Strip ranking prefixes in any form: "No. 23 ", "#23 ", "(23) ", "23 ".
-    // Whatever comes after the number is the actual school name we look up.
-    s = s.replace(/^(no\.?\s+|#\s*)?\(?\d+\)?\s+/i, '');
+    // The "No" branch requires a literal period so "Notre Dame" isn't
+    // corrupted; the digit-and-space part is what actually drives the strip.
+    s = s.replace(/^(no\.\s*|#\s*)?\(?\d+\)?\s+/i, '');
     s = s.replace(/^at\s+/i, '');           // "at Wisconsin"
     s = s.replace(/\s*\(.*?\)\s*/g, ' ');   // strip "(2-2)" etc.
     s = s.replace(/\s+/g, ' ').trim();

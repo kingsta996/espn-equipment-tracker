@@ -475,10 +475,10 @@
     // Sidearm stats pages are Vue/Nuxt SPAs — the HTML is empty of stat
     // tables. The cumulative PDF (cume.pdf) is the canonical text source.
     startParseStatus('player', `Locating cume.pdf for ${school}…`);
-    let pdfUrl, hostForCache = '';
+    let pdfUrls, hostForCache = '';
     try {
       hostForCache = (new URL(url)).hostname;
-      pdfUrl = await discoverPdfUrl(url, 'player');
+      pdfUrls = await discoverPdfUrls(url, 'player');
     } catch (err) {
       setPlayerStatus(`Couldn't locate cume.pdf for ${url}: ${err.message || err}`, 'err');
       document.getElementById('playerLoadBtn').disabled = false;
@@ -488,28 +488,30 @@
     }
     try {
       let buf;
-      try {
-        buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
-      } catch (firstErr) {
+      let lastErr;
+      // Try each sport-path alias (e.g., football → fb for KSU).
+      for (const candidateUrl of pdfUrls) {
+        try {
+          buf = await fetchPdfViaCorsProxies(candidateUrl, 'player');
+          break;
+        } catch (e) { lastErr = e; }
+      }
+      if (!buf) {
         // The cached site key may have gone stale (school migrated CMS,
-        // changed bucket key, etc.). Clear it and retry once with fresh
-        // discovery before giving up.
+        // changed bucket key). Clear it and try fresh discovery once.
         if (hostForCache && _siteKeyMap()[hostForCache]) {
           updateParseStatus('player', 'Cached key looks stale — re-discovering…');
           _clearSiteKey(hostForCache);
-          pdfUrl = await discoverPdfUrl(url, 'player');
-          try {
-            buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
-          } catch (secondErr) {
-            const candidates = await scanForCandidatePdfs(url, year, 'player');
-            throw new Error(buildPdfFallbackMessage(secondErr, url, candidates));
+          pdfUrls = await discoverPdfUrls(url, 'player');
+          for (const candidateUrl of pdfUrls) {
+            try { buf = await fetchPdfViaCorsProxies(candidateUrl, 'player'); break; }
+            catch (e) { lastErr = e; }
           }
-        } else {
-          // No cache to invalidate — try to find a school-published season
-          // stats PDF on the page itself before failing.
-          const candidates = await scanForCandidatePdfs(url, year, 'player');
-          throw new Error(buildPdfFallbackMessage(firstErr, url, candidates));
         }
+      }
+      if (!buf) {
+        const candidates = await scanForCandidatePdfs(url, year, 'player');
+        throw new Error(buildPdfFallbackMessage(lastErr, url, candidates));
       }
       updateParseStatus('player', 'Extracting text from PDF…');
       const text = await extractPdfText(buf);
@@ -541,7 +543,21 @@
      hosted under fiu.sidearmsports.com. The key is embedded in the SPA
      bundle (window.cdn_path / `sidearm.nextgen.sites/<key>/`). Discover
      it at runtime so we don't have to hard-code a brittle mapping.
-     Cached per host in localStorage so the second load skips this step. */
+     Cached per host in localStorage so the second load skips this step.
+
+     The sport segment in the cume.pdf path also varies per school — most
+     use the full name (`football`, `volleyball`) but a few use StatCrew
+     abbreviations (`fb`, `vb`, `mbb`). We try the alias list per sport. */
+  const SPORT_PATH_ALIASES = {
+    'football':           ['football', 'fb'],
+    'volleyball':         ['volleyball', 'vb', 'wvball'],
+    'soccer':             ['soccer', 'womens-soccer', 'wsoc'],
+    'womens-soccer':      ['womens-soccer', 'wsoc', 'soccer'],
+    'mens-basketball':    ['mens-basketball', 'mbball', 'mbb'],
+    'womens-basketball':  ['womens-basketball', 'wbball', 'wbb'],
+    'baseball':           ['baseball', 'bsb'],
+    'softball':           ['softball', 'sb']
+  };
   const SITE_KEY_CACHE = 'cusa_stats_site_keys_v1';
   function _siteKeyMap() {
     try { return JSON.parse(localStorage.getItem(SITE_KEY_CACHE) || '{}'); }
@@ -552,20 +568,23 @@
     try { localStorage.setItem(SITE_KEY_CACHE, JSON.stringify(m)); } catch (e) {}
   }
 
-  async function discoverPdfUrl(statsUrl, prefix) {
+  function _buildPdfCandidates(siteKey, sport, year) {
+    const aliases = SPORT_PATH_ALIASES[sport.toLowerCase()] || [sport];
+    return aliases.map(slug =>
+      `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${siteKey}/stats/${slug}/${year}/pdf/cume.pdf`
+    );
+  }
+
+  async function discoverPdfUrls(statsUrl, prefix) {
     let u;
     try { u = new URL(statsUrl); } catch (e) { throw new Error('Invalid URL.'); }
     const m = u.pathname.match(/\/sports\/([^/]+)\/stats\/(\d{4})/i);
     if (!m) throw new Error('Expected /sports/<sport>/stats/<year>.');
     const sport = m[1], year = m[2];
 
-    // Try cached key first.
+    // Try cached site key first.
     const cached = _siteKeyMap()[u.hostname];
-    if (cached) {
-      const candidate = `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${cached}/stats/${sport}/${year}/pdf/cume.pdf`;
-      // Trust the cache — fetch will surface 404 if it's gone stale.
-      return candidate;
-    }
+    if (cached) return _buildPdfCandidates(cached, sport, year);
 
     // Fetch the stats page HTML to extract the Sidearm site key. The SPA
     // bundle references sidearm.nextgen.sites/<key>/ many times — count
@@ -576,10 +595,10 @@
     const matches = Array.from(html.matchAll(/sidearm\.nextgen\.sites\/([a-z0-9][a-z0-9.\-]+\.(?:com|org|net|edu|us))/gi));
     if (!matches.length) throw new Error('Sidearm site key not found in page HTML.');
     const counts = {};
-    for (const m of matches) counts[m[1]] = (counts[m[1]] || 0) + 1;
+    for (const mm of matches) counts[mm[1]] = (counts[mm[1]] || 0) + 1;
     const key = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
     _saveSiteKey(u.hostname, key);
-    return `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${key}/stats/${sport}/${year}/pdf/cume.pdf`;
+    return _buildPdfCandidates(key, sport, year);
   }
 
   function _clearSiteKey(host) {

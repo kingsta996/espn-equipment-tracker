@@ -92,6 +92,41 @@
     background: #fff8e1; border: 1px solid #fbcf00; border-radius: 8px;
     padding: 16px; margin: 16px 0; color: #6b4c00; font-size: 13px;
   }
+
+  /* Parse-status bar — visible indicator for any URL/link fetch */
+  .parse-status {
+    display: none;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .parse-status.active { display: block; }
+  .parse-status .ps-label {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--navy); font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .parse-status .ps-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid #e5e7eb;
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: ps-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes ps-spin { to { transform: rotate(360deg); } }
+  .parse-status .ps-bar {
+    position: relative; height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden;
+  }
+  .parse-status .ps-bar::before {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -30%; width: 30%;
+    background: var(--blue); border-radius: 2px;
+    animation: ps-indet 1.4s ease-in-out infinite;
+  }
+  @keyframes ps-indet {
+    0%   { left: -30%; }
+    100% { left: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -119,6 +154,11 @@
     <label for="rosterUrl">Or pull from URL</label>
     <input type="url" id="rosterUrl" placeholder="https://fiusports.com/sports/baseball/roster" style="flex:1;min-width:260px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
     <button id="pullBtn" class="btn-primary">🌐 Pull from URL</button>
+  </div>
+
+  <div id="parseStatus" class="parse-status">
+    <div class="ps-label"><div class="ps-spinner"></div><span id="parseStatusLabel">Working…</span></div>
+    <div class="ps-bar"></div>
   </div>
 
   <div id="content" class="table-wrap">
@@ -606,12 +646,14 @@
     if (!/^https?:\/\//i.test(url)) { setStatus('URL must start with http:// or https://.', 'err'); return; }
 
     setStatus(`Scraping ${url}…`);
+    startParseStatus(`Scraping ${url}…`);
     document.getElementById('pullBtn').disabled = true;
     document.getElementById('loadBtn').disabled = true;
 
     try {
       const useAppsScript = localStorage.getItem(APPS_SCRIPT_FLAG) === 'true';
       const scraped = useAppsScript ? await fetchViaAppsScript(url) : await fetchViaCorsProxy(url);
+      updateParseStatus(`Parsing roster table…`);
 
       // Map scraped headers → our canonical 8-key shape via pattern detection.
       // Track which columns couldn't be matched so we can surface them in the
@@ -661,6 +703,7 @@
     } finally {
       document.getElementById('pullBtn').disabled = false;
       document.getElementById('loadBtn').disabled = false;
+      endParseStatus();
     }
   }
 
@@ -677,6 +720,7 @@
     for (const proxy of CORS_PROXIES) {
       try {
         setStatus(`Scraping ${url} (via ${proxy.name})…`);
+        updateParseStatus(`Fetching via ${proxy.name}…`);
         const res = await fetch(proxy.build(url));
         if (!res.ok) {
           failures.push(`${proxy.name}: HTTP ${res.status}`);
@@ -745,6 +789,22 @@
     el.className = 'status' + (cls ? ' ' + cls : '');
   }
 
+  /* Parse-status bar — visible indicator any URL/link fetch must surface. */
+  function startParseStatus(msg) {
+    const el = document.getElementById('parseStatus');
+    const lbl = document.getElementById('parseStatusLabel');
+    if (lbl) lbl.textContent = msg || 'Working…';
+    if (el) el.classList.add('active');
+  }
+  function updateParseStatus(msg) {
+    const lbl = document.getElementById('parseStatusLabel');
+    if (lbl) lbl.textContent = msg;
+  }
+  function endParseStatus() {
+    const el = document.getElementById('parseStatus');
+    if (el) el.classList.remove('active');
+  }
+
   /* ── Load Roster from Google Sheets gviz CSV ── */
   async function loadRoster() {
     const school = document.getElementById('schoolSel').value;
@@ -764,12 +824,14 @@
     }
 
     setStatus(`Fetching ${school} ${sport}…`);
+    startParseStatus(`Fetching Master Roster for ${school} ${sport}…`);
     document.getElementById('loadBtn').disabled = true;
 
     try {
       const url = `https://docs.google.com/spreadsheets/d/${MASTER_ROSTER_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(MASTER_ROSTER_TAB)}`;
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`Sheet fetch failed (HTTP ${res.status}). Make sure the Master Roster sheet is "Anyone with the link → Viewer" and has a tab named "${MASTER_ROSTER_TAB}".`);
+      updateParseStatus('Parsing CSV from Google Sheets…');
       const csvText = await res.text();
       const wb = XLSX.read(csvText, { type: 'string', raw: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
@@ -805,6 +867,7 @@
       setStatus('Load failed', 'err');
     } finally {
       document.getElementById('loadBtn').disabled = false;
+      endParseStatus();
     }
   }
 

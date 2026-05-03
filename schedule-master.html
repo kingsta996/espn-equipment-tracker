@@ -224,7 +224,7 @@
     'Sam Houston':         'SHSU',
     'Western Kentucky':    'WKU'
   };
-  const SPORTS = ['Football'];
+  const SPORTS = ['Football', 'Volleyball'];
 
   // Curated network logo dropdown — names match the LOGOS sheet so the
   // template's `=$I$2&F3&".png"` formula resolves to the right file.
@@ -263,15 +263,36 @@
   const SPORT_CONFIG = {
     Football: {
       sheetSport: 'Football',
-      template: 'templates/master-schedule/football.xlsx',
-      sheetName: 'Schedule',
+      sourceTab:  'Master Schedule',     // which Google Sheet tab to read
+      template:   'templates/master-schedule/football.xlsx',
+      sheetName:  'Schedule',
       // Where to write each row of the FULLSCREEN block (1-indexed Excel rows).
-      fullscreenStartRow: 3,
-      fullscreenEndRow:   15,   // 13 weeks max
+      dataStartRow: 3,
+      dataEndRow:   15,                  // 13 weeks max
       // Cell that drives UPCOMING GAMES via VLOOKUP.
       currentWeekCell: 'D18',
-      // Column indexes (1-indexed) for the FULLSCREEN block.
-      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6 }
+      // Column indexes (1-indexed) within the data block.
+      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6 },
+      dateStyle: 'football',             // "Sept 6"
+      weekColumnLabel: 'Week',
+      supportsBye: true,
+      supportsCurrentWeek: true,
+      datePlaceholder: 'Sept 6'
+    },
+    Volleyball: {
+      sheetSport: 'Volleyball',
+      sourceTab:  'Upcoming Games',      // template is upcoming-only
+      template:   'templates/master-schedule/volleyball.xlsx',
+      sheetName:  'Upcoming Schedule',
+      dataStartRow: 5,
+      dataEndRow:   16,                  // 12 slots
+      currentWeekCell: null,             // no current-week concept
+      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6 },
+      dateStyle: 'volleyball',           // "Nov. 17"
+      weekColumnLabel: '#',
+      supportsBye: false,
+      supportsCurrentWeek: false,
+      datePlaceholder: 'Nov. 17'
     }
   };
 
@@ -328,26 +349,33 @@
   }
 
   /* ── Date format helpers ──
-     Source dates from the Master Schedule sheet look like "Sep 3" or "Sep 13".
-     The Xpression template uses "Aug 30" / "Sept 6" / "Sept 13" — three-letter
-     month codes EXCEPT September which is "Sept". Translate to match. */
-  const MONTH_TO_TEMPLATE = {
+     Each Xpression template uses its own date convention — pick the right
+     formatter based on the active sport's `dateStyle`.
+       football   "Sept 6"   — 3-letter except September (4 letters), no period
+       volleyball "Nov. 17"  — 3-letter abbreviation + period
+     */
+  const FOOTBALL_MONTH_MAP = {
     'Jan': 'Jan', 'Feb': 'Feb', 'Mar': 'Mar', 'Apr': 'Apr', 'May': 'May',
     'Jun': 'June', 'Jul': 'July', 'Aug': 'Aug',
     'Sep': 'Sept', 'Sept': 'Sept',
     'Oct': 'Oct', 'Nov': 'Nov', 'Dec': 'Dec'
   };
-  function normalizeDate(raw) {
+  const VOLLEYBALL_MONTH_MAP = {
+    'Jan': 'Jan.', 'Feb': 'Feb.', 'Mar': 'Mar.', 'Apr': 'Apr.', 'May': 'May',
+    'Jun': 'June', 'Jul': 'July', 'Aug': 'Aug.',
+    'Sep': 'Sept.', 'Sept': 'Sept.',
+    'Oct': 'Oct.', 'Nov': 'Nov.', 'Dec': 'Dec.'
+  };
+  function normalizeDate(raw, style) {
     if (!raw) return '';
     const s = String(raw).trim();
-    // Match "Mon D" or "Mon DD" or "Month D" — be liberal
     const m = s.match(/^([A-Za-z]+)\.?\s+(\d{1,2})$/);
     if (!m) return s;  // pass through unrecognized formats
     const monthIn = m[1].slice(0, 4).replace(/^(\w)/, c => c.toUpperCase()).toLowerCase().replace(/^(\w)/, c => c.toUpperCase());
-    // Try 3-letter then 4-letter lookup
     const key3 = monthIn.slice(0, 3);
     const key4 = monthIn.slice(0, 4);
-    const out = MONTH_TO_TEMPLATE[key4] || MONTH_TO_TEMPLATE[key3];
+    const map = style === 'volleyball' ? VOLLEYBALL_MONTH_MAP : FOOTBALL_MONTH_MAP;
+    const out = map[key4] || map[key3];
     if (!out) return s;
     return `${out} ${parseInt(m[2], 10)}`;
   }
@@ -385,13 +413,14 @@
       return;
     }
 
+    const sourceTab = cfg.sourceTab || MASTER_SCHEDULE_TAB;
     setStatus(`Fetching ${school} ${sport}…`);
-    startParseStatus(`Fetching Master Schedule for ${school} ${sport}…`);
+    startParseStatus(`Fetching ${sourceTab} for ${school} ${sport}…`);
     document.getElementById('loadBtn').disabled = true;
     try {
-      const url = `https://docs.google.com/spreadsheets/d/${MASTER_SCHEDULE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(MASTER_SCHEDULE_TAB)}`;
+      const url = `https://docs.google.com/spreadsheets/d/${MASTER_SCHEDULE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sourceTab)}`;
       const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`Sheet fetch failed (HTTP ${res.status}). Make sure the Master Schedule sheet is "Anyone with the link → Viewer" and has a tab named "${MASTER_SCHEDULE_TAB}".`);
+      if (!res.ok) throw new Error(`Sheet fetch failed (HTTP ${res.status}). Make sure the Master Schedule sheet is "Anyone with the link → Viewer" and has a tab named "${sourceTab}".`);
       updateParseStatus('Parsing CSV from Google Sheets…');
       const csvText = await res.text();
       const wb = XLSX.read(csvText, { type: 'string', raw: true });
@@ -407,7 +436,7 @@
         return matchesSchool && rSport.toLowerCase() === cfg.sheetSport.toLowerCase();
       });
       if (!filtered.length) {
-        throw new Error(`No rows in Master Schedule for ${school} (${code}) ${sport}. Check Code="${code}" and Sport="${cfg.sheetSport}".`);
+        throw new Error(`No rows in ${sourceTab} for ${school} (${code}) ${sport}. Check Code="${code}" and Sport="${cfg.sheetSport}".`);
       }
 
       // Sort by Sort Key (mmdd) when present so the schedule reads in date order.
@@ -424,7 +453,7 @@
           at: at === 'away' ? 'at' : '',
           rank: '',                              // user-entered in the UI
           opponent: String(r['Opponent'] || '').trim(),
-          date: normalizeDate(r['Date'] || ''),
+          date: normalizeDate(r['Date'] || '', cfg.dateStyle),
           time: String(r['Time'] || '').trim(),
           networkLogo: 'BLANK_LOGO',
           isBye: false
@@ -436,7 +465,7 @@
       _currentSport  = sport;
       renderTable();
       renderUpcomingPreview();
-      document.getElementById('metaBar').style.display = '';
+      document.getElementById('metaBar').style.display = cfg.supportsCurrentWeek ? '' : 'none';
       document.getElementById('downloadBtn').disabled = false;
       setStatus(`Loaded ${_rows.length} game${_rows.length === 1 ? '' : 's'} for ${school} ${sport}.`, 'ok');
     } catch (err) {
@@ -489,7 +518,7 @@
         at: /^away$/i.test(r.at) ? 'at' : '',
         rank: '',
         opponent: r.opponent || '',
-        date: normalizeDate(r.date || ''),
+        date: normalizeDate(r.date || '', cfg.dateStyle),
         time: r.time || '',
         networkLogo: 'BLANK_LOGO',
         isBye: false
@@ -499,7 +528,7 @@
       _currentSport  = sport;
       renderTable();
       renderUpcomingPreview();
-      document.getElementById('metaBar').style.display = '';
+      document.getElementById('metaBar').style.display = cfg.supportsCurrentWeek ? '' : 'none';
       document.getElementById('downloadBtn').disabled = false;
       setStatus(`Loaded ${_rows.length} game${_rows.length === 1 ? '' : 's'} from URL (${looksText ? 'text feed' : 'HTML table'}).`, 'ok');
     } catch (err) {
@@ -646,9 +675,14 @@
     }
     const networkOptions = NETWORK_LOGOS.map(n => `<option value="${n}">${n}</option>`).join('');
 
+    const cfg = _config || {};
+    const weekLabel = cfg.weekColumnLabel || 'Week';
+    const datePh    = cfg.datePlaceholder || 'Sept 6';
+    const maxRows   = (cfg.dataEndRow || 0) - (cfg.dataStartRow || 0) + 1;
+
     const head = `
       <tr>
-        <th style="min-width:60px">Week</th>
+        <th style="min-width:60px">${escapeHtml(weekLabel)}</th>
         <th style="min-width:55px">at</th>
         <th style="min-width:60px">Rank</th>
         <th style="min-width:200px">Opponent</th>
@@ -669,7 +703,7 @@
         </td>
         <td class="col-rank"><input type="text" data-key="rank" value="${escapeHtml(row.rank)}" placeholder="" ${row.isBye ? 'disabled' : ''}></td>
         <td><input type="text" data-key="opponent" value="${escapeHtml(row.opponent)}" ${row.isBye ? 'disabled' : ''}></td>
-        <td><input type="text" data-key="date" value="${escapeHtml(row.date)}" placeholder="${row.isBye ? '' : 'Sept 6'}" ${row.isBye ? 'disabled' : ''}></td>
+        <td><input type="text" data-key="date" value="${escapeHtml(row.date)}" placeholder="${row.isBye ? '' : escapeHtml(datePh)}" ${row.isBye ? 'disabled' : ''}></td>
         <td><input type="text" data-key="time" value="${escapeHtml(row.time)}" placeholder="${row.isBye ? '' : 'TBA'}" ${row.isBye ? 'disabled' : ''}></td>
         <td>
           <select data-key="networkLogo" ${row.isBye ? 'disabled' : ''}>
@@ -687,8 +721,8 @@
         <tbody>${body}</tbody>
       </table>
       <div class="row-actions-bar">
-        <span>${_rows.length} row${_rows.length === 1 ? '' : 's'} · edit any cell to change before download · max 13 fits the FULLSCREEN block</span>
-        <button id="addBye" class="bye-btn">+ Add Bye Week</button>
+        <span>${_rows.length} row${_rows.length === 1 ? '' : 's'} · edit any cell to change before download${maxRows ? ` · template fits ${maxRows} rows` : ''}</span>
+        ${cfg.supportsBye === false ? '' : '<button id="addBye" class="bye-btn">+ Add Bye Week</button>'}
         <button id="addRow">+ Add Game</button>
       </div>
     `;
@@ -732,6 +766,11 @@
 
   /* ── Live preview of the UPCOMING GAMES block ── */
   function renderUpcomingPreview() {
+    // Only sports with a CURRENT WEEK driver have a separate UPCOMING block —
+    // for sports like Volleyball where the whole template is the upcoming
+    // schedule, the editable table itself is already the preview.
+    const previewEl = document.getElementById('upcomingPreview');
+    if (!_config?.supportsCurrentWeek) { previewEl.innerHTML = ''; return; }
     const cw = parseInt(document.getElementById('currentWeekInput').value, 10) || 1;
     const upcoming = _rows.filter(r => parseInt(r.week, 10) > cw).slice(0, 5);
     const body = upcoming.length
@@ -743,7 +782,7 @@
             <span class="uc-date">${escapeHtml(r.date)}</span>
           </div>`).join('')
       : '<div class="upcoming-empty">No upcoming games after week ' + cw + '.</div>';
-    document.getElementById('upcomingPreview').innerHTML = `
+    previewEl.innerHTML = `
       <div class="upcoming-card">
         <h3>Preview · UPCOMING GAMES (next 5 after current week)</h3>
         <div class="upcoming-list">${body}</div>
@@ -765,17 +804,18 @@
       if (!ws) throw new Error(`Template is missing a "${_config.sheetName}" sheet`);
 
       const cols = _config.cols;
-      const startRow = _config.fullscreenStartRow; // 3
-      const endRow   = _config.fullscreenEndRow;   // 15
-      const maxRows  = endRow - startRow + 1;      // 13
+      const startRow = _config.dataStartRow;
+      const endRow   = _config.dataEndRow;
+      const maxRows  = endRow - startRow + 1;
       if (_rows.length > maxRows) {
-        const proceed = confirm(`The template's FULLSCREEN block has ${maxRows} rows but the schedule has ${_rows.length}. Only the first ${maxRows} will be exported. Continue?`);
+        const proceed = confirm(`The template's data block has ${maxRows} rows but the schedule has ${_rows.length}. Only the first ${maxRows} will be exported. Continue?`);
         if (!proceed) { btn.disabled = false; btn.textContent = '⬇ Download Excel'; return; }
       }
       const writeRows = _rows.slice(0, maxRows);
 
-      // Write each row into A..F. Leave columns G+ untouched so any helper
-      // formulas (column K logo path concat, etc.) stay live.
+      // Write each row into the configured columns. Leave columns past the
+      // last data column untouched so any helper formulas (logo path concat,
+      // VLOOKUPs to other rows, etc.) stay live.
       writeRows.forEach((row, i) => {
         const r0 = startRow + i - 1; // 0-indexed
         const setCell = (c1, value, type) => {
@@ -796,19 +836,22 @@
         setCell(cols.networkLogo, row.networkLogo);
       });
 
-      // Clear any unused rows in the FULLSCREEN block so old template sample
-      // data doesn't bleed through.
+      // Clear any unused rows in the data block so old template sample data
+      // doesn't bleed through.
       for (let i = writeRows.length; i < maxRows; i++) {
         const r0 = startRow + i - 1;
-        [cols.week, cols.at, cols.opponent, cols.date, cols.time, cols.networkLogo].forEach(c1 => {
+        [cols.at, cols.opponent, cols.date, cols.time, cols.networkLogo].forEach(c1 => {
           const addr = XLSX.utils.encode_cell({ r: r0, c: c1 - 1 });
           ws[addr] = { t: 's', v: '' };
         });
       }
 
-      // Write CURRENT WEEK at D18 — drives the UPCOMING GAMES VLOOKUPs.
-      const cw = parseInt(document.getElementById('currentWeekInput').value, 10) || 1;
-      ws[_config.currentWeekCell] = { t: 'n', v: cw };
+      // Optional CURRENT WEEK driver (Football's VLOOKUPs need it; Volleyball
+      // doesn't have one).
+      if (_config.currentWeekCell) {
+        const cw = parseInt(document.getElementById('currentWeekInput').value, 10) || 1;
+        ws[_config.currentWeekCell] = { t: 'n', v: cw };
+      }
 
       // Save. Keep all sheets so the LOGOS/Team Info/etc. tabs stay intact.
       const today = new Date().toISOString().split('T')[0];

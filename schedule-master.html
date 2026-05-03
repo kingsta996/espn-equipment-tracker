@@ -224,7 +224,7 @@
     'Sam Houston':         'SHSU',
     'Western Kentucky':    'WKU'
   };
-  const SPORTS = ['Football', 'Volleyball', 'Soccer'];
+  const SPORTS = ['Football', 'Volleyball', 'Soccer', "Men's Basketball", "Women's Basketball"];
 
   // Curated network logo dropdown — names match the LOGOS sheet so the
   // template's `=$I$2&F3&".png"` formula resolves to the right file.
@@ -311,6 +311,40 @@
       supportsCurrentWeek: false,
       supportsOpponentLogo: true,
       datePlaceholder: 'Sept. 5'
+    },
+    "Men's Basketball": {
+      sheetSport: 'Basketball',
+      genderFilter: "Men's",             // Master Schedule has both — Gender column splits them
+      sourceTab:  'Master Schedule',
+      template:   'templates/master-schedule/basketball.xlsx',
+      sheetName:  'Upcoming Schedule',
+      dataStartRow: 5,
+      dataEndRow:   16,
+      currentWeekCell: null,
+      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6, opponentLogo: 7 },
+      dateStyle: 'volleyball',           // "Nov. 17" / "Jan. 4"
+      weekColumnLabel: '#',
+      supportsBye: false,
+      supportsCurrentWeek: false,
+      supportsOpponentLogo: true,
+      datePlaceholder: 'Nov. 17'
+    },
+    "Women's Basketball": {
+      sheetSport: 'Basketball',
+      genderFilter: "Women's",
+      sourceTab:  'Master Schedule',
+      template:   'templates/master-schedule/basketball.xlsx',
+      sheetName:  'Upcoming Schedule',
+      dataStartRow: 5,
+      dataEndRow:   16,
+      currentWeekCell: null,
+      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6, opponentLogo: 7 },
+      dateStyle: 'volleyball',
+      weekColumnLabel: '#',
+      supportsBye: false,
+      supportsCurrentWeek: false,
+      supportsOpponentLogo: true,
+      datePlaceholder: 'Nov. 17'
     }
   };
 
@@ -459,11 +493,15 @@
         const rCode = String(r['Code'] || '').trim();
         const rSchool = String(r['School'] || '').trim();
         const rSport = String(r['Sport'] || '').trim();
+        const rGender = String(r['Gender'] || '').trim();
         const matchesSchool = rCode === code || rSchool === school;
-        return matchesSchool && rSport.toLowerCase() === cfg.sheetSport.toLowerCase();
+        const matchesSport  = rSport.toLowerCase() === cfg.sheetSport.toLowerCase();
+        const matchesGender = !cfg.genderFilter || rGender.toLowerCase() === cfg.genderFilter.toLowerCase();
+        return matchesSchool && matchesSport && matchesGender;
       });
       if (!filtered.length) {
-        throw new Error(`No rows in ${sourceTab} for ${school} (${code}) ${sport}. Check Code="${code}" and Sport="${cfg.sheetSport}".`);
+        const genderNote = cfg.genderFilter ? ` Gender="${cfg.genderFilter}"` : '';
+        throw new Error(`No rows in ${sourceTab} for ${school} (${code}) ${sport}. Check Code="${code}", Sport="${cfg.sheetSport}"${genderNote}.`);
       }
 
       // Sort by Sort Key (mmdd) when present so the schedule reads in date order.
@@ -891,7 +929,8 @@
       // Save. Keep all sheets so the LOGOS/Team Info/etc. tabs stay intact.
       const today = new Date().toISOString().split('T')[0];
       const safeSchool = _currentSchool.replace(/[^A-Za-z0-9]+/g, '_');
-      const filename = `${safeSchool}_${_currentSport}_Schedule_${today}.xlsx`;
+      const safeSport  = _currentSport.replace(/[^A-Za-z0-9]+/g, '_');
+      const filename = `${safeSchool}_${safeSport}_Schedule_${today}.xlsx`;
       XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
       setStatus(`✓ Downloaded ${filename}`, 'ok');
     } catch (err) {

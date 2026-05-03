@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CUSA Master Stats</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  // pdf.js worker — runs PDF parsing off the main thread.
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+</script>
 <script src="config.js"></script>
 <style>
   :root {
@@ -258,16 +266,32 @@
   };
   const SPORTS = ['Football', 'Volleyball', 'Soccer', "Men's Basketball", "Women's Basketball", 'Baseball', 'Softball'];
 
+  // Per-school football stats URL map. UTEP + LA Tech intentionally absent
+  // (already removed from the CUSA directory in earlier work).
+  const SCHOOL_STATS_URL_FB = {
+    'Delaware':           y => `https://bluehens.com/sports/football/stats/${y}`,
+    'FIU':                y => `https://fiusports.com/sports/football/stats/${y}`,
+    'Jacksonville State': y => `https://jaxstatesports.com/sports/football/stats/${y}`,
+    'Kennesaw State':     y => `https://ksuowls.com/sports/football/stats/${y}`,
+    'Liberty':            y => `https://liberty.flamesports.com/sports/football/stats/${y}`,
+    'Middle Tennessee':   y => `https://goblueraiders.com/sports/football/stats/${y}`,
+    'Missouri State':     y => `https://missouristatebears.com/sports/football/stats/${y}`,
+    'New Mexico State':   y => `https://nmstatesports.com/sports/football/stats/${y}`,
+    'Sam Houston':        y => `https://gobearkats.com/sports/football/stats/${y}`,
+    'Western Kentucky':   y => `https://wkusports.com/sports/football/stats/${y}`
+  };
+
   /* ── Per-sport stats config ─────────────────────────────────────────────
-     Phase 1 ships the page shell only. Each sport's TEAM and PLAYER handlers
-     will plug in here in Phases 2+ following the canonical Football pattern
-     from CUSA_Player_Stats_Scraper_Spec.md / CUSA_Team_Stats_Scraper_Spec.md.
-     Until then, the buttons surface a clear "coming soon" stub. */
+     Each sport's TEAM and PLAYER handler is filled in as it ships. Football
+     player is wired in Phase 2; team will land in Phase 3. */
   const STATS_CONFIG = {
     Football: {
-      // Phases 2 + 3 land here.
-      team:   null,
-      player: null
+      team: null,                              // Phase 3
+      player: {
+        template:   'templates/master-schedule/football.xlsx',  // shared FB_HOME_TEAM source
+        sheetName:  'Player Stats',
+        defaultUrl: (school, year) => SCHOOL_STATS_URL_FB[school]?.(year) || ''
+      }
     },
     Volleyball:           { team: null, player: null },
     Soccer:               { team: null, player: null },
@@ -372,55 +396,434 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
-  /* ── Stub handlers — Phases 2+ replace these with sport-specific logic ── */
+  /* ── Player Stats state ─────────────────────────────────────────────── */
+  let _playerRows = [];          // [{ jersey, name, category, numStats, stat1..5 }]
+  let _playerSchool = '';        // for the download filename
+
+  /* ── Team Stats stub — Phase 3 fills these in ── */
   async function loadTeamStats() {
-    const cfg = STATS_CONFIG[_sport]?.team;
-    if (!cfg) {
+    if (!STATS_CONFIG[_sport]?.team) {
       setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err');
-      return;
     }
-    // Phase 3+ — call cfg.scrape(school, year, scope) and render preview.
   }
-
   async function pullTeamStatsFromURL() {
-    const cfg = STATS_CONFIG[_sport]?.team;
-    if (!cfg) {
+    if (!STATS_CONFIG[_sport]?.team) {
       setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err');
-      return;
     }
-    // Phase 3+ — same proxy chain + table walker as the schedule URL pull.
-    // Lets users override the default conferenceusa.com URL with any other
-    // Sidearm conference stats page (theamerican.org, big12sports.com, etc.).
+  }
+  async function downloadTeamStats() {
+    if (!STATS_CONFIG[_sport]?.team) return;
   }
 
+  /* ── Player Stats — entry points ────────────────────────────────────── */
   async function loadPlayerStats() {
     const cfg = STATS_CONFIG[_sport]?.player;
-    if (!cfg) {
-      setPlayerStatus(`${_sport} player stats — coming in a later phase.`, 'err');
-      return;
-    }
-    // Phase 2+ — call cfg.scrape(school, year, scope) and render preview.
+    if (!cfg) { setPlayerStatus(`${_sport} player stats — coming in a later phase.`, 'err'); return; }
+    const school = document.getElementById('playerSchoolSel').value;
+    const year   = document.getElementById('playerYearInput').value;
+    if (!school) { setPlayerStatus('Pick a school first.', 'err'); return; }
+    if (!year)   { setPlayerStatus('Enter a year first.', 'err'); return; }
+    const url = cfg.defaultUrl(school, year);
+    if (!url) { setPlayerStatus(`No default stats URL for ${school} yet — try Pull from URL.`, 'err'); return; }
+    await scrapeAndRenderPlayerStats(cfg, url, school, year);
   }
-
   async function pullPlayerStatsFromURL() {
     const cfg = STATS_CONFIG[_sport]?.player;
-    if (!cfg) {
-      setPlayerStatus(`${_sport} player stats — coming in a later phase.`, 'err');
+    if (!cfg) { setPlayerStatus(`${_sport} player stats — coming in a later phase.`, 'err'); return; }
+    const url = (document.getElementById('playerUrl').value || '').trim();
+    if (!url) { setPlayerStatus('Paste a stats URL first.', 'err'); return; }
+    if (!/^https?:\/\//i.test(url)) { setPlayerStatus('URL must start with http:// or https://.', 'err'); return; }
+    const school = document.getElementById('playerSchoolSel').value || 'School';
+    const year   = document.getElementById('playerYearInput').value || new Date().getFullYear();
+    await scrapeAndRenderPlayerStats(cfg, url, school, year);
+  }
+
+  async function scrapeAndRenderPlayerStats(cfg, url, school, year) {
+    document.getElementById('playerLoadBtn').disabled = true;
+    document.getElementById('playerPullBtn').disabled = true;
+    // Sidearm stats pages are Vue/Nuxt SPAs — the HTML is empty of stat
+    // tables. The cumulative PDF (cume.pdf) is the canonical text source.
+    const pdfUrl = pdfUrlForStats(url);
+    if (!pdfUrl) {
+      setPlayerStatus(`Couldn't derive PDF URL from ${url}. Expected /sports/<sport>/stats/<year>.`, 'err');
+      document.getElementById('playerLoadBtn').disabled = false;
+      document.getElementById('playerPullBtn').disabled = false;
       return;
     }
-    // Phase 2+ — same proxy chain + table walker as roster/schedule pages.
+    startParseStatus('player', `Fetching ${pdfUrl}…`);
+    try {
+      const buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
+      updateParseStatus('player', 'Extracting text from PDF…');
+      const text = await extractPdfText(buf);
+      updateParseStatus('player', 'Parsing stat sections…');
+      const tables = parseFootballPdfSections(text);
+      const tableCount = Object.values(tables).filter(t => t && t.length).length;
+      if (!tableCount) throw new Error('No stat sections found in the PDF. The cume.pdf layout may have changed.');
+      _playerRows = buildFootballPlayerRows(tables);
+      _playerSchool = school;
+      if (!_playerRows.length) throw new Error(`Parsed ${tableCount} section(s) but no players with valid jersey numbers.`);
+      renderPlayerStatsTable();
+      document.getElementById('playerDownloadBtn').disabled = false;
+      setPlayerStatus(`Loaded ${_playerRows.length} player${_playerRows.length === 1 ? '' : 's'} across ${tableCount} stat section${tableCount === 1 ? '' : 's'} for ${school} ${year}.`, 'ok');
+    } catch (err) {
+      console.error(err);
+      document.getElementById('playerContent').innerHTML = `<div class="empty"><h3>Failed to load player stats</h3><p>${escapeHtml(err.message || String(err))}</p></div>`;
+      document.getElementById('playerDownloadBtn').disabled = true;
+      setPlayerStatus('Load failed', 'err');
+    } finally {
+      document.getElementById('playerLoadBtn').disabled = false;
+      document.getElementById('playerPullBtn').disabled = false;
+      endParseStatus('player');
+    }
   }
 
-  async function downloadTeamStats() {
-    const cfg = STATS_CONFIG[_sport]?.team;
-    if (!cfg) return;
-    // Phase 3+ — write into the sport's template per spec §10d.
+  /* ── PDF URL derivation ─────────────────────────────────────────────── */
+  function pdfUrlForStats(statsUrl) {
+    try {
+      const u = new URL(statsUrl);
+      const m = u.pathname.match(/\/sports\/([^/]+)\/stats\/(\d{4})/i);
+      if (!m) return null;
+      return `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${u.hostname}/stats/${m[1]}/${m[2]}/pdf/cume.pdf`;
+    } catch (e) { return null; }
   }
 
+  /* ── CORS-proxy fetch (binary) ──────────────────────────────────────── */
+  async function fetchPdfViaCorsProxies(url, prefix) {
+    const failures = [];
+    for (const proxy of CORS_PROXIES) {
+      try {
+        updateParseStatus(prefix, `Fetching PDF via ${proxy.name}…`);
+        const res = await fetch(proxy.build(url));
+        if (!res.ok) { failures.push(`${proxy.name}: HTTP ${res.status}`); continue; }
+        const buf = await res.arrayBuffer();
+        if (!buf || buf.byteLength < 1000) { failures.push(`${proxy.name}: response too small (${buf?.byteLength || 0} bytes)`); continue; }
+        // Sanity-check PDF signature so a JSON error envelope doesn't slip through.
+        const head = new Uint8Array(buf.slice(0, 5));
+        const sig  = String.fromCharCode(...head);
+        if (!sig.startsWith('%PDF-')) { failures.push(`${proxy.name}: not a PDF (got "${sig}")`); continue; }
+        return buf;
+      } catch (err) {
+        failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);
+      }
+    }
+    throw new Error('All CORS proxies failed fetching the PDF:\n  · ' + failures.join('\n  · '));
+  }
+
+  /* ── pdf.js text extraction ─────────────────────────────────────────────
+     Returns one string with line breaks reconstructed from the PDF text
+     items' transform-matrix Y position. */
+  async function extractPdfText(buf) {
+    if (!window.pdfjsLib) throw new Error('pdf.js failed to load — refresh the page.');
+    const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+    const linesAll = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      // Group items by Y (rounded), sort each row by X, then concatenate.
+      const byY = new Map();
+      for (const it of content.items) {
+        const y = Math.round(it.transform[5]);
+        const x = it.transform[4];
+        if (!byY.has(y)) byY.set(y, []);
+        byY.get(y).push({ x, str: it.str });
+      }
+      const ys = Array.from(byY.keys()).sort((a, b) => b - a);  // PDF Y goes bottom-up
+      for (const y of ys) {
+        const row = byY.get(y).sort((a, b) => a.x - b.x).map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
+        if (row) linesAll.push(row);
+      }
+    }
+    return linesAll.join('\n');
+  }
+
+  /* ── Football PDF section parser ────────────────────────────────────────
+     cume.pdf section markers (one per category):
+       "# Passing GP Rating COMP-ATT-INT PCT YDS TD LG AVG/G"
+       "# Rushing GP ATT GAIN LOSS NET AVG TD LG AVG/G"
+       "# Receiving GP NO YDS AVG TD LG AVG/G"
+       "# Punting GP NO YDS AVG LONG TB FC I20 BLKD"
+       "# Field Goals FGM-FGA PCT 01-19 20-29 30-39 40-49 50-99 LG BLK"
+       "# Defensive Statistics GP UA-A TOTAL TFL/YDS NO-YDS BU PBU QBH RCV-YDS FF KICK SAF"
+     For each section, count numeric headers; data rows have N trailing
+     numeric tokens and the rest in the middle is the player name. */
+  function parseFootballPdfSections(text) {
+    // Glue "62.89 %" → "62.89%" so PCT columns aren't split into two tokens.
+    const cleanText = text.replace(/(\d+(?:\.\d+)?)\s+%/g, '$1%');
+    const lines = cleanText.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const sections = { passing: null, rushing: null, receiving: null, defense: null, fieldGoals: null, punting: null };
+
+    // Each section's title regex strips both the "#" and the title words,
+    // leaving just the column headers in the captured remainder.
+    const SECTION_DEFS = [
+      { key: 'passing',    re: /^#\s+Passing\s+/i                                         },
+      { key: 'rushing',    re: /^#\s+Rushing\s+/i                                         },
+      { key: 'receiving',  re: /^#\s+Receiving\s+/i                                       },
+      { key: 'punting',    re: /^#\s+Punting\s+/i                                         },
+      { key: 'fieldGoals', re: /^#\s+Field\s*Goals?\s+/i                                  },
+      { key: 'defense',    re: /^#\s+Defensive(?:\s+Statistics)?(?:\s+Leaders)?\s+/i      }
+    ];
+
+    for (let i = 0; i < lines.length; i++) {
+      const def = SECTION_DEFS.find(d => d.re.test(lines[i]));
+      if (!def || sections[def.key]) continue;
+      const headersStr = lines[i].replace(def.re, '').trim();
+      if (!headersStr) continue;
+      const headers = headersStr.split(/\s+/);
+      sections[def.key] = parsePdfSectionRows(lines, i + 1, headers);
+    }
+    return sections;
+  }
+
+  function parsePdfSectionRows(lines, startIdx, headers) {
+    const out = [];
+    const headerKeys = headers.map(h => h.toLowerCase());
+    const numericCount = headers.length;  // values per row trail the player name
+    for (let i = startIdx; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^#\s+\w+/.test(line)) break;                       // next section
+      if (/^(Total|Opponents|Team)\b/i.test(line)) continue;  // summary rows
+      // Must start with a 1-3 digit jersey number.
+      const m = line.match(/^(\d{1,3})\s+(.+)$/);
+      if (!m) continue;
+      const jersey = parseInt(m[1], 10);
+      if (jersey < 0 || jersey > 99) continue;
+      // Last `numericCount` tokens are the stat values; everything in
+      // between is the player name (often "Last, First").
+      const rest = m[2].split(/\s+/);
+      if (rest.length < numericCount + 1) continue;
+      const values = rest.slice(-numericCount);
+      const name   = rest.slice(0, rest.length - numericCount).join(' ');
+      const row = { '#': String(jersey), 'player': name };
+      headerKeys.forEach((h, idx) => { row[h] = values[idx] || ''; });
+      // Spread some compound fields into convenient sub-keys.
+      expandCompoundFields(row);
+      out.push(row);
+    }
+    return out;
+  }
+
+  /* Sidearm cume.pdf packs some stats into combined columns. Spread them
+     out so the slot mapper can read the canonical sub-fields. */
+  function expandCompoundFields(row) {
+    // COMP-ATT-INT → comp, att, int
+    if (row['comp-att-int']) {
+      const m = row['comp-att-int'].split('-');
+      row['comp'] = m[0] || ''; row['att']  = m[1] || ''; row['int'] = m[2] || '';
+    }
+    // PCT (Passing) — sometimes "62.89" (no %), sometimes "62.89 %"
+    if (row['pct']) row['%'] = row['pct'];
+    // FGM-FGA → fgm, fga
+    if (row['fgm-fga']) {
+      const m = row['fgm-fga'].split('-');
+      row['fgm'] = m[0] || ''; row['fga'] = m[1] || '';
+    }
+    // UA-A (Defense) → ua, a
+    if (row['ua-a']) {
+      const m = row['ua-a'].split('-');
+      row['ua'] = m[0] || ''; row['a'] = m[1] || '';
+    }
+    if (row['total']) row['tot'] = row['total'];
+    // TFL/YDS → tfl, tfl-yds
+    if (row['tfl/yds']) {
+      const m = row['tfl/yds'].split('/');
+      row['tfl'] = m[0] || ''; row['tfl-yds'] = m[1] || '';
+    }
+    // NO-YDS (Sacks) → sacks count, sacks-yds
+    if (row['no-yds']) {
+      const m = row['no-yds'].split('-');
+      row['sacks'] = m[0] || ''; row['sacks-yds'] = m[1] || '';
+    }
+    // INT-YDS (Defensive) → int, int-yds
+    if (row['int-yds']) {
+      const m = row['int-yds'].split('-');
+      row['int'] = m[0] || ''; row['int-yds'] = m[1] || '';
+    }
+    // Punting LONG variant
+    if (row['long']) row['lg'] = row['long'];
+    if (row['lg'] && !row['long']) row['long'] = row['lg'];
+    // Receiving: "NO" is the rec count; alias to 'rec'.
+    if (row['no'] && !row['rec']) row['rec'] = row['no'];
+    // Punting "i20" alias
+    if (row['i20']) row['i20'] = row['i20'];
+  }
+
+  function jerseyNum(s) { const n = parseInt(String(s || '').replace(/[^\d]/g, ''), 10); return Number.isFinite(n) ? n : NaN; }
+  function normalizeText(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+
+  /* ── Priority resolution + slot mapping ──────────────────────────────── */
+  function buildFootballPlayerRows(scraped) {
+    const byJersey = {};
+    const priority = ['passing','rushing','receiving','defense','fieldGoals','punting'];
+    for (const cat of priority) {
+      const table = scraped[cat]; if (!table) continue;
+      for (const r of table) {
+        const j = jerseyNum(r['#']);
+        if (byJersey[j]) continue;
+        byJersey[j] = { jersey: j, name: r['player'] || '', category: cat, ...mapFootballSlots(cat, r) };
+      }
+    }
+    return Object.values(byJersey).sort((a, b) => a.jersey - b.jersey);
+  }
+  function mapFootballSlots(cat, r) {
+    switch (cat) {
+      case 'passing':    return { numStats: 4, stat1: formatPassingPrimary(r), stat2: intStr(r['yds']),  stat3: intStr(r['td']),  stat4: intStr(r['int']), stat5: '' };
+      case 'rushing':    return { numStats: 4, stat1: intStr(r['att']),        stat2: intStr(r['yds']),  stat3: dec1(r['avg']),   stat4: intStr(r['td']),  stat5: '' };
+      case 'receiving':  return { numStats: 4, stat1: intStr(r['rec']),        stat2: intStr(r['yds']),  stat3: dec1(r['avg']),   stat4: intStr(r['td']),  stat5: '' };
+      case 'defense':    return { numStats: 5, stat1: defensiveTotal(r),       stat2: splitNum(r['tfl'] || r['tfls'] || ''), stat3: splitNum(r['sacks'] || ''), stat4: intStr(r['bu'] || r['pbu'] || ''), stat5: intStr(r['int'] || '') };
+      case 'fieldGoals': return { numStats: 3, stat1: `${r['fgm']||0}/${r['fga']||0}`, stat2: pctStr(r['pct']), stat3: intStr(r['long']), stat4: '', stat5: '' };
+      case 'punting':    return { numStats: 4, stat1: intStr(r['no'] || r['punts']), stat2: dec1(r['avg']), stat3: intStr(r['long']), stat4: intStr(r['i20']), stat5: '' };
+    }
+    return { numStats: 0, stat1: '', stat2: '', stat3: '', stat4: '', stat5: '' };
+  }
+  function intStr(v) { const n = parseInt(String(v ?? '').replace(/,/g, ''), 10); return Number.isFinite(n) ? String(n) : ''; }
+  function dec1(v)   { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n.toFixed(1) : ''; }
+  function pctStr(v) { const n = parseFloat(String(v ?? '').replace(/[%,]/g, '')); return Number.isFinite(n) ? `${n.toFixed(1)}%` : ''; }
+  function splitNum(v) {
+    // "4.5/24" → 4.5  (count, not yards lost)
+    if (!v) return '';
+    const part = String(v).split('/')[0];
+    const n = parseFloat(part);
+    return Number.isFinite(n) ? (n % 1 === 0 ? String(n) : n.toFixed(1)) : '';
+  }
+  function defensiveTotal(r) {
+    if (r['tot'])   return intStr(r['tot']);
+    if (r['total']) return intStr(r['total']);
+    const ua = parseInt(r['ua']  || r['solo'] || 0, 10);
+    const a  = parseInt(r['a']   || r['ast']  || 0, 10);
+    return String((Number.isFinite(ua)?ua:0) + (Number.isFinite(a)?a:0));
+  }
+  function formatPassingPrimary(r) {
+    const att  = parseInt(r['att'], 10);
+    const comp = parseInt(r['comp'], 10);
+    if (Number.isFinite(att) && att < 30 && Number.isFinite(comp)) return `${comp}/${att}`;
+    const pct = parseFloat(String(r['%']  || r['pct'] || ''));
+    return Number.isFinite(pct) ? `${pct.toFixed(1)}%` : (Number.isFinite(comp) && Number.isFinite(att) ? `${comp}/${att}` : '');
+  }
+
+  /* ── Editable preview table ────────────────────────────────────────── */
+  const CAT_LABEL = { passing:'Passing', rushing:'Rushing', receiving:'Receiving', defense:'Defensive', fieldGoals:'Field Goal', punting:'Punting' };
+  function renderPlayerStatsTable() {
+    const c = document.getElementById('playerContent');
+    if (!_playerRows.length) {
+      c.innerHTML = `<div class="empty"><h3>No players parsed.</h3></div>`;
+      return;
+    }
+    const catOptions = Object.entries(CAT_LABEL).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+    const rows = _playerRows.map((row, idx) => `
+      <tr data-idx="${idx}">
+        <td style="text-align:center;font-weight:700"><input type="text" data-key="jersey" value="${escapeHtml(row.jersey)}" style="text-align:center"></td>
+        <td><input type="text" data-key="name" value="${escapeHtml(row.name)}"></td>
+        <td>
+          <select data-key="category">
+            ${catOptions.replace(`value="${row.category}"`, `value="${row.category}" selected`)}
+          </select>
+        </td>
+        <td style="text-align:center"><input type="text" data-key="numStats" value="${escapeHtml(row.numStats)}" style="text-align:center;max-width:48px"></td>
+        <td><input type="text" data-key="stat1" value="${escapeHtml(row.stat1)}"></td>
+        <td><input type="text" data-key="stat2" value="${escapeHtml(row.stat2)}"></td>
+        <td><input type="text" data-key="stat3" value="${escapeHtml(row.stat3)}"></td>
+        <td><input type="text" data-key="stat4" value="${escapeHtml(row.stat4)}"></td>
+        <td><input type="text" data-key="stat5" value="${escapeHtml(row.stat5)}"></td>
+        <td style="text-align:center"><button class="remove-btn" data-action="remove" title="Remove player" style="background:transparent;border:0;color:#c00;cursor:pointer;font-size:14px;padding:4px 6px">✕</button></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:60px">#</th>
+              <th style="min-width:160px">Player</th>
+              <th style="min-width:120px">Category</th>
+              <th style="min-width:60px"># Stats</th>
+              <th style="min-width:90px">Stat 1</th>
+              <th style="min-width:90px">Stat 2</th>
+              <th style="min-width:90px">Stat 3</th>
+              <th style="min-width:90px">Stat 4</th>
+              <th style="min-width:90px">Stat 5</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 0;font-size:11px;color:#666">${_playerRows.length} player${_playerRows.length===1?'':'s'} · edit any cell before download · jersey-aligned (row in template = jersey + 8)</div>
+    `;
+    c.querySelectorAll('input,select').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.closest('tr').dataset.idx;
+        const key = inp.dataset.key;
+        if (_playerRows[idx]) _playerRows[idx][key] = inp.value;
+      });
+    });
+    c.querySelectorAll('button[data-action="remove"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.closest('tr').dataset.idx;
+        _playerRows.splice(idx, 1);
+        renderPlayerStatsTable();
+      });
+    });
+  }
+
+  /* ── Download — write into FB_HOME_TEAM Player Stats sheet ──────────────
+     Per spec §10d:
+       - row = jersey + 8  (jersey 4 → row 12)
+       - write D, E, G, I, K (and M for defense)
+       - LEAVE A/B/C alone (formulas pulling from Roster)
+       - Skip Hilite (F/H/J/L/N/P), DROP (Q/AE), CAREER (R-AE)
+       - Preserve ALL other sheets and cells — Xpression references them. */
   async function downloadPlayerStats() {
     const cfg = STATS_CONFIG[_sport]?.player;
-    if (!cfg) return;
-    // Phase 2+ — write into the sport's template per spec §5–§10.
+    if (!cfg || !_playerRows.length) return;
+    const btn = document.getElementById('playerDownloadBtn');
+    btn.disabled = true; btn.textContent = '⏳ Building…';
+    try {
+      const tplRes = await fetch(cfg.template, { cache: 'no-store' });
+      if (!tplRes.ok) throw new Error(`Template not found at ${cfg.template}`);
+      const wb = XLSX.read(await tplRes.arrayBuffer(), { type: 'array', cellStyles: true, cellFormula: true });
+      const ws = wb.Sheets[cfg.sheetName];
+      if (!ws) throw new Error(`Template missing "${cfg.sheetName}" sheet`);
+
+      const writeCell = (r1, c1, val) => {
+        const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
+        if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+        const num = Number(val);
+        ws[addr] = (typeof val === 'number' || (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)))
+          ? { t: 'n', v: Number.isFinite(num) ? num : 0 }
+          : { t: 's', v: String(val) };
+      };
+
+      _playerRows.forEach(p => {
+        const j = parseInt(p.jersey, 10);
+        if (!Number.isFinite(j) || j < 0 || j > 99) return;
+        const r = j + 8;                    // §5c jersey-to-row formula
+        writeCell(r,  4, parseInt(p.numStats, 10) || (p.category === 'defense' ? 5 : p.category === 'fieldGoals' ? 3 : 4));  // D
+        writeCell(r,  5, p.stat1);          // E
+        writeCell(r,  7, p.stat2);          // G
+        writeCell(r,  9, p.stat3);          // I
+        writeCell(r, 11, p.stat4);          // K
+        writeCell(r, 13, p.stat5 || '');    // M (defensive)
+      });
+
+      // Update !ref so XLSX recognizes any newly-written cells past the
+      // template's stored range — but DO NOT delete sheets or columns.
+      const existingRef = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:107, c:30} };
+      const lastJersey = Math.max(...(_playerRows.map(p => parseInt(p.jersey, 10) || 0)));
+      const lastRow = Math.max(existingRef.e.r, (lastJersey + 8) - 1);
+      const lastCol = Math.max(existingRef.e.c, 12); // through column M
+      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
+
+      const today = new Date().toISOString().split('T')[0];
+      const safe  = (_playerSchool || 'School').replace(/[^A-Za-z0-9]+/g, '_');
+      const filename = `${safe}_FB_HOME_TEAM_PlayerStats_${today}.xlsx`;
+      XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
+      setPlayerStatus(`✓ Downloaded ${filename}`, 'ok');
+    } catch (err) {
+      console.error(err);
+      alert('Download failed: ' + (err.message || err));
+      setPlayerStatus('Download failed', 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇ Download Excel';
+    }
   }
 </script>
 

@@ -398,6 +398,15 @@
     return `${out} ${parseInt(m[2], 10)}`;
   }
 
+  /* ── Time cleanup ── strip seconds from "10:00:00 AM" → "10:00 AM".
+     Source data is mixed: some rows have seconds, some don't, some use
+     "1 p.m." with no minutes at all. Only the H:MM:SS pattern needs
+     trimming; everything else passes through. */
+  function normalizeTime(raw) {
+    if (!raw) return '';
+    return String(raw).replace(/(\d{1,2}:\d{2}):\d{2}/, '$1').trim();
+  }
+
   /* ── Rank cleanup ── strip non-digits, keep only the number. */
   function cleanRank(raw) {
     if (raw == null || raw === '') return '';
@@ -472,7 +481,7 @@
           rank: '',                              // user-entered in the UI
           opponent: String(r['Opponent'] || '').trim(),
           date: normalizeDate(r['Date'] || '', cfg.dateStyle),
-          time: String(r['Time'] || '').trim(),
+          time: normalizeTime(r['Time'] || ''),
           networkLogo: 'BLANK_LOGO',
           opponentLogo: '',
           isBye: false
@@ -538,7 +547,7 @@
         rank: '',
         opponent: r.opponent || '',
         date: normalizeDate(r.date || '', cfg.dateStyle),
-        time: r.time || '',
+        time: normalizeTime(r.time || ''),
         networkLogo: 'BLANK_LOGO',
         opponentLogo: '',
         isBye: false

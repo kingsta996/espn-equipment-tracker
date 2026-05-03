@@ -431,8 +431,51 @@
         outputFilename: (school, today) => `${school}_SOCCER_HOME_PlayerStats_${today}.xlsx`
       }
     },
-    "Men's Basketball":   { team: null, player: null },
-    "Women's Basketball": { team: null, player: null },
+    "Men's Basketball": {
+      team: {
+        template:   'templates/master-schedule/basketball.xlsx',
+        sheetName:  'Team Stats',
+        // Basketball year on conferenceusa.com = season's END year (e.g. 2025
+        // = the 2024-25 season). The page lags ~2 months behind season end —
+        // 2025-26 stats may not be loaded until late summer.
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=mbball&year=${year}` + (scope === 'conference' ? '&conf=true' : ''),
+        statsMap:   () => BBALL_TEAM_STATS_MAP,
+        writeRows:  (wb, rows, side) => writeBballTeamStatsRows(wb, rows, side),
+        outputFilename: (school, today, side) => `${school}_MBB_${side === 'home' ? 'HOME' : 'AWAY'}_TeamStats_${today}.xlsx`
+      },
+      player: {
+        template:   'templates/master-schedule/basketball.xlsx',
+        sheetName:  'Player Stats',
+        // Player URL on Sidearm uses the season's START year (2025 = 2025-26
+        // season) — opposite of CUSA's convention. Convert end-year → start.
+        defaultUrl: (school, year) => `https://${SCHOOL_HOST_VB[school] || ''}/sports/mens-basketball/stats/${(parseInt(year, 10) || new Date().getFullYear()) - 1}`,
+        parsePdf:   (text) => parseBasketballPdf(text),
+        buildRows:  (sections) => buildBasketballPlayerRows(sections),
+        renderRows: () => renderBasketballPlayerStatsTable(),
+        writeRows:  (wb) => writeBasketballPlayerStatsRows(wb),
+        outputFilename: (school, today) => `${school}_MBB_HOME_PlayerStats_${today}.xlsx`
+      }
+    },
+    "Women's Basketball": {
+      team: {
+        template:   'templates/master-schedule/basketball.xlsx',
+        sheetName:  'Team Stats',
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=wbball&year=${year}` + (scope === 'conference' ? '&conf=true' : ''),
+        statsMap:   () => BBALL_TEAM_STATS_MAP,
+        writeRows:  (wb, rows, side) => writeBballTeamStatsRows(wb, rows, side),
+        outputFilename: (school, today, side) => `${school}_WBB_${side === 'home' ? 'HOME' : 'AWAY'}_TeamStats_${today}.xlsx`
+      },
+      player: {
+        template:   'templates/master-schedule/basketball.xlsx',
+        sheetName:  'Player Stats',
+        defaultUrl: (school, year) => `https://${SCHOOL_HOST_VB[school] || ''}/sports/womens-basketball/stats/${(parseInt(year, 10) || new Date().getFullYear()) - 1}`,
+        parsePdf:   (text) => parseBasketballPdf(text),
+        buildRows:  (sections) => buildBasketballPlayerRows(sections),
+        renderRows: () => renderBasketballPlayerStatsTable(),
+        writeRows:  (wb) => writeBasketballPlayerStatsRows(wb),
+        outputFilename: (school, today) => `${school}_WBB_HOME_PlayerStats_${today}.xlsx`
+      }
+    },
     Baseball:             { team: null, player: null },
     Softball:             { team: null, player: null }
   };
@@ -1894,6 +1937,239 @@
     const lastRow = Math.max(existingRef.e.r, (lastJersey + 1) - 1);
     const lastCol = Math.max(existingRef.e.c, 7);
     seasonStats['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
+  }
+
+  /* ── Basketball PDF parser ─────────────────────────────────────────────
+     Single consolidated table per player. Headers contain three "AVG"
+     columns (after MIN, after TOT rebounds, after PTS) — disambiguate by
+     position. Sample header line:
+       # Player GP-GS MIN AVG FG-FGA FG% 3FG-FGA 3FG% FT-FTA FT% OFF DEF TOT AVG PF DQ A TO BLK STL PTS AVG
+     APG/BPG/SPG aren't in the PDF as per-game; computed from totals/GP. */
+  function parseBasketballPdf(text) {
+    const lines = text.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    let headerIdx = -1, headers = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^#\s+Player\b/i.test(l) && /\bGP-GS\b/.test(l) && /\bFG-FGA\b/.test(l)) {
+        headerIdx = i;
+        headers = l.replace(/^#\s+Player\s+/i, '').split(/\s+/);
+        break;
+      }
+    }
+    if (headerIdx < 0) return { roster: [] };
+
+    // Position-based column lookup. The three "AVG" columns are MPG / RPG / PPG
+    // in order based on what they follow.
+    const findIdx    = (name) => headers.indexOf(name);
+    const findAllIdx = (name) => headers.reduce((acc, h, i) => (h === name && acc.push(i), acc), []);
+    const avgs = findAllIdx('AVG');
+    const idx = {
+      gpGs:     findIdx('GP-GS'),
+      mpg:      avgs[0],
+      fgPct:    findIdx('FG%'),
+      threePct: findIdx('3FG%'),
+      ftPct:    findIdx('FT%'),
+      rpg:      avgs[1],
+      a:        findIdx('A'),
+      blk:      findIdx('BLK'),
+      stl:      findIdx('STL'),
+      ppg:      avgs[2]
+    };
+
+    const rows = [];
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^(Total|Opponents?|Team)\b/i.test(l)) break;
+      const m = l.match(/^(\d{1,3})\s+(.+)$/);
+      if (!m) continue;
+      const jersey = parseInt(m[1], 10);
+      if (jersey < 0 || jersey > 99) continue;
+      const rest = m[2].split(/\s+/);
+      if (rest.length < headers.length + 1) continue;
+      const values = rest.slice(-headers.length);
+      const name   = rest.slice(0, rest.length - headers.length).join(' ');
+
+      const gp     = parseInt((values[idx.gpGs] || '0').split('-')[0], 10) || 0;
+      const aTotal = parseInt(values[idx.a],   10);
+      const blkTot = parseInt(values[idx.blk], 10);
+      const stlTot = parseInt(values[idx.stl], 10);
+
+      rows.push({
+        jersey, name, gp,
+        ppg:      values[idx.ppg],
+        fgPct:    values[idx.fgPct],
+        threePct: values[idx.threePct],
+        ftPct:    values[idx.ftPct],
+        rpg:      values[idx.rpg],
+        mpg:      values[idx.mpg],
+        apg: gp > 0 && Number.isFinite(aTotal) ? (aTotal / gp).toFixed(1) : '',
+        bpg: gp > 0 && Number.isFinite(blkTot) ? (blkTot / gp).toFixed(1) : '',
+        spg: gp > 0 && Number.isFinite(stlTot) ? (stlTot / gp).toFixed(1) : ''
+      });
+    }
+    return { roster: rows };
+  }
+
+  function buildBasketballPlayerRows(sections) {
+    const roster = (sections && sections.roster) || [];
+    return roster.sort((a, b) => a.jersey - b.jersey).map(r => ({
+      jersey:   r.jersey,
+      name:     r.name,
+      gp:       r.gp,
+      points:   r.ppg,
+      fgPct:    bbalPct(r.fgPct),
+      threePct: bbalPct(r.threePct),
+      ftPct:    bbalPct(r.ftPct),
+      rebounds: r.rpg,
+      assists:  r.apg,
+      blocks:   r.bpg,
+      steals:   r.spg,
+      minutes:  r.mpg
+    }));
+  }
+  // ".424" → "42.4%". Spec §15.3 sample shows "47%" (integer) but matching
+  // Volleyball/Soccer's 1-decimal preference for consistency with the user.
+  function bbalPct(raw) {
+    if (!raw) return '';
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n)) return '';
+    return `${(n * 100).toFixed(1)}%`;
+  }
+
+  function renderBasketballPlayerStatsTable() {
+    const c = document.getElementById('playerContent');
+    if (!_playerRows.length) {
+      c.innerHTML = `<div class="empty"><h3>No players parsed.</h3></div>`;
+      return;
+    }
+    const rows = _playerRows.map((row, idx) => `
+      <tr data-idx="${idx}">
+        <td style="text-align:center;font-weight:700"><input type="text" data-key="jersey" value="${escapeHtml(row.jersey)}" style="text-align:center"></td>
+        <td><input type="text" data-key="name" value="${escapeHtml(row.name)}"></td>
+        <td><input type="text" data-key="points" value="${escapeHtml(row.points)}"></td>
+        <td><input type="text" data-key="fgPct" value="${escapeHtml(row.fgPct)}"></td>
+        <td><input type="text" data-key="threePct" value="${escapeHtml(row.threePct)}"></td>
+        <td><input type="text" data-key="ftPct" value="${escapeHtml(row.ftPct)}"></td>
+        <td><input type="text" data-key="rebounds" value="${escapeHtml(row.rebounds)}"></td>
+        <td><input type="text" data-key="assists" value="${escapeHtml(row.assists)}"></td>
+        <td><input type="text" data-key="blocks" value="${escapeHtml(row.blocks)}"></td>
+        <td><input type="text" data-key="steals" value="${escapeHtml(row.steals)}"></td>
+        <td><input type="text" data-key="minutes" value="${escapeHtml(row.minutes)}"></td>
+        <td style="text-align:center"><button class="remove-btn" data-action="remove" title="Remove player" style="background:transparent;border:0;color:#c00;cursor:pointer;font-size:14px;padding:4px 6px">✕</button></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th style="min-width:160px">Player</th>
+              <th>PTS</th><th>FG%</th><th>3PT%</th><th>FT%</th>
+              <th>REB</th><th>AST</th><th>BLK</th><th>STL</th><th>MIN</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 0;font-size:11px;color:#666">
+        ${_playerRows.length} player${_playerRows.length===1?'':'s'} · 9 fixed stats per player (no position split per spec §15) · jersey-aligned (Player Stats row = jersey + 2)
+      </div>
+    `;
+    c.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.closest('tr').dataset.idx;
+        if (_playerRows[idx]) _playerRows[idx][inp.dataset.key] = inp.value;
+      });
+    });
+    c.querySelectorAll('button[data-action="remove"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.closest('tr').dataset.idx;
+        _playerRows.splice(idx, 1);
+        renderBasketballPlayerStatsTable();
+      });
+    });
+  }
+
+  /* Basketball player writer — Player Stats sheet, jersey+2 row offset.
+     Per spec §15.2, columns:
+       D POINTS · E FG% · F 3PT% · G FT% · H REBOUNDS · I ASSISTS ·
+       J BLOCKS · K STEALS · L MINUTES
+     A/B/C are formulas pulling from Roster — leave alone. */
+  function writeBasketballPlayerStatsRows(wb) {
+    const ws = wb.Sheets['Player Stats'];
+    if (!ws) throw new Error('Template missing "Player Stats" sheet');
+    const writeCell = (r1, c1, val) => {
+      const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
+      if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+      const num = Number(val);
+      ws[addr] = (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val))
+        ? { t: 'n', v: Number.isFinite(num) ? num : 0 }
+        : { t: 's', v: String(val) };
+    };
+    _playerRows.forEach(p => {
+      const j = parseInt(p.jersey, 10);
+      if (!Number.isFinite(j) || j < 0 || j > 99) return;
+      const r = j + 2;
+      writeCell(r,  4, p.points);    // D
+      writeCell(r,  5, p.fgPct);     // E
+      writeCell(r,  6, p.threePct);  // F
+      writeCell(r,  7, p.ftPct);     // G
+      writeCell(r,  8, p.rebounds);  // H
+      writeCell(r,  9, p.assists);   // I
+      writeCell(r, 10, p.blocks);    // J
+      writeCell(r, 11, p.steals);    // K
+      writeCell(r, 12, p.minutes);   // L
+    });
+    const existingRef = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:101, c:11} };
+    const lastJersey = Math.max(...(_playerRows.map(p => parseInt(p.jersey, 10) || 0)));
+    const lastRow = Math.max(existingRef.e.r, (lastJersey + 2) - 1);
+    const lastCol = Math.max(existingRef.e.c, 11);   // through column L
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
+  }
+
+  /* Basketball Team Stats mapping — matches the basketball.xlsx Team Stats
+     sheet's pre-labeled 18-row layout. Some rows (Turnovers, Paint Points,
+     Points Off TO, Turnover Margin, Turnovers Forced) aren't directly on
+     the CUSA page; they ship blank for the operator to type in. */
+  const BBALL_TEAM_STATS_MAP = [
+    { row: 2,  label: 'Field Goals',         caption: 'Field Goals Percentages',      col: 'PCT',    fmt: 'pctVB',     rank: 'desc' },
+    { row: 3,  label: 'Free Throws',         caption: 'Free Throw Percentage',        col: 'PCT',    fmt: 'pctVB',     rank: 'desc' },
+    { row: 4,  label: '3-PT FG',             caption: '3-Point FG PCT',               col: 'PCT',    fmt: 'pctVB',     rank: 'desc' },
+    { row: 5,  label: 'Rebounds',            caption: 'Combined Team Rebounds',       col: 'AVG/G',  fmt: 'dec1',      rank: 'desc' },
+    { row: 6,  label: 'Turnovers',           caption: null,                            col: null,    fmt: 'blank',     rank: null   },
+    { row: 7,  label: 'FG Defense',          caption: 'Field Goal Percent Defense',    col: 'PCT',    fmt: 'pctVB',     rank: 'asc'  },
+    { row: 8,  label: 'Scoring',             caption: 'Offense',                       col: 'AVG/G',  fmt: 'dec1',      rank: 'desc' },
+    { row: 9,  label: 'Points Allowed',      caption: 'Scoring Defense',               col: 'AVG/G',  fmt: 'dec1',      rank: 'asc'  },
+    { row: 10, label: 'Assists',             caption: 'Assists',                       col: 'AVG/G',  fmt: 'dec2',      rank: 'desc' },
+    { row: 11, label: 'Paint Points',        caption: null,                            col: null,    fmt: 'blank',     rank: null   },
+    { row: 12, label: 'Rebound Margin',      caption: 'Rebounding Margin',             col: 'Margin', fmt: 'dec1',      rank: 'desc' },
+    { row: 13, label: 'Offensive Rebounds',  caption: 'Offensive Rebounds',            col: 'AVG/G',  fmt: 'dec1',      rank: 'desc' },
+    { row: 14, label: 'Blocks',              caption: 'Blocked Shots',                 col: 'AVG/G',  fmt: 'dec2',      rank: 'desc' },
+    { row: 15, label: 'Turnovers Forced',    caption: null,                            col: null,    fmt: 'blank',     rank: null   },
+    { row: 16, label: 'Points Off TO',       caption: null,                            col: null,    fmt: 'blank',     rank: null   },
+    { row: 17, label: 'Turnover Margin',     caption: null,                            col: null,    fmt: 'blank',     rank: null   },
+    { row: 18, label: 'Steals',              caption: 'Steals',                        col: 'AVG/G',  fmt: 'dec2',      rank: 'desc' },
+    { row: 19, label: '3-PT FG Made',        caption: '3-Point FG Made',               col: 'AVG/G',  fmt: 'dec2',      rank: 'desc' }
+  ];
+
+  /* Basketball team-stats writer — writes B (value) + C (rank) into the
+     EXISTING Team Stats sheet of basketball.xlsx (template has its own
+     pre-labeled 18-row layout). Identical pattern to football's writer. */
+  function writeBballTeamStatsRows(wb, teamRows, _side) {
+    const ws = wb.Sheets['Team Stats'];
+    if (!ws) throw new Error('Template missing "Team Stats" sheet');
+    teamRows.forEach(r => {
+      const setCell = (c1, val) => {
+        const addr = XLSX.utils.encode_cell({ r: r.row - 1, c: c1 - 1 });
+        if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+        if (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)) ws[addr] = { t: 'n', v: Number(val) };
+        else ws[addr] = { t: 's', v: String(val) };
+      };
+      setCell(2, r.value);   // B
+      setCell(3, r.rank);    // C
+    });
+    const existing = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:34, c:12} };
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(existing.e.r, 34), c: Math.max(existing.e.c, 12) } });
   }
 
   /* Soccer Team Stats mapping — sourced from conferenceusa.com wsoc page.

@@ -498,9 +498,17 @@
           updateParseStatus('player', 'Cached key looks stale — re-discovering…');
           _clearSiteKey(hostForCache);
           pdfUrl = await discoverPdfUrl(url, 'player');
-          buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
+          try {
+            buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
+          } catch (secondErr) {
+            const candidates = await scanForCandidatePdfs(url, year, 'player');
+            throw new Error(buildPdfFallbackMessage(secondErr, url, candidates));
+          }
         } else {
-          throw firstErr;
+          // No cache to invalidate — try to find a school-published season
+          // stats PDF on the page itself before failing.
+          const candidates = await scanForCandidatePdfs(url, year, 'player');
+          throw new Error(buildPdfFallbackMessage(firstErr, url, candidates));
         }
       }
       updateParseStatus('player', 'Extracting text from PDF…');
@@ -517,7 +525,7 @@
       setPlayerStatus(`Loaded ${_playerRows.length} player${_playerRows.length === 1 ? '' : 's'} across ${tableCount} stat section${tableCount === 1 ? '' : 's'} for ${school} ${year}.`, 'ok');
     } catch (err) {
       console.error(err);
-      document.getElementById('playerContent').innerHTML = `<div class="empty"><h3>Failed to load player stats</h3><p>${escapeHtml(err.message || String(err))}</p></div>`;
+      document.getElementById('playerContent').innerHTML = `<div class="empty" style="text-align:left"><h3 style="text-align:center">Failed to load player stats</h3><pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;color:#666;line-height:1.5;margin:0">${escapeHtml(err.message || String(err))}</pre></div>`;
       document.getElementById('playerDownloadBtn').disabled = true;
       setPlayerStatus('Load failed', 'err');
     } finally {
@@ -577,6 +585,47 @@
   function _clearSiteKey(host) {
     const m = _siteKeyMap(); delete m[host];
     try { localStorage.setItem(SITE_KEY_CACHE, JSON.stringify(m)); } catch (e) {}
+  }
+
+  /* When the standard cume.pdf path 404s (KSU-style — school doesn't auto-
+     publish at the canonical Sidearm path), scan the stats page HTML for
+     any PDF link that looks like season stats so we can surface it in the
+     error message. */
+  async function scanForCandidatePdfs(statsUrl, year, prefix) {
+    let html;
+    try { html = await fetchTextViaCorsProxies(statsUrl, prefix); }
+    catch (e) { return []; }
+    const SPORT_KEYWORDS = ['basketball','volleyball','baseball','softball','soccer','golf','xc','tennis','lacrosse','hockey','swim','track'];
+    const yearStr = String(year);
+    const hits = new Map();   // url → score
+    for (const m of html.matchAll(/https?:\/\/[^"\s\\]+\.pdf[^"\s\\]*/gi)) {
+      const u = m[0];
+      const lower = u.toLowerCase();
+      let score = 0;
+      if (lower.includes(yearStr))                    score += 10;
+      if (lower.includes('cume'))                     score += 8;
+      if (lower.includes('season') && lower.includes('stats')) score += 6;
+      if (lower.includes('football') || lower.includes('_fb'))  score += 4;
+      // Penalize URLs that look like a different sport.
+      if (SPORT_KEYWORDS.some(s => lower.includes(s)))         score -= 8;
+      if (score <= 0) continue;
+      const prev = hits.get(u) || 0;
+      if (score > prev) hits.set(u, score);
+    }
+    return Array.from(hits.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([u]) => u);
+  }
+
+  function buildPdfFallbackMessage(originalErr, statsUrl, candidates) {
+    const lines = [
+      (originalErr.message || String(originalErr)),
+      '',
+      `This school doesn't auto-publish a cume.pdf at the standard Sidearm path. Open the school's stats page (${statsUrl}), find the season-stats PDF link, copy its URL, and paste it into "Pull from URL" above.`
+    ];
+    if (candidates.length) {
+      lines.push('', 'Candidate PDFs found on the page (try one in Pull from URL):');
+      for (const u of candidates) lines.push(`  · ${u}`);
+    }
+    return lines.join('\n');
   }
 
   // Text fetch — same proxy chain as the binary fetcher, but reads .text().

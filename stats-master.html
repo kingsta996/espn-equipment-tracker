@@ -375,7 +375,10 @@
         sheetName:  'Team Stats',
         // Source: conferenceusa.com — server-rendered with a real browser UA
         // (the Netlify proxy sends one). Default = Overall; ?conf=true for in-conf only.
-        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=football&year=${year}` + (scope === 'conference' ? '&conf=true' : '')
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=football&year=${year}` + (scope === 'conference' ? '&conf=true' : ''),
+        statsMap:   () => FB_TEAM_STATS_MAP,
+        writeRows:  (wb, rows, side) => writeFbTeamStatsRows(wb, rows, side),
+        outputFilename: (school, today, side) => `${school}_FB_${side === 'home' ? 'HOME' : 'AWAY'}_TEAM_TeamStats_${today}.xlsx`
       },
       player: {
         template:   'templates/master-schedule/football.xlsx',  // shared FB_HOME_TEAM source
@@ -389,7 +392,14 @@
       }
     },
     Volleyball: {
-      team:   null,                  // VB has no Team Stats sheet in the template
+      team: {
+        template:   'templates/master-schedule/volleyball.xlsx',
+        sheetName:  'Team Stats',     // not in template — writer will add it
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=wvball&year=${year}` + (scope === 'conference' ? '&conf=true' : ''),
+        statsMap:   () => VB_TEAM_STATS_MAP,
+        writeRows:  (wb, rows, side) => writeVbTeamStatsRows(wb, rows, side),
+        outputFilename: (school, today, side) => `${school}_VB_${side === 'home' ? 'HOME' : 'AWAY'}_TeamStats_${today}.xlsx`
+      },
       player: {
         template:   'templates/master-schedule/volleyball.xlsx',
         sheetName:  'Season Stats',
@@ -573,6 +583,26 @@
   };
   function cusaDisplayNamesFor(school) { return SCHOOL_TO_CUSA_DISPLAY[school] || [school]; }
 
+  /* Volleyball Team Stats mapping — sourced from conferenceusa.com's
+     wvball page. CUSA publishes 7 offensive + 6 opponent (defensive)
+     team-level categories. The output sheet is a freshly appended
+     "Team Stats" sheet with Stat | Value | Rank rows. */
+  const VB_TEAM_STATS_MAP = [
+    { row: 2,  label: 'Points Per Set',      caption: 'Points',                        col: 'AVG/S', fmt: 'dec2', rank: 'desc' },
+    { row: 3,  label: 'Hitting %',           caption: 'Hitting Percentage',            col: 'PCT',   fmt: 'pctVB', rank: 'desc' },
+    { row: 4,  label: 'Assists Per Set',     caption: 'Assists',                       col: 'AVG/S', fmt: 'dec2', rank: 'desc' },
+    { row: 5,  label: 'Kills Per Set',       caption: 'Kills',                         col: 'AVG/S', fmt: 'dec2', rank: 'desc' },
+    { row: 6,  label: 'Blocks Per Set',      caption: 'Blocks',                        col: 'AVG/S', fmt: 'dec2', rank: 'desc' },
+    { row: 7,  label: 'Service Aces Per Set',caption: 'Service Aces',                  col: 'AVG/S', fmt: 'dec2', rank: 'desc' },
+    { row: 8,  label: 'Digs Per Set',        caption: 'Digs',                          col: 'AVG/S', fmt: 'dec2', rank: 'desc' },
+    { row: 9,  label: 'Opp Hitting %',       caption: 'Opponent Hitting Percentage',   col: 'PCT',   fmt: 'pctVB', rank: 'asc'  },
+    { row: 10, label: 'Opp Assists Per Set', caption: 'Opponent Assists',              col: 'AVG/S', fmt: 'dec2', rank: 'asc'  },
+    { row: 11, label: 'Opp Kills Per Set',   caption: 'Opponent Kills',                col: 'AVG/S', fmt: 'dec2', rank: 'asc'  },
+    { row: 12, label: 'Opp Blocks Per Set',  caption: 'Opponent Blocks',               col: 'AVG/S', fmt: 'dec2', rank: 'asc'  },
+    { row: 13, label: 'Opp Service Aces PS', caption: 'Opponent Service Aces',         col: 'AVG/S', fmt: 'dec2', rank: 'asc'  },
+    { row: 14, label: 'Opp Digs Per Set',    caption: 'Opponent Digs',                 col: 'AVG/S', fmt: 'dec2', rank: 'asc'  }
+  ];
+
   /* Football Team Stats master mapping (Spec §4) — 33 rows, B (value) + C (rank).
      Some rows aren't published on the conf page (turnovers, quarter scoring,
      RZ Def TD %); they ship blank by design and the operator types them in. */
@@ -714,7 +744,7 @@
     return out;
   }
 
-  /* ── Build the 33-row Team Stats payload for the selected school ────── */
+  /* ── Build Team Stats payload for the selected school (sport-aware) ─── */
   function buildTeamStatsRows(tablesByCaption, school) {
     const aliases = cusaDisplayNamesFor(school).map(s => s.toLowerCase());
     const findTeamRow = (caption) => {
@@ -722,8 +752,10 @@
       if (!tbl) return null;
       return tbl.rows.find(r => aliases.includes(String(r['Team']).trim().toLowerCase())) || null;
     };
+    const cfg = STATS_CONFIG[_sport]?.team;
+    const map = (cfg && typeof cfg.statsMap === 'function') ? cfg.statsMap() : FB_TEAM_STATS_MAP;
 
-    return FB_TEAM_STATS_MAP.map(spec => {
+    return map.map(spec => {
       if (!spec.caption) return { row: spec.row, label: spec.label, value: '', rank: '' };
 
       // Special: Team Takeaways = Interceptions.NO + Fumbles Recovered.NO
@@ -764,8 +796,10 @@
     const raw = r[spec.col];
     switch (spec.fmt) {
       case 'dec1':   { const n = parseFloat(raw); return Number.isFinite(n) ? n.toFixed(1) : ''; }
+      case 'dec2':   { const n = parseFloat(raw); return Number.isFinite(n) ? n.toFixed(2) : ''; }
       case 'int':    { const n = parseInt(raw, 10); return Number.isFinite(n) ? String(n) : ''; }
       case 'pct':    { const n = parseFloat(raw); return Number.isFinite(n) ? `${n.toFixed(1)}%` : ''; }
+      case 'pctVB':  { const n = parseFloat(raw); return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : ''; }
       case 'top':    return String(raw || '').trim();
       case 'splitL': { const m = String(raw||'').split('-'); return m[0]||''; }
       case 'splitR': { const m = String(raw||'').split('-'); return m[1]||''; }
@@ -871,28 +905,13 @@
       const tplRes = await fetch(cfg.template, { cache: 'no-store' });
       if (!tplRes.ok) throw new Error(`Template not found at ${cfg.template}`);
       const wb = XLSX.read(await tplRes.arrayBuffer(), { type: 'array', cellStyles: true, cellFormula: true });
-      const ws = wb.Sheets[cfg.sheetName];
-      if (!ws) throw new Error(`Template missing "${cfg.sheetName}" sheet`);
-
-      teamRows.forEach(r => {
-        const setCell = (c1, val) => {
-          const addr = XLSX.utils.encode_cell({ r: r.row - 1, c: c1 - 1 });
-          if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
-          // TOP must stay text (Excel would otherwise convert "31:20" to time).
-          if (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)) ws[addr] = { t: 'n', v: Number(val) };
-          else ws[addr] = { t: 's', v: String(val) };
-        };
-        setCell(2, r.value);  // B
-        setCell(3, r.rank);   // C
-      });
-
-      const existing = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:33, c:10} };
-      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(existing.e.r, 33), c: Math.max(existing.e.c, 10) } });
+      // Sport-specific writer: Football fills the existing Team Stats sheet
+      // B/C columns; Volleyball appends a new Team Stats sheet (template has none).
+      cfg.writeRows(wb, teamRows, side);
 
       const today = new Date().toISOString().split('T')[0];
       const safe  = (TeamMatchup[side].school || 'School').replace(/[^A-Za-z0-9]+/g, '_');
-      const tmplLabel = side === 'home' ? 'FB_HOME_TEAM' : 'FB_AWAY_TEAM';
-      const filename  = `${safe}_${tmplLabel}_TeamStats_${today}.xlsx`;
+      const filename = cfg.outputFilename(safe, today, side);
       XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
       setSideStatus(side, `✓ Downloaded ${filename}`, 'ok');
     } catch (err) {
@@ -901,6 +920,42 @@
       setSideStatus(side, 'Download failed', 'err');
     } finally {
       btn.disabled = false; btn.textContent = origLabel;
+    }
+  }
+
+  /* Football team-stats writer — extracted from the old monolithic download.
+     Writes B (value) + C (rank) into the Team Stats sheet rows 2-34. Leaves
+     E-K alone (formulas + literal "PPG"/"YPG" strings). */
+  function writeFbTeamStatsRows(wb, teamRows, _side) {
+    const ws = wb.Sheets['Team Stats'];
+    if (!ws) throw new Error('Template missing "Team Stats" sheet');
+    teamRows.forEach(r => {
+      const setCell = (c1, val) => {
+        const addr = XLSX.utils.encode_cell({ r: r.row - 1, c: c1 - 1 });
+        if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+        if (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)) ws[addr] = { t: 'n', v: Number(val) };
+        else ws[addr] = { t: 's', v: String(val) };
+      };
+      setCell(2, r.value);   // B
+      setCell(3, r.rank);    // C
+    });
+    const existing = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:33, c:10} };
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(existing.e.r, 33), c: Math.max(existing.e.c, 10) } });
+  }
+
+  /* Volleyball team-stats writer — VB template has no Team Stats sheet, so
+     append one. Two columns of values per stat row: Stat | Value | Rank,
+     with a header row on top. Operator can wire this sheet into Xpression
+     however they want. */
+  function writeVbTeamStatsRows(wb, teamRows, _side) {
+    const aoa = [['Stat', 'Value', 'Rank']];
+    teamRows.forEach(r => aoa.push([r.label, r.value, r.rank]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 22 }];
+    if (!wb.Sheets['Team Stats']) {
+      XLSX.utils.book_append_sheet(wb, ws, 'Team Stats');
+    } else {
+      wb.Sheets['Team Stats'] = ws;
     }
   }
 

@@ -1,2 +1,3 @@
-# Send root to the Hub landing page
-/   /hub.html   302
+# Send root and any /index.html bookmarks to the canonical Hub page.
+/             /hub.html   302
+/index.html   /hub.html   301

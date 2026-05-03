@@ -290,7 +290,13 @@
      player is wired in Phase 2; team will land in Phase 3. */
   const STATS_CONFIG = {
     Football: {
-      team: null,                              // Phase 3
+      team: {
+        template:   'templates/master-schedule/football.xlsx',
+        sheetName:  'Team Stats',
+        // Source: conferenceusa.com — server-rendered with a real browser UA
+        // (the Netlify proxy sends one). Default = Overall; ?conf=true for in-conf only.
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=football&year=${year}` + (scope === 'conference' ? '&conf=true' : '')
+      },
       player: {
         template:   'templates/master-schedule/football.xlsx',  // shared FB_HOME_TEAM source
         sheetName:  'Player Stats',
@@ -427,23 +433,340 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
-  /* ── Player Stats state ─────────────────────────────────────────────── */
+  /* ── Stats state ────────────────────────────────────────────────────── */
   let _playerRows = [];          // [{ jersey, name, category, numStats, stat1..5 }]
   let _playerSchool = '';        // for the download filename
+  let _teamRows = [];            // [{ row, label, value, rank }]
+  let _teamSchool = '';
+  let _teamYear = '';
 
-  /* ── Team Stats stub — Phase 3 fills these in ── */
+  /* CUSA team identity map — display-name aliases used in the conferenceusa.com
+     stats tables. Lets the team stats lookup find rows for "MTSU" when the
+     user picked "Middle Tennessee" from the dropdown, etc. */
+  const SCHOOL_TO_CUSA_DISPLAY = {
+    'Delaware':           ['Delaware'],
+    'FIU':                ['FIU', 'Florida International'],
+    'Jacksonville State': ['Jax State', 'Jacksonville State'],
+    'Kennesaw State':     ['Kennesaw State'],
+    'Liberty':            ['Liberty'],
+    'Middle Tennessee':   ['MTSU', 'Middle Tennessee'],
+    'Missouri State':     ['Missouri State'],
+    'New Mexico State':   ['NM State', 'New Mexico State'],
+    'Sam Houston':        ['Sam Houston', 'Sam Houston State'],
+    'Western Kentucky':   ['WKU', 'Western Kentucky']
+  };
+  function cusaDisplayNamesFor(school) { return SCHOOL_TO_CUSA_DISPLAY[school] || [school]; }
+
+  /* Football Team Stats master mapping (Spec §4) — 33 rows, B (value) + C (rank).
+     Some rows aren't published on the conf page (turnovers, quarter scoring,
+     RZ Def TD %); they ship blank by design and the operator types them in. */
+  const FB_TEAM_STATS_MAP = [
+    { row: 2,  label: 'PPG',                  caption: 'Scoring Offense',           col: 'AVG/G',  fmt: 'dec1',  rank: 'desc' },
+    { row: 3,  label: 'YPG',                  caption: 'Total Offense',             col: 'AVG/G',  fmt: 'dec1',  rank: 'desc' },
+    { row: 4,  label: 'Rush YPG',             caption: 'Rushing Offense',           col: 'YDS/G',  fmt: 'dec1',  rank: 'desc' },
+    { row: 5,  label: 'Pass YPG',             caption: 'Passing Offense',           col: 'AVG/G',  fmt: 'dec1',  rank: 'desc' },
+    { row: 6,  label: 'RZ scoring %',         caption: 'Red Zone Offense',          col: '%',      fmt: 'pct',   rank: 'desc' },
+    { row: 7,  label: 'RZ Drives',            caption: 'Red Zone Offense',          col: 'ATT',    fmt: 'splitR',rank: 'desc' },
+    { row: 8,  label: 'RZ FG',                caption: 'Red Zone Offense',          col: 'FG-AT',  fmt: 'splitL',rank: 'desc' },
+    { row: 9,  label: 'RZ TD',                caption: 'Red Zone Offense',          col: 'TDS',    fmt: 'int',   rank: 'desc' },
+    { row: 10, label: 'Sacks allowed',        caption: 'Sacks Against',             col: 'NO',     fmt: 'int',   rank: 'asc'  },
+    { row: 11, label: 'Time of Possession',   caption: 'Time of Possession',        col: 'AVG/G',  fmt: 'top',   rank: 'desc' },
+    { row: 12, label: '3rd Down Conv',        caption: '3rd Down Conversions',      col: 'PCT',    fmt: 'pctParen3rd', rank: 'desc' },
+    { row: 13, label: '4th Down Conv',        caption: '4th Down Conversions',      col: 'CONV',   fmt: 'convOf4th',   rank: 'desc' },
+    { row: 14, label: 'Turnovers',            caption: null,                        col: null,     fmt: 'blank', rank: null   },
+    { row: 15, label: 'Penalty YPG',          caption: 'Penalties',                 col: 'AVG/G',  fmt: 'dec1',  rank: 'asc'  },
+    { row: 16, label: '1st Qtr Points',       caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 17, label: '2nd Qtr Points',       caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 18, label: '3rd Qtr Points',       caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 19, label: '4th Qtr Points',       caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 20, label: 'Opp 1st Qtr Points',   caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 21, label: 'Opp 2nd Qtr Points',   caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 22, label: 'Opp 3rd Qtr Points',   caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 23, label: 'Opp 4th Qtr Points',   caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 24, label: 'Points Allowed PG',    caption: 'Scoring Defense',           col: 'AVG/G',  fmt: 'dec1',  rank: 'asc'  },
+    { row: 25, label: 'Opp YPG',              caption: 'Total Defense',             col: 'AVG/G',  fmt: 'dec1',  rank: 'asc'  },
+    { row: 26, label: 'Opp Rush YPG',         caption: 'Rushing Defense',           col: 'YDS/G',  fmt: 'dec1',  rank: 'asc'  },
+    { row: 27, label: 'Opp Pass YPG',         caption: 'Passing Defense',           col: 'AVG/G',  fmt: 'dec1',  rank: 'asc'  },
+    { row: 28, label: 'RZ Def TD % Allowed',  caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 29, label: '3rd Down Defense',     caption: 'Opponent 3rd Down Conversions', col: 'PCT', fmt: 'pctParen3rd', rank: 'asc' },
+    { row: 30, label: '4th Down Defense',     caption: 'Opponent 4th Down Conversions', col: 'CONV', fmt: 'convOf4th',  rank: 'asc' },
+    { row: 31, label: 'Team sacks',           caption: 'Sacks By',                  col: 'NO',     fmt: 'int',   rank: 'desc' },
+    { row: 32, label: 'Turnover margin',      caption: null, col: null, fmt: 'blank', rank: null },
+    { row: 33, label: 'Team Interceptions',   caption: 'Interceptions',             col: 'NO',     fmt: 'int',   rank: 'desc' },
+    { row: 34, label: 'Team Takeaways',       caption: 'TAKEAWAYS_DERIVED',         col: null,     fmt: 'int',   rank: 'desc' }
+  ];
+
+  /* ── Team Stats — entry points ─────────────────────────────────────── */
   async function loadTeamStats() {
-    if (!STATS_CONFIG[_sport]?.team) {
-      setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err');
-    }
+    const cfg = STATS_CONFIG[_sport]?.team;
+    if (!cfg) { setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err'); return; }
+    const school = document.getElementById('teamSchoolSel').value;
+    const year   = document.getElementById('teamYearInput').value;
+    if (!school) { setTeamStatus('Pick a school first.', 'err'); return; }
+    if (!year)   { setTeamStatus('Enter a year first.', 'err'); return; }
+    await scrapeAndRenderTeamStats(cfg, cfg.defaultUrl(year, _teamScope), school, year);
   }
   async function pullTeamStatsFromURL() {
-    if (!STATS_CONFIG[_sport]?.team) {
-      setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err');
+    const cfg = STATS_CONFIG[_sport]?.team;
+    if (!cfg) { setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err'); return; }
+    const url = (document.getElementById('teamUrl').value || '').trim();
+    if (!url) { setTeamStatus('Paste a stats URL first.', 'err'); return; }
+    if (!/^https?:\/\//i.test(url)) { setTeamStatus('URL must start with http:// or https://.', 'err'); return; }
+    const school = document.getElementById('teamSchoolSel').value || 'School';
+    const year   = document.getElementById('teamYearInput').value || new Date().getFullYear();
+    await scrapeAndRenderTeamStats(cfg, url, school, year);
+  }
+
+  async function scrapeAndRenderTeamStats(cfg, url, school, year) {
+    document.getElementById('teamLoadBtn').disabled = true;
+    document.getElementById('teamPullBtn').disabled = true;
+    startParseStatus('team', `Fetching ${url}…`);
+    try {
+      const html = await fetchTextViaCorsProxies(url, 'team');
+      updateParseStatus('team', 'Parsing stat tables…');
+      const tablesByCaption = parseConferenceStatsHtml(html);
+      const captionCount = Object.keys(tablesByCaption).length;
+      if (captionCount < 5) {
+        throw new Error(`Only ${captionCount} stat tables found. The proxy may have returned the SPA shell instead of the rendered page — try again or use Pull from URL.`);
+      }
+      _teamRows = buildTeamStatsRows(tablesByCaption, school);
+      _teamSchool = school;
+      _teamYear   = year;
+      renderTeamStatsTable();
+      document.getElementById('teamDownloadBtn').disabled = false;
+      const populated = _teamRows.filter(r => r.value !== '').length;
+      setTeamStatus(`Loaded ${populated} of ${_teamRows.length} stats for ${school} (${captionCount} CUSA tables, ${year}).`, 'ok');
+    } catch (err) {
+      console.error(err);
+      document.getElementById('teamContent').innerHTML = `<div class="empty" style="text-align:left"><h3 style="text-align:center">Failed to load team stats</h3><pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;color:#666;line-height:1.5;margin:0">${escapeHtml(err.message || String(err))}</pre></div>`;
+      document.getElementById('teamDownloadBtn').disabled = true;
+      setTeamStatus('Load failed', 'err');
+    } finally {
+      document.getElementById('teamLoadBtn').disabled = false;
+      document.getElementById('teamPullBtn').disabled = false;
+      endParseStatus('team');
     }
   }
+
+  /* ── ConferenceUSA HTML stats parser ──────────────────────────────────
+     Each stat table has a <caption> with the category name (e.g.
+     "Scoring Offense"). Walk the doc, pair each caption with its table,
+     and return { caption: { headers, rows[] } } where each row is keyed
+     by header name. */
+  function parseConferenceStatsHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const out = {};
+    for (const table of doc.querySelectorAll('table')) {
+      const cap = table.querySelector('caption');
+      if (!cap) continue;
+      const captionText = normalizeText(cap.textContent);
+      if (!captionText || out[captionText]) continue;
+      // Header row may be in <thead> or first <tr>.
+      const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+      if (!headerRow) continue;
+      const headers = Array.from(headerRow.querySelectorAll('th, td')).map(c => normalizeText(c.textContent));
+      const dataRows = [];
+      const bodyRows = table.querySelector('tbody')
+        ? Array.from(table.querySelector('tbody').querySelectorAll('tr'))
+        : Array.from(table.querySelectorAll('tr')).slice(1);
+      for (const tr of bodyRows) {
+        const cells = Array.from(tr.querySelectorAll('th, td')).map(c => normalizeText(c.textContent));
+        if (!cells.length || cells.every(c => !c)) continue;
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = cells[i] || ''; });
+        if (!obj['Team']) continue;     // skip header repeats / aggregates
+        dataRows.push(obj);
+      }
+      out[captionText] = { headers, rows: dataRows };
+    }
+    return out;
+  }
+
+  /* ── Build the 33-row Team Stats payload for the selected school ────── */
+  function buildTeamStatsRows(tablesByCaption, school) {
+    const aliases = cusaDisplayNamesFor(school).map(s => s.toLowerCase());
+    const findTeamRow = (caption) => {
+      const tbl = tablesByCaption[caption];
+      if (!tbl) return null;
+      return tbl.rows.find(r => aliases.includes(String(r['Team']).trim().toLowerCase())) || null;
+    };
+
+    return FB_TEAM_STATS_MAP.map(spec => {
+      if (!spec.caption) return { row: spec.row, label: spec.label, value: '', rank: '' };
+
+      // Special: Team Takeaways = Interceptions.NO + Fumbles Recovered.NO
+      if (spec.caption === 'TAKEAWAYS_DERIVED') {
+        const intRow = findTeamRow('Interceptions');
+        const fumRow = findTeamRow('Fumbles Recovered');
+        const intN = parseFloat(intRow?.['NO'] || 0);
+        const fumN = parseFloat(fumRow?.['NO'] || 0);
+        if (!intRow && !fumRow) return { row: spec.row, label: spec.label, value: '', rank: '' };
+        const value = String((Number.isFinite(intN)?intN:0) + (Number.isFinite(fumN)?fumN:0));
+        // Rank derived per team across both tables.
+        const intTbl = tablesByCaption['Interceptions']?.rows || [];
+        const fumTbl = tablesByCaption['Fumbles Recovered']?.rows || [];
+        const totals = new Map();
+        intTbl.forEach(r => totals.set(r['Team'], (totals.get(r['Team']) || 0) + (parseFloat(r['NO'])||0)));
+        fumTbl.forEach(r => totals.set(r['Team'], (totals.get(r['Team']) || 0) + (parseFloat(r['NO'])||0)));
+        const teamPairs = Array.from(totals.entries()).map(([t, v]) => ({ team: t, num: v }));
+        const rank = computeRank(teamPairs, aliases, 'desc');
+        return { row: spec.row, label: spec.label, value, rank };
+      }
+
+      const teamRow = findTeamRow(spec.caption);
+      if (!teamRow) return { row: spec.row, label: spec.label, value: '', rank: '' };
+
+      // Format the value for column B per the spec.
+      const value = formatTeamValue(spec, teamRow, tablesByCaption[spec.caption]);
+
+      // Compute the rank string for column C.
+      const numericPairs = (tablesByCaption[spec.caption].rows || [])
+        .map(r => ({ team: r['Team'], num: rankableValueFor(spec, r) }))
+        .filter(p => Number.isFinite(p.num));
+      const rank = computeRank(numericPairs, aliases, spec.rank);
+      return { row: spec.row, label: spec.label, value, rank };
+    });
+  }
+
+  function formatTeamValue(spec, r, table) {
+    const raw = r[spec.col];
+    switch (spec.fmt) {
+      case 'dec1':   { const n = parseFloat(raw); return Number.isFinite(n) ? n.toFixed(1) : ''; }
+      case 'int':    { const n = parseInt(raw, 10); return Number.isFinite(n) ? String(n) : ''; }
+      case 'pct':    { const n = parseFloat(raw); return Number.isFinite(n) ? `${n.toFixed(1)}%` : ''; }
+      case 'top':    return String(raw || '').trim();
+      case 'splitL': { const m = String(raw||'').split('-'); return m[0]||''; }
+      case 'splitR': { const m = String(raw||'').split('-'); return m[1]||''; }
+      case 'pctParen3rd': {
+        // "45.9% (84-183)"
+        const pct = parseFloat(r['PCT']); const conv = r['CONV']; const att = r['ATT'];
+        if (!Number.isFinite(pct)) return '';
+        return `${pct.toFixed(1)}% (${conv}-${att})`;
+      }
+      case 'convOf4th': {
+        // "5 of 15"
+        const conv = r['CONV']; const att = r['ATT'];
+        return `${conv} of ${att}`;
+      }
+      default: return '';
+    }
+  }
+
+  function rankableValueFor(spec, r) {
+    switch (spec.fmt) {
+      case 'top': {
+        // "31:20" → seconds for ranking purposes
+        const m = String(r[spec.col]||'').split(':');
+        if (m.length !== 2) return NaN;
+        return (parseInt(m[0],10)||0) * 60 + (parseInt(m[1],10)||0);
+      }
+      case 'splitL': { const m = String(r[spec.col]||'').split('-'); return parseFloat(m[0]); }
+      case 'splitR': { const m = String(r[spec.col]||'').split('-'); return parseFloat(m[1]); }
+      case 'pctParen3rd': return parseFloat(r['PCT']);
+      case 'convOf4th':   return parseFloat(r['CONV']);
+      default: return parseFloat(r[spec.col]);
+    }
+  }
+
+  /* ── Standard competition ranking (1224) with T- prefix when tied ── */
+  function computeRank(pairs, schoolAliases, direction) {
+    if (!pairs.length) return '';
+    const sorted = pairs.slice().sort((a, b) => direction === 'asc' ? a.num - b.num : b.num - a.num);
+    let lastVal = null, lastRank = 0;
+    const ranks = sorted.map((p, i) => {
+      if (lastVal === null || p.num !== lastVal) { lastRank = i + 1; lastVal = p.num; }
+      return { team: p.team, num: p.num, rank: lastRank };
+    });
+    const me = ranks.find(r => schoolAliases.includes(String(r.team).trim().toLowerCase()));
+    if (!me) return '';
+    const tied = ranks.filter(r => r.rank === me.rank).length > 1;
+    return `${tied ? 'T-' : ''}${ordinal(me.rank)} in CUSA`;
+  }
+  function ordinal(n) {
+    const s = ['th','st','nd','rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  /* ── Editable preview table ────────────────────────────────────────── */
+  function renderTeamStatsTable() {
+    const c = document.getElementById('teamContent');
+    const rowsHtml = _teamRows.map((r, idx) => `
+      <tr data-idx="${idx}">
+        <td style="text-align:center;font-weight:700;color:#888">${r.row}</td>
+        <td>${escapeHtml(r.label)}</td>
+        <td><input type="text" data-key="value" value="${escapeHtml(r.value)}"></td>
+        <td><input type="text" data-key="rank"  value="${escapeHtml(r.rank)}" style="font-style:${r.rank ? 'normal' : 'italic'}"></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:50px">Row</th>
+              <th style="min-width:200px">Stat</th>
+              <th style="min-width:200px">Value (Col B)</th>
+              <th style="min-width:200px">Rank (Col C)</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 0;font-size:11px;color:#666">
+        ${_teamRows.length} stat rows · edit any cell before download · blanks (turnovers, qtr scoring, RZ Def TD %) are operator-typed per spec.
+      </div>
+    `;
+    c.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.closest('tr').dataset.idx;
+        if (_teamRows[idx]) _teamRows[idx][inp.dataset.key] = inp.value;
+      });
+    });
+  }
+
+  /* ── Download — write into FB_HOME_TEAM Team Stats sheet ──────────────
+     Per spec §4: write only B (value) and C (rank) for rows 2-34. Leave
+     E-K alone (formulas + literal "PPG"/"YPG" strings). Preserve every
+     other sheet. */
   async function downloadTeamStats() {
-    if (!STATS_CONFIG[_sport]?.team) return;
+    const cfg = STATS_CONFIG[_sport]?.team;
+    if (!cfg || !_teamRows.length) return;
+    const btn = document.getElementById('teamDownloadBtn');
+    btn.disabled = true; btn.textContent = '⏳ Building…';
+    try {
+      const tplRes = await fetch(cfg.template, { cache: 'no-store' });
+      if (!tplRes.ok) throw new Error(`Template not found at ${cfg.template}`);
+      const wb = XLSX.read(await tplRes.arrayBuffer(), { type: 'array', cellStyles: true, cellFormula: true });
+      const ws = wb.Sheets[cfg.sheetName];
+      if (!ws) throw new Error(`Template missing "${cfg.sheetName}" sheet`);
+
+      _teamRows.forEach(r => {
+        const setCell = (c1, val) => {
+          const addr = XLSX.utils.encode_cell({ r: r.row - 1, c: c1 - 1 });
+          if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+          // TOP must stay text (Excel would otherwise convert "31:20" to time).
+          if (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)) ws[addr] = { t: 'n', v: Number(val) };
+          else ws[addr] = { t: 's', v: String(val) };
+        };
+        setCell(2, r.value);  // B
+        setCell(3, r.rank);   // C
+      });
+
+      // Extend !ref so any newly-written cells past the stored range get saved.
+      const existing = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:33, c:10} };
+      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(existing.e.r, 33), c: Math.max(existing.e.c, 10) } });
+
+      const today = new Date().toISOString().split('T')[0];
+      const safe  = (_teamSchool || 'School').replace(/[^A-Za-z0-9]+/g, '_');
+      const filename = `${safe}_FB_HOME_TEAM_TeamStats_${today}.xlsx`;
+      XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
+      setTeamStatus(`✓ Downloaded ${filename}`, 'ok');
+    } catch (err) {
+      console.error(err);
+      alert('Download failed: ' + (err.message || err));
+      setTeamStatus('Download failed', 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇ Download Excel';
+    }
   }
 
   /* ── Player Stats — entry points ────────────────────────────────────── */

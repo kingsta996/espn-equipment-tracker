@@ -399,17 +399,34 @@
   // sheet at build time and shipped as JSON in templates/master-schedule/logos/.
   // Cached on first fetch so subsequent sport switches are instant.
   const _opponentLogoCache = {};
+  // Sport-agnostic alias map built from the ESPN College Sports Abbreviation
+  // Grid (Official Name → canonical LOGOS-sheet name). Loaded once.
+  let _opponentAliases = null;
+  async function loadOpponentAliases() {
+    if (_opponentAliases) return _opponentAliases;
+    try {
+      const res = await fetch('templates/master-schedule/logos/aliases.json', { cache: 'force-cache' });
+      _opponentAliases = res.ok ? await res.json() : {};
+    } catch (e) {
+      console.warn('alias fetch failed:', e);
+      _opponentAliases = {};
+    }
+    return _opponentAliases;
+  }
   async function loadOpponentLogos(setName) {
     if (!setName) return [];
-    if (_opponentLogoCache[setName]) return _opponentLogoCache[setName];
+    // Fire alias load in parallel with the per-sport list (single network round-trip).
+    const aliasP = loadOpponentAliases();
+    if (_opponentLogoCache[setName]) { await aliasP; return _opponentLogoCache[setName]; }
     try {
       const res = await fetch(`templates/master-schedule/logos/${setName}.json`, { cache: 'force-cache' });
-      if (!res.ok) { _opponentLogoCache[setName] = []; return []; }
+      if (!res.ok) { _opponentLogoCache[setName] = []; await aliasP; return []; }
       _opponentLogoCache[setName] = await res.json();
     } catch (e) {
       console.warn('opponent-logo fetch failed for', setName, e);
       _opponentLogoCache[setName] = [];
     }
+    await aliasP;
     return _opponentLogoCache[setName];
   }
 
@@ -508,9 +525,10 @@
   }
 
   /* ── Opponent → Logo resolver ──
-     Tries to map a display name like "Florida State" to the canonical
-     LOGOS-sheet name ("FLORIDA_ST"). Returns '' when no confident match
-     exists so the user picks manually from the datalist. */
+     Resolution order:
+       1. ESPN abbreviation guide (aliases.json) — Official Name + tri-code lookup
+       2. Cascading normalization (literal, STATE→ST, drop STATE, &→AND, …)
+     Returns '' when no confident match exists so the user picks manually. */
   function resolveOpponentLogo(opponentRaw, logos) {
     if (!opponentRaw || !logos || !logos.length) return '';
     let s = String(opponentRaw).trim();
@@ -520,12 +538,20 @@
     s = s.replace(/\s+/g, ' ').trim();
     if (!s || /^idle$/i.test(s) || /^bye$/i.test(s)) return '';
 
+    // Step 1 — ESPN guide alias hit (case-insensitive on the official name).
+    if (_opponentAliases) {
+      const aliasHit = _opponentAliases[s.toLowerCase()];
+      if (aliasHit && logos.includes(aliasHit)) return aliasHit;
+    }
+
+    // Step 2 — normalization cascade. Hyphens become underscores so
+    // "Bethune-Cookman" → BETHUNE_COOKMAN matches the LOGOS sheet.
     const norm = v => String(v).toUpperCase()
       .replace(/[.''']/g, '')
+      .replace(/-/g, '_')
       .replace(/\s+/g, '_')
       .replace(/[^A-Z0-9_+\-]/g, '');
 
-    // Cascading candidates — first hit wins.
     const candidates = [
       norm(s),
       norm(s.replace(/\bSTATE\b/gi, 'ST')),       // "Florida State" → FLORIDA_ST

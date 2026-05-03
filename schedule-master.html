@@ -224,32 +224,35 @@
     'Sam Houston':         'SHSU',
     'Western Kentucky':    'WKU'
   };
-  const SPORTS = ['Football', 'Volleyball', 'Soccer', "Men's Basketball", "Women's Basketball"];
+  const SPORTS = ['Football', 'Volleyball', 'Soccer', "Men's Basketball", "Women's Basketball", 'Baseball', 'Softball'];
 
   // Curated network logo dropdown — names match the LOGOS sheet so the
-  // template's `=$I$2&F3&".png"` formula resolves to the right file.
-  const NETWORK_LOGOS = [
-    'BLANK_LOGO',
-    'ABC',
-    'CBS_SPORTS',
-    'CBSNETWORK',
-    'CBS_SPORTS_NK',
-    'ESPN',
-    'ESPN+',
-    'ESPN2',
-    'ESPN3',
-    'ESPNU',
-    'FOX_SPORTS',
-    'FOX_SPORTS1',
-    'NBC',
-    'NBC_SPORTS',
-    'TBS',
-    'TNT',
-    'ACC_NETWORK',
-    'BIG_12',
-    'BIG_TEN',
-    'SEC_NETWORK'
-  ];
+  // template's `=$I$2&F3&".png"` formula resolves to the right file. The
+  // diamond template uses _BLACK variants so each sport gets its own list
+  // via SPORT_CONFIG.networkLogoSet.
+  const NETWORK_LOGO_SETS = {
+    standard: [
+      'BLANK_LOGO',
+      'ABC',
+      'CBS_SPORTS', 'CBSNETWORK', 'CBS_SPORTS_NK',
+      'ESPN', 'ESPN+', 'ESPN2', 'ESPN3', 'ESPNU',
+      'FOX_SPORTS', 'FOX_SPORTS1',
+      'NBC', 'NBC_SPORTS',
+      'TBS', 'TNT',
+      'ACC_NETWORK', 'BIG_12', 'BIG_TEN', 'SEC_NETWORK'
+    ],
+    diamond: [
+      'BLANK_LOGO',
+      'ABC_BLACK',
+      'ESPN_BLACK', 'ESPN+_BLACK', 'ESPN2_BLACK', 'ESPN3_BLACK', 'ESPNU_BLACK', 'ESPNEWS_BLACK',
+      'SEC_NETWORK_BLACK', 'SEC_NETWORK+_BLACK',
+      'ACC_NETWORK_BLACK', 'ACC_NETWORK_EXTRA_BLACK',
+      'BIGTEN_ESPN_BLACK', 'BIGTEN_ABC_BLACK',
+      'FOX_NETWORK_BLACK'
+    ]
+  };
+  // Backwards-compat alias for the existing renderTable code.
+  const NETWORK_LOGOS = NETWORK_LOGO_SETS.standard;
 
   /* ── CORS proxy chain (mirrors roster.html). School athletics sites
      often block one or two proxies but rarely all three. ── */
@@ -345,6 +348,44 @@
       supportsCurrentWeek: false,
       supportsOpponentLogo: true,
       datePlaceholder: 'Nov. 17'
+    },
+    Baseball: {
+      sheetSport: 'Baseball',
+      sourceTab:  'Master Schedule',
+      template:   'templates/master-schedule/diamond.xlsx',
+      sheetName:  'Upcoming Schedule',
+      dataStartRow: 5,
+      dataEndRow:   16,
+      currentWeekCell: null,
+      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6, opponentLogo: 7 },
+      dateStyle: 'diamond',              // "MAY 13" — uppercase, no period
+      weekColumnLabel: '#',
+      supportsBye: false,
+      supportsCurrentWeek: false,
+      supportsOpponentLogo: true,
+      uppercaseOpponent: true,           // template note: "FILL IN WITH CAPS"
+      networkLogoSet: 'diamond',         // _BLACK variants
+      datePlaceholder: 'MAY 13',
+      defaultNetworkLogo: 'BLANK_LOGO'
+    },
+    Softball: {
+      sheetSport: 'Softball',
+      sourceTab:  'Master Schedule',
+      template:   'templates/master-schedule/diamond.xlsx',
+      sheetName:  'Upcoming Schedule',
+      dataStartRow: 5,
+      dataEndRow:   16,
+      currentWeekCell: null,
+      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6, opponentLogo: 7 },
+      dateStyle: 'diamond',
+      weekColumnLabel: '#',
+      supportsBye: false,
+      supportsCurrentWeek: false,
+      supportsOpponentLogo: true,
+      uppercaseOpponent: true,
+      networkLogoSet: 'diamond',
+      datePlaceholder: 'MAY 13',
+      defaultNetworkLogo: 'BLANK_LOGO'
     }
   };
 
@@ -418,6 +459,15 @@
     'Sep': 'Sept.', 'Sept': 'Sept.',
     'Oct': 'Oct.', 'Nov': 'Nov.', 'Dec': 'Dec.'
   };
+  // Diamond Sports use uppercase 3-letter month + day (no period). Series
+  // ranges like "MAY 13-15" still need to be entered manually after the
+  // load — the source sheet has one row per game.
+  const DIAMOND_MONTH_MAP = {
+    'Jan': 'JAN', 'Feb': 'FEB', 'Mar': 'MAR', 'Apr': 'APR', 'May': 'MAY',
+    'Jun': 'JUN', 'Jul': 'JUL', 'Aug': 'AUG',
+    'Sep': 'SEP', 'Sept': 'SEP',
+    'Oct': 'OCT', 'Nov': 'NOV', 'Dec': 'DEC'
+  };
   function normalizeDate(raw, style) {
     if (!raw) return '';
     const s = String(raw).trim();
@@ -426,7 +476,9 @@
     const monthIn = m[1].slice(0, 4).replace(/^(\w)/, c => c.toUpperCase()).toLowerCase().replace(/^(\w)/, c => c.toUpperCase());
     const key3 = monthIn.slice(0, 3);
     const key4 = monthIn.slice(0, 4);
-    const map = style === 'volleyball' ? VOLLEYBALL_MONTH_MAP : FOOTBALL_MONTH_MAP;
+    const map = style === 'diamond'    ? DIAMOND_MONTH_MAP
+              : style === 'volleyball' ? VOLLEYBALL_MONTH_MAP
+              :                          FOOTBALL_MONTH_MAP;
     const out = map[key4] || map[key3];
     if (!out) return s;
     return `${out} ${parseInt(m[2], 10)}`;
@@ -740,13 +792,14 @@
       c.innerHTML = `<div class="empty"><h3>No games on this schedule yet.</h3><p>Click <strong>+ Add Game</strong> below to add one manually.</p></div>`;
       return;
     }
-    const networkOptions = NETWORK_LOGOS.map(n => `<option value="${n}">${n}</option>`).join('');
+    const networkOptions = logoSet.map(n => `<option value="${n}">${n}</option>`).join('');
 
     const cfg = _config || {};
     const weekLabel = cfg.weekColumnLabel || 'Week';
     const datePh    = cfg.datePlaceholder || 'Sept 6';
     const maxRows   = (cfg.dataEndRow || 0) - (cfg.dataStartRow || 0) + 1;
     const showOppLogo = !!cfg.supportsOpponentLogo;
+    const logoSet     = NETWORK_LOGO_SETS[cfg.networkLogoSet] || NETWORK_LOGO_SETS.standard;
 
     const head = `
       <tr>
@@ -777,7 +830,7 @@
         <td>
           <select data-key="networkLogo" ${row.isBye ? 'disabled' : ''}>
             ${networkOptions.replace(`value="${row.networkLogo}"`, `value="${row.networkLogo}" selected`)}
-            ${NETWORK_LOGOS.includes(row.networkLogo) ? '' : `<option value="${escapeHtml(row.networkLogo)}" selected>${escapeHtml(row.networkLogo)} (custom)</option>`}
+            ${logoSet.includes(row.networkLogo) ? '' : `<option value="${escapeHtml(row.networkLogo)}" selected>${escapeHtml(row.networkLogo)} (custom)</option>`}
           </select>
         </td>
         ${showOppLogo ? `<td><input type="text" data-key="opponentLogo" value="${escapeHtml(row.opponentLogo || '')}" placeholder="${row.isBye ? '' : 'GEORGIA'}" ${row.isBye ? 'disabled' : ''} style="text-transform:uppercase"></td>` : ''}
@@ -898,9 +951,10 @@
             ws[addr] = { t: 's', v: String(value) };
           }
         };
+        const opp = combinedOpponent(row);
         setCell(cols.week,        parseInt(row.week, 10) || (i + 1), 'n');
         setCell(cols.at,          row.at);
-        setCell(cols.opponent,    combinedOpponent(row));
+        setCell(cols.opponent,    _config.uppercaseOpponent ? opp.toUpperCase() : opp);
         setCell(cols.date,        row.date);
         setCell(cols.time,        row.time);
         setCell(cols.networkLogo, row.networkLogo);

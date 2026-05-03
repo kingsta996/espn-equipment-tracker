@@ -313,6 +313,7 @@
       supportsBye: false,
       supportsCurrentWeek: false,
       supportsOpponentLogo: true,
+      opponentLogoSet: 'soccer',
       datePlaceholder: 'Sept. 5'
     },
     "Men's Basketball": {
@@ -330,6 +331,7 @@
       supportsBye: false,
       supportsCurrentWeek: false,
       supportsOpponentLogo: true,
+      opponentLogoSet: 'basketball',
       datePlaceholder: 'Nov. 17'
     },
     "Women's Basketball": {
@@ -347,6 +349,7 @@
       supportsBye: false,
       supportsCurrentWeek: false,
       supportsOpponentLogo: true,
+      opponentLogoSet: 'basketball',
       datePlaceholder: 'Nov. 17'
     },
     Baseball: {
@@ -365,6 +368,7 @@
       supportsOpponentLogo: true,
       uppercaseOpponent: true,           // template note: "FILL IN WITH CAPS"
       networkLogoSet: 'diamond',         // _BLACK variants
+      opponentLogoSet: 'diamond',
       datePlaceholder: 'MAY 13',
       defaultNetworkLogo: 'BLANK_LOGO'
     },
@@ -384,12 +388,31 @@
       supportsOpponentLogo: true,
       uppercaseOpponent: true,
       networkLogoSet: 'diamond',
+      opponentLogoSet: 'diamond',
       datePlaceholder: 'MAY 13',
       defaultNetworkLogo: 'BLANK_LOGO'
     }
   };
 
   /* ── State ── */
+  // Per-sport opponent-logo lists are extracted from each template's LOGOS
+  // sheet at build time and shipped as JSON in templates/master-schedule/logos/.
+  // Cached on first fetch so subsequent sport switches are instant.
+  const _opponentLogoCache = {};
+  async function loadOpponentLogos(setName) {
+    if (!setName) return [];
+    if (_opponentLogoCache[setName]) return _opponentLogoCache[setName];
+    try {
+      const res = await fetch(`templates/master-schedule/logos/${setName}.json`, { cache: 'force-cache' });
+      if (!res.ok) { _opponentLogoCache[setName] = []; return []; }
+      _opponentLogoCache[setName] = await res.json();
+    } catch (e) {
+      console.warn('opponent-logo fetch failed for', setName, e);
+      _opponentLogoCache[setName] = [];
+    }
+    return _opponentLogoCache[setName];
+  }
+
   let _rows = [];           // array of { week, at, rank, opponent, date, time, networkLogo, isBye }
   let _currentSchool = '';
   let _currentSport  = '';
@@ -581,6 +604,10 @@
       _config = cfg;
       _currentSchool = school;
       _currentSport  = sport;
+      if (cfg.opponentLogoSet) {
+        updateParseStatus('Loading opponent logo list…');
+        await loadOpponentLogos(cfg.opponentLogoSet);
+      }
       renderTable();
       renderUpcomingPreview();
       document.getElementById('metaBar').style.display = cfg.supportsCurrentWeek ? '' : 'none';
@@ -645,6 +672,10 @@
       _config = cfg;
       _currentSchool = school;
       _currentSport  = sport;
+      if (cfg.opponentLogoSet) {
+        updateParseStatus('Loading opponent logo list…');
+        await loadOpponentLogos(cfg.opponentLogoSet);
+      }
       renderTable();
       renderUpcomingPreview();
       document.getElementById('metaBar').style.display = cfg.supportsCurrentWeek ? '' : 'none';
@@ -799,6 +830,15 @@
     const showOppLogo = !!cfg.supportsOpponentLogo;
     const logoSet     = NETWORK_LOGO_SETS[cfg.networkLogoSet] || NETWORK_LOGO_SETS.standard;
     const networkOptions = logoSet.map(n => `<option value="${n}">${n}</option>`).join('');
+    // Opponent-logo datalist — canonical names from this sport's LOGOS sheet,
+    // loaded async by loadOpponentLogos() before renderTable runs.
+    const oppLogos = (showOppLogo && cfg.opponentLogoSet)
+      ? (_opponentLogoCache[cfg.opponentLogoSet] || [])
+      : [];
+    const oppLogoListId = 'opLogoList';
+    const oppDatalist   = oppLogos.length
+      ? `<datalist id="${oppLogoListId}">${oppLogos.map(n => `<option value="${n}"></option>`).join('')}</datalist>`
+      : '';
 
     const head = `
       <tr>
@@ -832,18 +872,19 @@
             ${logoSet.includes(row.networkLogo) ? '' : `<option value="${escapeHtml(row.networkLogo)}" selected>${escapeHtml(row.networkLogo)} (custom)</option>`}
           </select>
         </td>
-        ${showOppLogo ? `<td><input type="text" data-key="opponentLogo" value="${escapeHtml(row.opponentLogo || '')}" placeholder="${row.isBye ? '' : 'GEORGIA'}" ${row.isBye ? 'disabled' : ''} style="text-transform:uppercase"></td>` : ''}
+        ${showOppLogo ? `<td><input type="text" data-key="opponentLogo" value="${escapeHtml(row.opponentLogo || '')}" placeholder="${row.isBye ? '' : 'GEORGIA'}" ${row.isBye ? 'disabled' : ''} ${oppLogos.length ? `list="${oppLogoListId}"` : ''} style="text-transform:uppercase"></td>` : ''}
         <td class="col-actions"><button class="remove-btn" data-action="remove" title="Remove row">✕</button></td>
       </tr>
     `).join('');
 
     c.innerHTML = `
+      ${oppDatalist}
       <table>
         <thead>${head}</thead>
         <tbody>${body}</tbody>
       </table>
       <div class="row-actions-bar">
-        <span>${_rows.length} row${_rows.length === 1 ? '' : 's'} · edit any cell to change before download${maxRows ? ` · template fits ${maxRows} rows` : ''}</span>
+        <span>${_rows.length} row${_rows.length === 1 ? '' : 's'} · edit any cell to change before download${maxRows ? ` · template fits ${maxRows} rows` : ''}${oppLogos.length ? ` · ${oppLogos.length} opponent logos available` : ''}</span>
         ${cfg.supportsBye === false ? '' : '<button id="addBye" class="bye-btn">+ Add Bye Week</button>'}
         <button id="addRow">+ Add Game</button>
       </div>

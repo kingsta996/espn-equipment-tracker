@@ -189,6 +189,11 @@
         <button id="teamLoadBtn" class="btn-primary">📥 Load Team Stats</button>
         <button id="teamDownloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
       </div>
+      <div class="controls" style="margin-top:0">
+        <label for="teamUrl">Or pull from URL</label>
+        <input type="url" id="teamUrl" placeholder="https://conferenceusa.com/stats.aspx?path=football&year=2025  or  https://theamerican.org/stats.aspx?path=football&year=2025">
+        <button id="teamPullBtn" class="btn-primary">🌐 Pull from URL</button>
+      </div>
       <div id="teamParseStatus" class="parse-status">
         <div class="ps-label"><div class="ps-spinner"></div><span id="teamParseStatusLabel">Working…</span></div>
         <div class="ps-bar"></div>
@@ -297,6 +302,7 @@
     wireScopeToggle('playerScopeToggle', v => { _playerScope = v; });
 
     document.getElementById('teamLoadBtn').addEventListener('click', loadTeamStats);
+    document.getElementById('teamPullBtn').addEventListener('click', pullTeamStatsFromURL);
     document.getElementById('playerLoadBtn').addEventListener('click', loadPlayerStats);
     document.getElementById('playerPullBtn').addEventListener('click', pullPlayerStatsFromURL);
     document.getElementById('teamDownloadBtn').addEventListener('click', () => downloadTeamStats());
@@ -374,6 +380,17 @@
       return;
     }
     // Phase 3+ — call cfg.scrape(school, year, scope) and render preview.
+  }
+
+  async function pullTeamStatsFromURL() {
+    const cfg = STATS_CONFIG[_sport]?.team;
+    if (!cfg) {
+      setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err');
+      return;
+    }
+    // Phase 3+ — same proxy chain + table walker as the schedule URL pull.
+    // Lets users override the default conferenceusa.com URL with any other
+    // Sidearm conference stats page (theamerican.org, big12sports.com, etc.).
   }
 
   async function loadPlayerStats() {

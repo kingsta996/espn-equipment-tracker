@@ -507,6 +507,39 @@
     return `${out} ${parseInt(m[2], 10)}`;
   }
 
+  /* ── Opponent → Logo resolver ──
+     Tries to map a display name like "Florida State" to the canonical
+     LOGOS-sheet name ("FLORIDA_ST"). Returns '' when no confident match
+     exists so the user picks manually from the datalist. */
+  function resolveOpponentLogo(opponentRaw, logos) {
+    if (!opponentRaw || !logos || !logos.length) return '';
+    let s = String(opponentRaw).trim();
+    s = s.replace(/^\(?\d+\)?\s+/, '');     // leading rank: "23 ", "(23) "
+    s = s.replace(/^at\s+/i, '');           // "at Wisconsin"
+    s = s.replace(/\s*\(.*?\)\s*/g, ' ');   // strip "(2-2)" etc.
+    s = s.replace(/\s+/g, ' ').trim();
+    if (!s || /^idle$/i.test(s) || /^bye$/i.test(s)) return '';
+
+    const norm = v => String(v).toUpperCase()
+      .replace(/[.''']/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/[^A-Z0-9_+\-]/g, '');
+
+    // Cascading candidates — first hit wins.
+    const candidates = [
+      norm(s),
+      norm(s.replace(/\bSTATE\b/gi, 'ST')),       // "Florida State" → FLORIDA_ST
+      norm(s.replace(/\s+STATE\s*$/i, '')),       // drop trailing STATE
+      norm(s.replace(/\s*&\s*/g, ' AND ')),       // "Texas A&M"-style
+      norm(s.replace(/^UNIVERSITY\s+OF\s+/i, '')) // "University of …"
+    ];
+    const set = new Set(logos);
+    for (const c of candidates) {
+      if (c && set.has(c)) return c;
+    }
+    return '';
+  }
+
   /* ── Time cleanup ── strip seconds from "10:00:00 AM" → "10:00 AM".
      Source data is mixed: some rows have seconds, some don't, some use
      "1 p.m." with no minutes at all. Only the H:MM:SS pattern needs
@@ -586,17 +619,25 @@
         return ka - kb;
       });
 
+      // Load opponent logos first so we can auto-resolve the dropdown.
+      if (cfg.opponentLogoSet) {
+        updateParseStatus('Loading opponent logo list…');
+        await loadOpponentLogos(cfg.opponentLogoSet);
+      }
+      const oppLogos = _opponentLogoCache[cfg.opponentLogoSet] || [];
+
       _rows = filtered.map((r, i) => {
         const at = String(r['At'] || '').trim().toLowerCase();
+        const opponent = String(r['Opponent'] || '').trim();
         return {
           week: String(i + 1),
           at: at === 'away' ? 'at' : '',
           rank: '',                              // user-entered in the UI
-          opponent: String(r['Opponent'] || '').trim(),
+          opponent,
           date: normalizeDate(r['Date'] || '', cfg.dateStyle),
           time: normalizeTime(r['Time'] || ''),
           networkLogo: 'BLANK_LOGO',
-          opponentLogo: '',
+          opponentLogo: resolveOpponentLogo(opponent, oppLogos),
           isBye: false
         };
       });
@@ -604,10 +645,6 @@
       _config = cfg;
       _currentSchool = school;
       _currentSport  = sport;
-      if (cfg.opponentLogoSet) {
-        updateParseStatus('Loading opponent logo list…');
-        await loadOpponentLogos(cfg.opponentLogoSet);
-      }
       renderTable();
       renderUpcomingPreview();
       document.getElementById('metaBar').style.display = cfg.supportsCurrentWeek ? '' : 'none';
@@ -658,24 +695,29 @@
           ? 'No date rows found in the text feed.'
           : 'No <table> with Date/Opponent headers found on the page.');
       }
-      _rows = parsed.map((r, i) => ({
-        week: String(i + 1),
-        at: /^away$/i.test(r.at) ? 'at' : '',
-        rank: '',
-        opponent: r.opponent || '',
-        date: normalizeDate(r.date || '', cfg.dateStyle),
-        time: normalizeTime(r.time || ''),
-        networkLogo: 'BLANK_LOGO',
-        opponentLogo: '',
-        isBye: false
-      }));
-      _config = cfg;
-      _currentSchool = school;
-      _currentSport  = sport;
       if (cfg.opponentLogoSet) {
         updateParseStatus('Loading opponent logo list…');
         await loadOpponentLogos(cfg.opponentLogoSet);
       }
+      const oppLogos = _opponentLogoCache[cfg.opponentLogoSet] || [];
+
+      _rows = parsed.map((r, i) => {
+        const opponent = r.opponent || '';
+        return {
+          week: String(i + 1),
+          at: /^away$/i.test(r.at) ? 'at' : '',
+          rank: '',
+          opponent,
+          date: normalizeDate(r.date || '', cfg.dateStyle),
+          time: normalizeTime(r.time || ''),
+          networkLogo: 'BLANK_LOGO',
+          opponentLogo: resolveOpponentLogo(opponent, oppLogos),
+          isBye: false
+        };
+      });
+      _config = cfg;
+      _currentSchool = school;
+      _currentSport  = sport;
       renderTable();
       renderUpcomingPreview();
       document.getElementById('metaBar').style.display = cfg.supportsCurrentWeek ? '' : 'none';

@@ -128,6 +128,24 @@
   .tab-bar button.tab-engagement { background: #fffbeb; color: #92400e; font-weight: 700; }
   .tab-bar button.tab-engagement.active { background: #f59e0b; color: var(--white); }
 
+  /* Admin Panel — PSA URL config rows */
+  .psa-url-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .psa-url-row label {
+    flex: 0 0 160px;
+    font-size: 11px; font-weight: 700; color: var(--navy);
+    text-transform: uppercase; letter-spacing: 0.5px; margin: 0;
+  }
+  .psa-url-row input {
+    flex: 1; padding: 7px 10px; border: 1px solid #ddd; border-radius: 5px;
+    font-size: 12px; font-family: inherit;
+  }
+  .psa-url-row input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .psa-config-status { margin-top: 6px; font-size: 12px; font-weight: 600; min-height: 16px; }
+  .psa-config-status.ok  { color: #15803d; }
+  .psa-config-status.err { color: var(--red); }
+
   /* Upload tab — sections + PSA tracker table */
   .upload-section {
     background: var(--white);
@@ -1057,6 +1075,28 @@
       <p style="font-size:12px;color:#666;margin:0 0 18px">
         Manage commercial spots from the <b>Dashboard</b> tab. The Admin Panel is for sport-format uploads and reviewing activity.
       </p>
+
+      <!-- PSA File Request URLs -->
+      <div class="modal-section">
+        <h3>PSA File Request URLs</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">
+          Paste the Box <b>File Request</b> URL for each PSA category. Schools see the
+          School PSA link from the login screen's <b>Upload</b> button; admins use the
+          CUSA Produced PSA link from the <b>Upload</b> tab. Saved to Supabase — changes
+          take effect for everyone immediately.
+        </p>
+        <div class="psa-url-row">
+          <label>School PSA</label>
+          <input type="url" id="adminSchoolPsaUrl" placeholder="https://app.box.com/f/…">
+          <button class="btn btn-add" onclick="savePsaConfig('school_psa')">Save</button>
+        </div>
+        <div class="psa-url-row">
+          <label>CUSA Produced PSA</label>
+          <input type="url" id="adminCusaPsaUrl" placeholder="https://app.box.com/f/…">
+          <button class="btn btn-add" onclick="savePsaConfig('cusa_psa')">Save</button>
+        </div>
+        <div id="psaConfigStatus" class="psa-config-status"></div>
+      </div>
 
       <!-- Format uploads -->
       <div class="modal-section">
@@ -3017,9 +3057,49 @@ function openAdminModal() {
   renderUploadList();
   renderChampUploadList();
   loadActivityLog();
+  // Populate the PSA URL inputs from the cached psa_config so admins always
+  // see the current value when the panel opens.
+  const sEl = document.getElementById('adminSchoolPsaUrl');
+  const cEl = document.getElementById('adminCusaPsaUrl');
+  if (sEl) sEl.value = (state.psaConfig?.school_psa?.file_request_url || '').trim();
+  if (cEl) cEl.value = (state.psaConfig?.cusa_psa?.file_request_url || '').trim();
+  const stat = document.getElementById('psaConfigStatus');
+  if (stat) { stat.textContent = ''; stat.className = 'psa-config-status'; }
   document.getElementById('adminModal').classList.add('open');
 }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('open'); }
+
+async function savePsaConfig(category) {
+  if (!isAdmin() || !_db) return;
+  const inputId = category === 'school_psa' ? 'adminSchoolPsaUrl' : 'adminCusaPsaUrl';
+  const url = (document.getElementById(inputId)?.value || '').trim();
+  const stat = document.getElementById('psaConfigStatus');
+  if (url && !/^https?:\/\//i.test(url)) {
+    if (stat) { stat.textContent = 'URL must start with http:// or https://'; stat.className = 'psa-config-status err'; }
+    return;
+  }
+  const { error } = await _db.from('psa_config').upsert({
+    category,
+    file_request_url: url,
+    updated_at: new Date().toISOString(),
+    updated_by: 'admin'
+  }, { onConflict: 'category' });
+  if (error) {
+    if (stat) { stat.textContent = `Save failed: ${error.message}`; stat.className = 'psa-config-status err'; }
+    return;
+  }
+  // Refresh local cache so the Upload tab's button-disabled state and the
+  // school-PSA modal both pick up the new URL without a full reload.
+  state.psaConfig = state.psaConfig || {};
+  state.psaConfig[category] = { ...(state.psaConfig[category] || {}), category, file_request_url: url };
+  if (stat) {
+    const label = category === 'school_psa' ? 'School PSA' : 'CUSA Produced PSA';
+    stat.textContent = `${label} URL saved.`;
+    stat.className = 'psa-config-status ok';
+  }
+  showToast('File Request URL saved');
+  if (state.tab === 'upload') renderCurrentTab();
+}
 
 function renderUploadList() {
   const el = document.getElementById('uploadList');

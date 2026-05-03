@@ -248,11 +248,15 @@
 
 <script>
   /* ── Constants ──────────────────────────────────────────────────────── */
-  // CORS proxy chain — same chain as roster + schedule pages.
+  // CORS proxy chain. The first entry — our own Netlify Function — is the
+  // primary path (reliable, no rate limits). Public proxies follow as
+  // fallback, with codetabs first since it's the only one that handles
+  // binary content (PDFs) cleanly.
   const CORS_PROXIES = [
-    { name: 'corsproxy.io',   build: u => 'https://corsproxy.io/?'                  + encodeURIComponent(u) },
-    { name: 'allorigins.win', build: u => 'https://api.allorigins.win/raw?url='     + encodeURIComponent(u) },
-    { name: 'codetabs.com',   build: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u) }
+    { name: 'netlify-proxy', build: u => '/.netlify/functions/proxy-fetch?url='     + encodeURIComponent(u) },
+    { name: 'codetabs.com',  build: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u) },
+    { name: 'corsproxy.io',  build: u => 'https://corsproxy.io/?'                  + encodeURIComponent(u) },
+    { name: 'allorigins.win',build: u => 'https://api.allorigins.win/raw?url='     + encodeURIComponent(u) }
   ];
 
   const SCHOOLS = [

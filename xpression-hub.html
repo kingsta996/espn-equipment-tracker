@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Xpression Hub</title>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--navy);
+    min-height: 100vh;
+    font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--white);
+    padding: 40px 20px;
+  }
+  .hub-back {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: var(--gray);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+  .hub-back:hover { color: var(--blue); opacity: 1; }
+  .hub-logo {
+    max-width: 380px;
+    width: 85%;
+    margin-bottom: 8px;
+  }
+  .hub-tagline {
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 52px;
+    font-weight: 500;
+  }
+  .hub-cards {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 700px;
+    width: 100%;
+  }
+  .hub-card {
+    flex: 1;
+    min-width: 240px;
+    max-width: 320px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 36px 32px;
+    text-align: center;
+    text-decoration: none;
+    color: var(--white);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    display: block;
+  }
+  .hub-card:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: var(--blue);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(0,181,226,0.15);
+  }
+  .hub-card .card-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 18px;
+    font-size: 28px;
+  }
+  .hub-card .card-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.2px;
+  }
+  .hub-card .card-desc {
+    font-size: 12px;
+    color: rgba(191,206,214,0.8);
+    line-height: 1.5;
+  }
+  .hub-card .card-arrow {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--blue);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .hub-footer {
+    margin-top: 56px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  @media (max-width: 540px) {
+    .hub-card { min-width: 100%; }
+    .hub-logo { max-width: 280px; }
+  }
+</style>
+</head>
+<body>
+
+<a class="hub-back" href="hub.html">← Production Hub</a>
+
+<img class="hub-logo" src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+     alt="CUSA ESPN"
+     onerror="this.style.display='none'; document.querySelector('.hub-fallback').style.display='block'">
+<div class="hub-fallback" style="display:none; margin-bottom:8px; text-align:center;">
+  <span style="font-size:28px;font-weight:900;letter-spacing:-1px;">CUSA</span>
+  <span style="font-size:16px;font-weight:700;color:var(--espn-red);margin:0 10px;">×</span>
+  <span style="font-size:28px;font-weight:900;color:var(--espn-red);">ESPN</span>
+</div>
+
+<p class="hub-tagline">Xpression Hub</p>
+
+<div class="hub-cards">
+  <a class="hub-card" href="roster.html">
+    <div class="card-icon" style="background:rgba(167,213,0,0.2);border:1px solid rgba(167,213,0,0.4);">📋</div>
+    <div class="card-title">Master Roster</div>
+    <div class="card-desc">Pull team rosters from the Master Roster scraper into ESPN production templates</div>
+    <div class="card-arrow">Open →</div>
+  </a>
+  <a class="hub-card" href="schedule-master.html">
+    <div class="card-icon" style="background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.5);">🗓</div>
+    <div class="card-title">Master Schedule</div>
+    <div class="card-desc">Build per-school Xpression schedule files from the Master Schedule sheet</div>
+    <div class="card-arrow">Open →</div>
+  </a>
+</div>
+
+<div class="hub-footer">Conference USA &nbsp;·&nbsp; ESPN+ &nbsp;·&nbsp; 2025–26</div>
+
+</body>
+</html>

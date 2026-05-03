@@ -224,7 +224,7 @@
     'Sam Houston':         'SHSU',
     'Western Kentucky':    'WKU'
   };
-  const SPORTS = ['Football', 'Volleyball'];
+  const SPORTS = ['Football', 'Volleyball', 'Soccer'];
 
   // Curated network logo dropdown — names match the LOGOS sheet so the
   // template's `=$I$2&F3&".png"` formula resolves to the right file.
@@ -292,7 +292,25 @@
       weekColumnLabel: '#',
       supportsBye: false,
       supportsCurrentWeek: false,
+      supportsOpponentLogo: false,
       datePlaceholder: 'Nov. 17'
+    },
+    Soccer: {
+      sheetSport: 'Soccer',
+      sourceTab:  'Upcoming Games',
+      template:   'templates/master-schedule/soccer.xlsx',
+      sheetName:  'Upcoming Schedule',
+      dataStartRow: 5,
+      dataEndRow:   16,                  // 12 slots
+      currentWeekCell: null,
+      // Soccer template adds an OPPONENT LOGO column at G/7.
+      cols: { week: 1, at: 2, opponent: 3, date: 4, time: 5, networkLogo: 6, opponentLogo: 7 },
+      dateStyle: 'volleyball',           // "Sept. 5" — same period convention
+      weekColumnLabel: '#',
+      supportsBye: false,
+      supportsCurrentWeek: false,
+      supportsOpponentLogo: true,
+      datePlaceholder: 'Sept. 5'
     }
   };
 
@@ -456,6 +474,7 @@
           date: normalizeDate(r['Date'] || '', cfg.dateStyle),
           time: String(r['Time'] || '').trim(),
           networkLogo: 'BLANK_LOGO',
+          opponentLogo: '',
           isBye: false
         };
       });
@@ -521,6 +540,7 @@
         date: normalizeDate(r.date || '', cfg.dateStyle),
         time: r.time || '',
         networkLogo: 'BLANK_LOGO',
+        opponentLogo: '',
         isBye: false
       }));
       _config = cfg;
@@ -679,6 +699,7 @@
     const weekLabel = cfg.weekColumnLabel || 'Week';
     const datePh    = cfg.datePlaceholder || 'Sept 6';
     const maxRows   = (cfg.dataEndRow || 0) - (cfg.dataStartRow || 0) + 1;
+    const showOppLogo = !!cfg.supportsOpponentLogo;
 
     const head = `
       <tr>
@@ -689,6 +710,7 @@
         <th style="min-width:90px">Date</th>
         <th style="min-width:90px">Time</th>
         <th style="min-width:170px">Network Logo</th>
+        ${showOppLogo ? '<th style="min-width:140px">Opponent Logo</th>' : ''}
         <th></th>
       </tr>
     `;
@@ -711,6 +733,7 @@
             ${NETWORK_LOGOS.includes(row.networkLogo) ? '' : `<option value="${escapeHtml(row.networkLogo)}" selected>${escapeHtml(row.networkLogo)} (custom)</option>`}
           </select>
         </td>
+        ${showOppLogo ? `<td><input type="text" data-key="opponentLogo" value="${escapeHtml(row.opponentLogo || '')}" placeholder="${row.isBye ? '' : 'GEORGIA'}" ${row.isBye ? 'disabled' : ''} style="text-transform:uppercase"></td>` : ''}
         <td class="col-actions"><button class="remove-btn" data-action="remove" title="Remove row">✕</button></td>
       </tr>
     `).join('');
@@ -747,13 +770,13 @@
       });
     });
     document.getElementById('addBye')?.addEventListener('click', () => {
-      _rows.push({ week: String(_rows.length + 1), at: '', rank: '', opponent: 'Idle', date: '', time: '', networkLogo: 'BLANK_LOGO', isBye: true });
+      _rows.push({ week: String(_rows.length + 1), at: '', rank: '', opponent: 'Idle', date: '', time: '', networkLogo: 'BLANK_LOGO', opponentLogo: '', isBye: true });
       renumberWeeks();
       renderTable();
       renderUpcomingPreview();
     });
     document.getElementById('addRow')?.addEventListener('click', () => {
-      _rows.push({ week: String(_rows.length + 1), at: '', rank: '', opponent: '', date: '', time: '', networkLogo: 'BLANK_LOGO', isBye: false });
+      _rows.push({ week: String(_rows.length + 1), at: '', rank: '', opponent: '', date: '', time: '', networkLogo: 'BLANK_LOGO', opponentLogo: '', isBye: false });
       renumberWeeks();
       renderTable();
       renderUpcomingPreview();
@@ -834,13 +857,16 @@
         setCell(cols.date,        row.date);
         setCell(cols.time,        row.time);
         setCell(cols.networkLogo, row.networkLogo);
+        if (cols.opponentLogo) setCell(cols.opponentLogo, (row.opponentLogo || '').toUpperCase());
       });
 
       // Clear any unused rows in the data block so old template sample data
       // doesn't bleed through.
       for (let i = writeRows.length; i < maxRows; i++) {
         const r0 = startRow + i - 1;
-        [cols.at, cols.opponent, cols.date, cols.time, cols.networkLogo].forEach(c1 => {
+        const clearCols = [cols.at, cols.opponent, cols.date, cols.time, cols.networkLogo];
+        if (cols.opponentLogo) clearCols.push(cols.opponentLogo);
+        clearCols.forEach(c1 => {
           const addr = XLSX.utils.encode_cell({ r: r0, c: c1 - 1 });
           ws[addr] = { t: 's', v: '' };
         });

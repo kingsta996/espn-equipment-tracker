@@ -447,14 +447,17 @@
     document.getElementById('playerPullBtn').disabled = true;
     // Sidearm stats pages are Vue/Nuxt SPAs — the HTML is empty of stat
     // tables. The cumulative PDF (cume.pdf) is the canonical text source.
-    const pdfUrl = pdfUrlForStats(url);
-    if (!pdfUrl) {
-      setPlayerStatus(`Couldn't derive PDF URL from ${url}. Expected /sports/<sport>/stats/<year>.`, 'err');
+    startParseStatus('player', `Locating cume.pdf for ${school}…`);
+    let pdfUrl;
+    try {
+      pdfUrl = await discoverPdfUrl(url, 'player');
+    } catch (err) {
+      setPlayerStatus(`Couldn't locate cume.pdf for ${url}: ${err.message || err}`, 'err');
       document.getElementById('playerLoadBtn').disabled = false;
       document.getElementById('playerPullBtn').disabled = false;
+      endParseStatus('player');
       return;
     }
-    startParseStatus('player', `Fetching ${pdfUrl}…`);
     try {
       const buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
       updateParseStatus('player', 'Extracting text from PDF…');
@@ -481,14 +484,69 @@
     }
   }
 
-  /* ── PDF URL derivation ─────────────────────────────────────────────── */
-  function pdfUrlForStats(statsUrl) {
-    try {
-      const u = new URL(statsUrl);
-      const m = u.pathname.match(/\/sports\/([^/]+)\/stats\/(\d{4})/i);
-      if (!m) return null;
-      return `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${u.hostname}/stats/${m[1]}/${m[2]}/pdf/cume.pdf`;
-    } catch (e) { return null; }
+  /* ── PDF URL discovery ───────────────────────────────────────────────────
+     Sidearm hosts each school's static assets at a S3 site key that does
+     NOT always match the school's vanity domain — e.g. fiusports.com is
+     hosted under fiu.sidearmsports.com. The key is embedded in the SPA
+     bundle (window.cdn_path / `sidearm.nextgen.sites/<key>/`). Discover
+     it at runtime so we don't have to hard-code a brittle mapping.
+     Cached per host in localStorage so the second load skips this step. */
+  const SITE_KEY_CACHE = 'cusa_stats_site_keys_v1';
+  function _siteKeyMap() {
+    try { return JSON.parse(localStorage.getItem(SITE_KEY_CACHE) || '{}'); }
+    catch (e) { return {}; }
+  }
+  function _saveSiteKey(host, key) {
+    const m = _siteKeyMap(); m[host] = key;
+    try { localStorage.setItem(SITE_KEY_CACHE, JSON.stringify(m)); } catch (e) {}
+  }
+
+  async function discoverPdfUrl(statsUrl, prefix) {
+    let u;
+    try { u = new URL(statsUrl); } catch (e) { throw new Error('Invalid URL.'); }
+    const m = u.pathname.match(/\/sports\/([^/]+)\/stats\/(\d{4})/i);
+    if (!m) throw new Error('Expected /sports/<sport>/stats/<year>.');
+    const sport = m[1], year = m[2];
+
+    // Try cached key first.
+    const cached = _siteKeyMap()[u.hostname];
+    if (cached) {
+      const candidate = `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${cached}/stats/${sport}/${year}/pdf/cume.pdf`;
+      // Trust the cache — fetch will surface 404 if it's gone stale.
+      return candidate;
+    }
+
+    // Fetch the stats page HTML to extract the Sidearm site key.
+    updateParseStatus(prefix, `Discovering Sidearm site key for ${u.hostname}…`);
+    const html = await fetchTextViaCorsProxies(statsUrl, prefix);
+    // The bundle contains literals like:
+    //   sidearm.nextgen.sites/fiu.sidearmsports.com'   ← terminated by quote
+    //   sidearm.nextgen.sites/fiu.sidearmsports.com/...
+    // Match a Sidearm-style hostname only (letters/digits/dots/dashes).
+    const keyMatch = html.match(/sidearm\.nextgen\.sites\/([a-z0-9][a-z0-9.\-]+\.(?:com|org|net|edu|us))/i);
+    if (!keyMatch) throw new Error('Sidearm site key not found in page HTML.');
+    const key = keyMatch[1];
+    _saveSiteKey(u.hostname, key);
+    return `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${key}/stats/${sport}/${year}/pdf/cume.pdf`;
+  }
+
+  // Text fetch — same proxy chain as the binary fetcher, but reads .text().
+  async function fetchTextViaCorsProxies(url, prefix) {
+    const failures = [];
+    for (const proxy of CORS_PROXIES) {
+      try {
+        updateParseStatus(prefix, `Fetching page via ${proxy.name}…`);
+        const res = await fetch(proxy.build(url));
+        if (!res.ok) { failures.push(`${proxy.name}: HTTP ${res.status}`); continue; }
+        const txt = await res.text();
+        if (!txt || txt.length < 200) { failures.push(`${proxy.name}: empty response`); continue; }
+        if (/^\{"error"/.test(txt)) { failures.push(`${proxy.name}: ${txt.slice(0,80)}`); continue; }
+        return txt;
+      } catch (err) {
+        failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);
+      }
+    }
+    throw new Error('All proxies failed:\n  · ' + failures.join('\n  · '));
   }
 
   /* ── CORS-proxy fetch (binary) ──────────────────────────────────────── */

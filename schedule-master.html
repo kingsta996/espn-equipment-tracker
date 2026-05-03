@@ -139,6 +139,11 @@
     <button id="downloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
     <span class="status" id="status">Pick a school and sport, then load the schedule.</span>
   </div>
+  <div class="controls" style="margin-top:0">
+    <label for="scheduleUrl">Or pull from URL</label>
+    <input type="url" id="scheduleUrl" placeholder="https://bluehens.com/sports/football/schedule/text/  or  https://jaxstatesports.com/services/schedule_txt.ashx?schedule=285" style="flex:1;min-width:280px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+    <button id="pullBtn" class="btn-primary">🌐 Pull from URL</button>
+  </div>
 
   <div id="metaBar" class="meta-bar" style="display:none">
     <label for="currentWeekInput">Current Week</label>
@@ -206,6 +211,14 @@
     'SEC_NETWORK'
   ];
 
+  /* ── CORS proxy chain (mirrors roster.html). School athletics sites
+     often block one or two proxies but rarely all three. ── */
+  const CORS_PROXIES = [
+    { name: 'corsproxy.io',   build: u => 'https://corsproxy.io/?'         + encodeURIComponent(u) },
+    { name: 'allorigins.win', build: u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u) },
+    { name: 'codetabs.com',   build: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u) }
+  ];
+
   /* ── Sport-specific configuration ── */
   const SPORT_CONFIG = {
     Football: {
@@ -243,6 +256,7 @@
       sportSel.appendChild(opt);
     });
     document.getElementById('loadBtn').addEventListener('click', loadSchedule);
+    document.getElementById('pullBtn').addEventListener('click', pullFromURL);
     document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
     document.getElementById('currentWeekInput').addEventListener('input', renderUpcomingPreview);
   });
@@ -376,6 +390,172 @@
     } finally {
       document.getElementById('loadBtn').disabled = false;
     }
+  }
+
+  /* ── Pull schedule directly from a school's URL ──
+     Two source shapes are supported, matching the IMPORTHTML/IMPORTDATA
+     formulas already in use:
+       1. HTML "/text/" schedule pages (bluehens.com, …) — find the first
+          table with Date/Opponent/Time/Location headers and read the cells.
+       2. SideArm `/services/schedule_txt.ashx?schedule=N` endpoints — plain
+          text; rows starting with a month abbreviation are split on 2+
+          whitespace into the same 7-column shape and the score-vs-location
+          shifting logic from the LET formula is replicated here. */
+  async function pullFromURL() {
+    const url = (document.getElementById('scheduleUrl').value || '').trim();
+    const sport  = document.getElementById('sportSel').value;
+    const school = document.getElementById('schoolSel').value;
+    const cfg = SPORT_CONFIG[sport];
+    if (!url)  { setStatus('Paste a schedule URL first.', 'err'); return; }
+    if (!cfg)  { setStatus(`${sport} isn't wired up.`, 'err'); return; }
+    if (!/^https?:\/\//i.test(url)) { setStatus('URL must start with http:// or https://.', 'err'); return; }
+
+    document.getElementById('pullBtn').disabled = true;
+    document.getElementById('loadBtn').disabled = true;
+    try {
+      const body = await fetchViaCorsProxies(url);
+      const looksText = /schedule_txt\.ashx/i.test(url) || !/<\s*table/i.test(body);
+      const parsed = looksText ? parseSideArmText(body) : parseHtmlSchedule(body);
+      if (!parsed.length) {
+        throw new Error(looksText
+          ? 'No date rows found in the text feed.'
+          : 'No <table> with Date/Opponent headers found on the page.');
+      }
+      _rows = parsed.map((r, i) => ({
+        week: String(i + 1),
+        at: /^away$/i.test(r.at) ? 'at' : '',
+        rank: '',
+        opponent: r.opponent || '',
+        date: normalizeDate(r.date || ''),
+        time: r.time || '',
+        networkLogo: 'BLANK_LOGO',
+        isBye: false
+      }));
+      _config = cfg;
+      _currentSchool = school;
+      _currentSport  = sport;
+      renderTable();
+      renderUpcomingPreview();
+      document.getElementById('metaBar').style.display = '';
+      document.getElementById('downloadBtn').disabled = false;
+      setStatus(`Loaded ${_rows.length} game${_rows.length === 1 ? '' : 's'} from URL (${looksText ? 'text feed' : 'HTML table'}).`, 'ok');
+    } catch (err) {
+      console.error(err);
+      setStatus('Pull failed: ' + (err.message || err), 'err');
+    } finally {
+      document.getElementById('pullBtn').disabled = false;
+      document.getElementById('loadBtn').disabled = false;
+    }
+  }
+
+  async function fetchViaCorsProxies(url) {
+    const failures = [];
+    for (const proxy of CORS_PROXIES) {
+      try {
+        setStatus(`Fetching via ${proxy.name}…`);
+        const res = await fetch(proxy.build(url));
+        if (!res.ok) { failures.push(`${proxy.name}: HTTP ${res.status}`); continue; }
+        const txt = await res.text();
+        if (!txt || txt.length < 40) { failures.push(`${proxy.name}: empty response`); continue; }
+        // Some proxies return a JSON error envelope on plan limits.
+        if (/^\{"error"/.test(txt)) { failures.push(`${proxy.name}: ${txt.slice(0, 80)}`); continue; }
+        return txt;
+      } catch (err) {
+        failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);
+      }
+    }
+    throw new Error('All CORS proxies failed:\n  · ' + failures.join('\n  · '));
+  }
+
+  /* HTML parser — first table with a "Date"+"Opponent" header row wins. */
+  function parseHtmlSchedule(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const tables = doc.querySelectorAll('table');
+    for (let i = 0; i < tables.length; i++) {
+      const trs = Array.from(tables[i].querySelectorAll('tr'));
+      if (trs.length < 2) continue;
+      const headerCells = Array.from(trs[0].querySelectorAll('th, td')).map(c => normalizeText(c.textContent).toLowerCase());
+      if (!headerCells.length) continue;
+      const idx = {
+        date:       headerCells.findIndex(h => /^date$/.test(h)),
+        time:       headerCells.findIndex(h => /^time$/.test(h)),
+        at:         headerCells.findIndex(h => /^at$/.test(h)),
+        opponent:   headerCells.findIndex(h => /opponent|opp\.?/.test(h)),
+        location:   headerCells.findIndex(h => /location|venue/.test(h)),
+        tournament: headerCells.findIndex(h => /tournament/.test(h)),
+        result:     headerCells.findIndex(h => /result/.test(h))
+      };
+      if (idx.date < 0 || idx.opponent < 0) continue;
+      const out = [];
+      for (let r = 1; r < trs.length; r++) {
+        const cells = Array.from(trs[r].querySelectorAll('th, td')).map(c => normalizeText(c.textContent));
+        if (!cells.length) continue;
+        const rawDate = cells[idx.date] || '';
+        if (!/^[A-Za-z]{3,9}\.?\s+\d{1,2}/.test(rawDate)) continue;
+        out.push({
+          date:       stripDayInParens(rawDate),
+          time:       idx.time       >= 0 ? cells[idx.time]       : '',
+          at:         idx.at         >= 0 ? cells[idx.at]         : '',
+          opponent:   idx.opponent   >= 0 ? cells[idx.opponent]   : '',
+          location:   idx.location   >= 0 ? cells[idx.location]   : '',
+          tournament: idx.tournament >= 0 ? cells[idx.tournament] : '',
+          result:     idx.result     >= 0 ? cells[idx.result]     : ''
+        });
+      }
+      if (out.length) return out;
+    }
+    return [];
+  }
+
+  /* SideArm text parser — ports the LET formula. Rows that start with a
+     month abbreviation are split on 2+ whitespace into 7 columns; the
+     score-vs-location shifting handles trailing-column drift. */
+  function parseSideArmText(text) {
+    const clean = String(text).replace(/ /g, ' ').replace(/\r/g, '');
+    const out = [];
+    for (const rawLine of clean.split('\n')) {
+      const line = rawLine.replace(/\s+$/, '');
+      if (!/^\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(line)) continue;
+      const parts = line.split(/\s{2,}/).map(s => s.trim());
+      while (parts.length < 7) parts.push('');
+      const [c1, c2, c3, c4, c5, c6, c7] = parts;
+      const sixIsScore  = isScoreLine(c6);
+      const fiveIsScore = isScoreLine(c5);
+      const location   = fiveIsScore ? '' : c5;
+      const tournament = c7
+        ? c6
+        : (sixIsScore || fiveIsScore ? '' : c6);
+      const result = c7
+        ? c7
+        : (sixIsScore ? c6 : (fiveIsScore ? c5 : ''));
+      out.push({
+        date:       stripDayInParens(c1),
+        time:       c2,
+        at:         c3,
+        opponent:   c4,
+        location,
+        tournament,
+        result
+      });
+    }
+    return out;
+  }
+
+  function isScoreLine(s) {
+    if (!s) return false;
+    const v = String(s).trim();
+    if (/^(W|L|T)(\s|$)/i.test(v)) return true;
+    if (/^(Canceled|Postponed|PPD|No Contest|-)$/i.test(v)) return true;
+    if (/^\d+\s*-\s*\d+/.test(v)) return true;
+    return false;
+  }
+
+  function stripDayInParens(s) {
+    return String(s || '').replace(/\s*\(.*?\)\s*$/, '').trim();
+  }
+
+  function normalizeText(s) {
+    return String(s || '').replace(/\s+/g, ' ').trim();
   }
 
   /* ── Render the editable table ── */

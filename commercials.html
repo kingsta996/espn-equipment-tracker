@@ -1605,10 +1605,18 @@ async function populateSchoolDropdown() {
     sel.innerHTML = '<option value="">(Supabase not connected)</option>';
     return;
   }
-  const { data, error } = await _db
+  // Try with the optional `code` column first; fall back to the legacy
+  // shape if the school_codes migration hasn't been run yet.
+  let { data, error } = await _db
     .from('schools')
     .select('id, name, code, pw_hash')
     .order('name');
+  if (error && /column .*code|schema cache/i.test(error.message || '')) {
+    ({ data, error } = await _db
+      .from('schools')
+      .select('id, name, pw_hash')
+      .order('name'));
+  }
   if (error) {
     console.error(error);
     sel.innerHTML = '<option value="">(Error loading schools)</option>';
@@ -1974,7 +1982,10 @@ async function loadAllData() {
     _db.from('commercials').select('*').order('category').order('status').order('name'),
     _db.from('format_assignments').select('*'),
     _db.from('app_settings').select('*'),
-    _db.from('schools').select('id, name, code').order('name'),
+    _db.from('schools').select('id, name, code').order('name')
+      .then(r => (r.error && /column .*code|schema cache/i.test(r.error.message || ''))
+        ? _db.from('schools').select('id, name').order('name')
+        : r),
     _db.from('psa_uploads').select('*').order('uploaded_at', { ascending: false })
       .then(r => r, () => ({ data: [], error: null })),
     _db.from('psa_config').select('*')

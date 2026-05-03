@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Master Stats</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f4f6f8; font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; min-height: 100vh; color: #222; }
+
+  .header {
+    background: var(--navy); padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .hdr-fallback { color: var(--white); font-weight: 900; letter-spacing: -0.5px; font-size: 18px; }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 22px; }
+
+  .sport-bar {
+    background: var(--navy); color: var(--white);
+    padding: 12px 16px; border-radius: 10px; margin-bottom: 18px;
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  }
+  .sport-bar label { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
+  .sport-bar select {
+    padding: 8px 14px; font-size: 13px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.08); color: var(--white); font-family: inherit; font-weight: 600;
+  }
+  .sport-bar select option { color: var(--navy); background: var(--white); }
+
+  .stats-section {
+    background: #fff; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    margin-bottom: 18px; overflow: hidden;
+  }
+  .stats-section-header {
+    background: var(--navy); color: var(--white);
+    padding: 10px 18px; display: flex; align-items: center; gap: 12px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.4px;
+  }
+  .stats-section-header .ss-tag {
+    margin-left: auto; font-size: 10px; font-weight: 600;
+    background: rgba(255,255,255,0.15); padding: 3px 9px; border-radius: 100px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stats-section-body { padding: 14px 18px; }
+
+  .controls {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .controls label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .controls select, .controls input {
+    padding: 8px 12px; font-size: 13px; border: 1px solid #d1d5db; border-radius: 6px;
+    font-family: inherit; background: #fff;
+  }
+  .controls input[type="number"] { width: 90px; text-align: center; }
+  .controls input[type="url"] { flex: 1; min-width: 240px; }
+  .controls select:disabled, .controls button:disabled, .controls input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .scope-toggle {
+    display: inline-flex; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden;
+  }
+  .scope-toggle button {
+    background: #fff; border: 0; padding: 8px 14px;
+    font-size: 12px; font-weight: 600; color: #475569; cursor: pointer;
+    font-family: inherit;
+  }
+  .scope-toggle button:not(:last-child) { border-right: 1px solid #d1d5db; }
+  .scope-toggle button.active { background: var(--navy); color: var(--white); }
+  .scope-toggle button:hover:not(.active) { background: #f1f5f9; }
+
+  button.btn-primary { background: var(--navy); color: #fff; border: 0; padding: 9px 16px; cursor: pointer; font-weight: 600; border-radius: 6px; font-family: inherit; font-size: 13px; }
+  button.btn-primary:not(:disabled):hover { background: #001f30; }
+  button.btn-export { background: var(--green); color: var(--navy); border: 0; padding: 9px 16px; cursor: pointer; font-weight: 700; border-radius: 6px; font-family: inherit; font-size: 13px; }
+  button.btn-export:not(:disabled):hover { background: #95c200; }
+
+  .status { font-size: 12px; color: #555; }
+  .status.ok { color: #166534; font-weight: 600; }
+  .status.err { color: #991b1b; font-weight: 600; }
+
+  .table-wrap {
+    border: 1px solid #eef0f2; border-radius: 8px; overflow: auto;
+    max-height: 520px; background: #fff;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: var(--navy); color: #fff; position: sticky; top: 0; z-index: 1; }
+  thead th { padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap; }
+  tbody td { border-bottom: 1px solid #eef0f2; padding: 0; }
+  tbody td input {
+    width: 100%; padding: 8px; border: 0; background: transparent;
+    font-family: inherit; font-size: 12px; color: #222;
+  }
+  tbody td input:focus { outline: 2px solid var(--blue); outline-offset: -2px; background: #fff; }
+  tbody tr:nth-child(even) { background: #fafbfc; }
+  tbody tr:hover { background: rgba(0,181,226,0.06); }
+
+  .empty {
+    padding: 50px 20px; text-align: center; color: #888; font-size: 13px;
+    background: #fafbfc; border: 1px dashed #e2e8f0; border-radius: 8px;
+  }
+  .empty h3 { color: #444; margin-bottom: 6px; font-size: 14px; }
+  .empty code { background: #fff; padding: 1px 5px; border-radius: 3px; font-size: 11px; border: 1px solid #e2e8f0; }
+  .stub-msg {
+    background: #fff8e1; border: 1px solid #fbcf00; border-radius: 8px;
+    padding: 14px 16px; color: #6b4c00; font-size: 12px;
+  }
+
+  /* Parse-status bar — visible indicator for any URL/link fetch */
+  .parse-status {
+    display: none;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 12px;
+  }
+  .parse-status.active { display: block; }
+  .parse-status .ps-label {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--navy); font-weight: 600; margin-bottom: 6px;
+  }
+  .parse-status .ps-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid #e5e7eb; border-top-color: var(--blue);
+    border-radius: 50%; animation: ps-spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes ps-spin { to { transform: rotate(360deg); } }
+  .parse-status .ps-bar {
+    position: relative; height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden;
+  }
+  .parse-status .ps-bar::before {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -30%; width: 30%;
+    background: var(--blue); border-radius: 2px;
+    animation: ps-indet 1.4s ease-in-out infinite;
+  }
+  @keyframes ps-indet { 0% { left: -30%; } 100% { left: 100%; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>📊 Master Stats</h1>
+  <a href="xpression-hub.html">← Xpression Hub</a>
+</div>
+
+<main>
+  <!-- Sport selector — drives both sections below -->
+  <div class="sport-bar">
+    <label for="sportSel">Sport</label>
+    <select id="sportSel"></select>
+    <span style="font-size:11px;color:rgba(255,255,255,0.6);margin-left:auto">
+      Pulls per-team and per-player stats from Conference USA + each school's Sidearm site.
+    </span>
+  </div>
+
+  <!-- ── Team Stats section ─────────────────────────────────────── -->
+  <section class="stats-section">
+    <div class="stats-section-header">
+      <span>🏟 Team Stats</span>
+      <span class="ss-tag">conferenceusa.com</span>
+    </div>
+    <div class="stats-section-body">
+      <div class="controls">
+        <label for="teamSchoolSel">School</label>
+        <select id="teamSchoolSel"></select>
+        <label for="teamYearInput">Year</label>
+        <input type="number" id="teamYearInput" min="2020" max="2099" placeholder="2025">
+        <label>Scope</label>
+        <div class="scope-toggle" id="teamScopeToggle">
+          <button data-scope="overall" class="active">Overall</button>
+          <button data-scope="conference">Conference</button>
+        </div>
+        <button id="teamLoadBtn" class="btn-primary">📥 Load Team Stats</button>
+        <button id="teamDownloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
+      </div>
+      <div id="teamParseStatus" class="parse-status">
+        <div class="ps-label"><div class="ps-spinner"></div><span id="teamParseStatusLabel">Working…</span></div>
+        <div class="ps-bar"></div>
+      </div>
+      <div id="teamStatus" class="status">Pick a school + year, then load team stats.</div>
+      <div id="teamContent" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <!-- ── Player Stats section ────────────────────────────────────── -->
+  <section class="stats-section">
+    <div class="stats-section-header">
+      <span>👤 Player Stats</span>
+      <span class="ss-tag">school sidearm sites</span>
+    </div>
+    <div class="stats-section-body">
+      <div class="controls">
+        <label for="playerSchoolSel">School</label>
+        <select id="playerSchoolSel"></select>
+        <label for="playerYearInput">Year</label>
+        <input type="number" id="playerYearInput" min="2020" max="2099" placeholder="2025">
+        <label>Scope</label>
+        <div class="scope-toggle" id="playerScopeToggle">
+          <button data-scope="overall" class="active">Overall</button>
+          <button data-scope="conference">Conference</button>
+        </div>
+        <button id="playerLoadBtn" class="btn-primary">📥 Load Player Stats</button>
+        <button id="playerDownloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
+      </div>
+      <div class="controls" style="margin-top:0">
+        <label for="playerUrl">Or pull from URL</label>
+        <input type="url" id="playerUrl" placeholder="https://bluehens.com/sports/football/stats/2025">
+        <button id="playerPullBtn" class="btn-primary">🌐 Pull from URL</button>
+      </div>
+      <div id="playerParseStatus" class="parse-status">
+        <div class="ps-label"><div class="ps-spinner"></div><span id="playerParseStatusLabel">Working…</span></div>
+        <div class="ps-bar"></div>
+      </div>
+      <div id="playerStatus" class="status">Pick a school + year, then load player stats (or paste a school URL).</div>
+      <div id="playerContent" style="margin-top:12px"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+  /* ── Constants ──────────────────────────────────────────────────────── */
+  // CORS proxy chain — same chain as roster + schedule pages.
+  const CORS_PROXIES = [
+    { name: 'corsproxy.io',   build: u => 'https://corsproxy.io/?'                  + encodeURIComponent(u) },
+    { name: 'allorigins.win', build: u => 'https://api.allorigins.win/raw?url='     + encodeURIComponent(u) },
+    { name: 'codetabs.com',   build: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u) }
+  ];
+
+  const SCHOOLS = [
+    'Delaware','FIU','Jacksonville State','Kennesaw State','Liberty',
+    'Middle Tennessee','Missouri State','New Mexico State','Sam Houston','Western Kentucky'
+  ];
+  const SCHOOL_TO_CODE = {
+    'Delaware': 'DEL', 'FIU': 'FIU', 'Jacksonville State': 'JSU', 'Kennesaw State': 'KSU',
+    'Liberty': 'LIB',  'Middle Tennessee': 'MTSU', 'Missouri State': 'MOST',
+    'New Mexico State': 'NMSU', 'Sam Houston': 'SHSU', 'Western Kentucky': 'WKU'
+  };
+  const SPORTS = ['Football', 'Volleyball', 'Soccer', "Men's Basketball", "Women's Basketball", 'Baseball', 'Softball'];
+
+  /* ── Per-sport stats config ─────────────────────────────────────────────
+     Phase 1 ships the page shell only. Each sport's TEAM and PLAYER handlers
+     will plug in here in Phases 2+ following the canonical Football pattern
+     from CUSA_Player_Stats_Scraper_Spec.md / CUSA_Team_Stats_Scraper_Spec.md.
+     Until then, the buttons surface a clear "coming soon" stub. */
+  const STATS_CONFIG = {
+    Football: {
+      // Phases 2 + 3 land here.
+      team:   null,
+      player: null
+    },
+    Volleyball:           { team: null, player: null },
+    Soccer:               { team: null, player: null },
+    "Men's Basketball":   { team: null, player: null },
+    "Women's Basketball": { team: null, player: null },
+    Baseball:             { team: null, player: null },
+    Softball:             { team: null, player: null }
+  };
+
+  /* ── State ──────────────────────────────────────────────────────────── */
+  let _sport = 'Football';
+  let _teamScope = 'overall';
+  let _playerScope = 'overall';
+
+  /* ── Init ───────────────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', () => {
+    const sportSel = document.getElementById('sportSel');
+    SPORTS.forEach(s => sportSel.appendChild(new Option(s, s)));
+    sportSel.addEventListener('change', () => { _sport = sportSel.value; resetSections(); });
+
+    ['teamSchoolSel', 'playerSchoolSel'].forEach(id => {
+      const sel = document.getElementById(id);
+      sel.appendChild(new Option('— Select school —', ''));
+      SCHOOLS.forEach(s => sel.appendChild(new Option(s, s)));
+    });
+
+    const thisYear = new Date().getFullYear();
+    document.getElementById('teamYearInput').value = thisYear;
+    document.getElementById('playerYearInput').value = thisYear;
+
+    wireScopeToggle('teamScopeToggle',   v => { _teamScope = v; });
+    wireScopeToggle('playerScopeToggle', v => { _playerScope = v; });
+
+    document.getElementById('teamLoadBtn').addEventListener('click', loadTeamStats);
+    document.getElementById('playerLoadBtn').addEventListener('click', loadPlayerStats);
+    document.getElementById('playerPullBtn').addEventListener('click', pullPlayerStatsFromURL);
+    document.getElementById('teamDownloadBtn').addEventListener('click', () => downloadTeamStats());
+    document.getElementById('playerDownloadBtn').addEventListener('click', () => downloadPlayerStats());
+
+    resetSections();
+  });
+
+  function wireScopeToggle(containerId, onChange) {
+    const root = document.getElementById(containerId);
+    root.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        root.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+        onChange(btn.dataset.scope);
+      });
+    });
+  }
+
+  function resetSections() {
+    setTeamStatus('Pick a school + year, then load team stats.');
+    setPlayerStatus('Pick a school + year, then load player stats (or paste a school URL).');
+    document.getElementById('teamContent').innerHTML = stubMsg('team');
+    document.getElementById('playerContent').innerHTML = stubMsg('player');
+    document.getElementById('teamDownloadBtn').disabled = true;
+    document.getElementById('playerDownloadBtn').disabled = true;
+  }
+
+  function stubMsg(which) {
+    const cfg = STATS_CONFIG[_sport]?.[which];
+    if (cfg) return '<div class="empty"><h3>Ready to load</h3><p>Click <strong>Load</strong> above.</p></div>';
+    const phase = which === 'team' ? 'Phase 3 (Football)' : 'Phase 2 (Football)';
+    return `
+      <div class="stub-msg">
+        <strong>${escapeHtml(_sport)} ${which === 'team' ? 'Team' : 'Player'} Stats not yet wired up.</strong><br>
+        Football is the first sport — ${phase} of the Master Stats build lands here once shipped.
+        Other sports plug in via the <code>STATS_CONFIG</code> object as they roll out.
+      </div>
+    `;
+  }
+
+  /* ── Status helpers ─────────────────────────────────────────────────── */
+  function setTeamStatus(msg, cls)   { setStatus('teamStatus',   msg, cls); }
+  function setPlayerStatus(msg, cls) { setStatus('playerStatus', msg, cls); }
+  function setStatus(id, msg, cls) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  /* ── Parse-status bar helpers — same pattern as roster/schedule pages ── */
+  function startParseStatus(prefix, msg) {
+    const root = document.getElementById(`${prefix}ParseStatus`);
+    const lbl  = document.getElementById(`${prefix}ParseStatusLabel`);
+    if (lbl) lbl.textContent = msg || 'Working…';
+    if (root) root.classList.add('active');
+  }
+  function updateParseStatus(prefix, msg) {
+    const lbl = document.getElementById(`${prefix}ParseStatusLabel`);
+    if (lbl) lbl.textContent = msg;
+  }
+  function endParseStatus(prefix) {
+    const root = document.getElementById(`${prefix}ParseStatus`);
+    if (root) root.classList.remove('active');
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  /* ── Stub handlers — Phases 2+ replace these with sport-specific logic ── */
+  async function loadTeamStats() {
+    const cfg = STATS_CONFIG[_sport]?.team;
+    if (!cfg) {
+      setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err');
+      return;
+    }
+    // Phase 3+ — call cfg.scrape(school, year, scope) and render preview.
+  }
+
+  async function loadPlayerStats() {
+    const cfg = STATS_CONFIG[_sport]?.player;
+    if (!cfg) {
+      setPlayerStatus(`${_sport} player stats — coming in a later phase.`, 'err');
+      return;
+    }
+    // Phase 2+ — call cfg.scrape(school, year, scope) and render preview.
+  }
+
+  async function pullPlayerStatsFromURL() {
+    const cfg = STATS_CONFIG[_sport]?.player;
+    if (!cfg) {
+      setPlayerStatus(`${_sport} player stats — coming in a later phase.`, 'err');
+      return;
+    }
+    // Phase 2+ — same proxy chain + table walker as roster/schedule pages.
+  }
+
+  async function downloadTeamStats() {
+    const cfg = STATS_CONFIG[_sport]?.team;
+    if (!cfg) return;
+    // Phase 3+ — write into the sport's template per spec §10d.
+  }
+
+  async function downloadPlayerStats() {
+    const cfg = STATS_CONFIG[_sport]?.player;
+    if (!cfg) return;
+    // Phase 2+ — write into the sport's template per spec §5–§10.
+  }
+</script>
+
+</body>
+</html>

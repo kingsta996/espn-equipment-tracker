@@ -68,6 +68,22 @@
   }
   .stats-section-body { padding: 14px 18px; }
 
+  /* Matchup layout for Team Stats — Home + Away side by side */
+  .matchup-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  }
+  @media (max-width: 1100px) { .matchup-grid { grid-template-columns: 1fr; } }
+  .matchup-card {
+    background: #fafbfc; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 14px;
+  }
+  .matchup-card.matchup-home { border-left: 4px solid var(--navy); }
+  .matchup-card.matchup-away { border-left: 4px solid var(--espn-red); }
+  .matchup-card-header {
+    font-weight: 700; font-size: 13px; color: var(--navy);
+    margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
   .controls {
     display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
   }
@@ -177,37 +193,91 @@
     </span>
   </div>
 
-  <!-- ── Team Stats section ─────────────────────────────────────── -->
+  <!-- ── Team Stats section (matchup model) ─────────────────────── -->
   <section class="stats-section">
     <div class="stats-section-header">
-      <span>🏟 Team Stats</span>
-      <span class="ss-tag">conferenceusa.com</span>
+      <span>🏟 Team Stats — Matchup</span>
+      <span class="ss-tag">home (CUSA) vs away (CUSA or other)</span>
     </div>
     <div class="stats-section-body">
-      <div class="controls">
-        <label for="teamSchoolSel">School</label>
-        <select id="teamSchoolSel"></select>
-        <label for="teamYearInput">Year</label>
-        <input type="number" id="teamYearInput" min="2020" max="2099" placeholder="2025">
-        <label>Scope</label>
-        <div class="scope-toggle" id="teamScopeToggle">
-          <button data-scope="overall" class="active">Overall</button>
-          <button data-scope="conference">Conference</button>
+      <div class="matchup-grid">
+
+        <!-- HOME — always CUSA -->
+        <div class="matchup-card matchup-home">
+          <div class="matchup-card-header">🏠 Home Team — CUSA</div>
+          <div class="controls">
+            <label for="homeSchoolSel">School</label>
+            <select id="homeSchoolSel"></select>
+            <label for="homeYearInput">Year</label>
+            <input type="number" id="homeYearInput" min="2020" max="2099" placeholder="2025">
+            <label>Scope</label>
+            <div class="scope-toggle" id="homeScopeToggle">
+              <button data-scope="overall" class="active">Overall</button>
+              <button data-scope="conference">Conference</button>
+            </div>
+          </div>
+          <div class="controls" style="margin-top:0">
+            <button id="homeLoadBtn" class="btn-primary">📥 Load Home Stats</button>
+            <button id="homeDownloadBtn" class="btn-export" disabled>⬇ Download Home Excel</button>
+          </div>
+          <div id="homeParseStatus" class="parse-status">
+            <div class="ps-label"><div class="ps-spinner"></div><span id="homeParseStatusLabel">Working…</span></div>
+            <div class="ps-bar"></div>
+          </div>
+          <div id="homeStatus" class="status">Pick a school + year, then load home stats.</div>
+          <div id="homeContent" style="margin-top:12px"></div>
         </div>
-        <button id="teamLoadBtn" class="btn-primary">📥 Load Team Stats</button>
-        <button id="teamDownloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
+
+        <!-- AWAY — CUSA or paste a non-CUSA conference URL -->
+        <div class="matchup-card matchup-away">
+          <div class="matchup-card-header">✈️ Away Team</div>
+          <div class="controls">
+            <label>Conference</label>
+            <div class="scope-toggle" id="awayTypeToggle">
+              <button data-type="cusa" class="active">CUSA</button>
+              <button data-type="other">Other Conference</button>
+            </div>
+          </div>
+
+          <!-- AWAY: CUSA mode -->
+          <div id="awayCusaPanel" class="controls">
+            <label for="awaySchoolSel">School</label>
+            <select id="awaySchoolSel"></select>
+            <label for="awayYearInput">Year</label>
+            <input type="number" id="awayYearInput" min="2020" max="2099" placeholder="2025">
+            <label>Scope</label>
+            <div class="scope-toggle" id="awayScopeToggle">
+              <button data-scope="overall" class="active">Overall</button>
+              <button data-scope="conference">Conference</button>
+            </div>
+          </div>
+
+          <!-- AWAY: Other conference mode -->
+          <div id="awayOtherPanel" class="controls" style="display:none;flex-direction:column;align-items:stretch;gap:8px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label for="awayConfUrl" style="min-width:130px">Conference Stats URL</label>
+              <input type="url" id="awayConfUrl" placeholder="https://theamerican.org/stats.aspx?path=football&year=2025" style="flex:1;min-width:300px">
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label for="awayTeamName" style="min-width:130px">Team Name</label>
+              <input type="text" id="awayTeamName" placeholder="UConn  /  Tulane  /  Vanderbilt" style="flex:1;min-width:240px">
+              <span style="font-size:11px;color:#888">As shown in the conference's stats table.</span>
+            </div>
+          </div>
+
+          <div class="controls" style="margin-top:0">
+            <button id="awayLoadBtn" class="btn-primary">📥 Load Away Stats</button>
+            <button id="awayDownloadBtn" class="btn-export" disabled>⬇ Download Away Excel</button>
+          </div>
+          <div id="awayParseStatus" class="parse-status">
+            <div class="ps-label"><div class="ps-spinner"></div><span id="awayParseStatusLabel">Working…</span></div>
+            <div class="ps-bar"></div>
+          </div>
+          <div id="awayStatus" class="status">Optional — pick or paste an away team to compare.</div>
+          <div id="awayContent" style="margin-top:12px"></div>
+        </div>
+
       </div>
-      <div class="controls" style="margin-top:0">
-        <label for="teamUrl">Or pull from URL</label>
-        <input type="url" id="teamUrl" placeholder="https://conferenceusa.com/stats.aspx?path=football&year=2025  or  https://theamerican.org/stats.aspx?path=football&year=2025">
-        <button id="teamPullBtn" class="btn-primary">🌐 Pull from URL</button>
-      </div>
-      <div id="teamParseStatus" class="parse-status">
-        <div class="ps-label"><div class="ps-spinner"></div><span id="teamParseStatusLabel">Working…</span></div>
-        <div class="ps-bar"></div>
-      </div>
-      <div id="teamStatus" class="status">Pick a school + year, then load team stats.</div>
-      <div id="teamContent" style="margin-top:12px"></div>
     </div>
   </section>
 
@@ -313,7 +383,6 @@
 
   /* ── State ──────────────────────────────────────────────────────────── */
   let _sport = 'Football';
-  let _teamScope = 'overall';
   let _playerScope = 'overall';
 
   // Per-sport "this season's stats are available starting…" month. Before
@@ -349,24 +418,38 @@
       resetSections();
     });
 
-    ['teamSchoolSel', 'playerSchoolSel'].forEach(id => {
+    ['homeSchoolSel', 'awaySchoolSel', 'playerSchoolSel'].forEach(id => {
       const sel = document.getElementById(id);
       sel.appendChild(new Option('— Select school —', ''));
       SCHOOLS.forEach(s => sel.appendChild(new Option(s, s)));
     });
 
     const initialYear = defaultStatsYear(_sport);
-    document.getElementById('teamYearInput').value = initialYear;
+    document.getElementById('homeYearInput').value   = initialYear;
+    document.getElementById('awayYearInput').value   = initialYear;
     document.getElementById('playerYearInput').value = initialYear;
 
-    wireScopeToggle('teamScopeToggle',   v => { _teamScope = v; });
+    wireScopeToggle('homeScopeToggle',   v => { TeamMatchup.home.scope   = v; });
+    wireScopeToggle('awayScopeToggle',   v => { TeamMatchup.away.scope   = v; });
     wireScopeToggle('playerScopeToggle', v => { _playerScope = v; });
 
-    document.getElementById('teamLoadBtn').addEventListener('click', loadTeamStats);
-    document.getElementById('teamPullBtn').addEventListener('click', pullTeamStatsFromURL);
+    // Away type toggle (CUSA vs Other Conference) — show/hide the right panel.
+    const awayTypeRoot = document.getElementById('awayTypeToggle');
+    awayTypeRoot.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        awayTypeRoot.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+        TeamMatchup.away.type = btn.dataset.type;
+        document.getElementById('awayCusaPanel').style.display  = btn.dataset.type === 'cusa'  ? '' : 'none';
+        document.getElementById('awayOtherPanel').style.display = btn.dataset.type === 'other' ? 'flex' : 'none';
+      });
+    });
+
+    document.getElementById('homeLoadBtn').addEventListener('click', loadHomeTeamStats);
+    document.getElementById('awayLoadBtn').addEventListener('click', loadAwayTeamStats);
     document.getElementById('playerLoadBtn').addEventListener('click', loadPlayerStats);
     document.getElementById('playerPullBtn').addEventListener('click', pullPlayerStatsFromURL);
-    document.getElementById('teamDownloadBtn').addEventListener('click', () => downloadTeamStats());
+    document.getElementById('homeDownloadBtn').addEventListener('click',   () => downloadTeamStats('home'));
+    document.getElementById('awayDownloadBtn').addEventListener('click',   () => downloadTeamStats('away'));
     document.getElementById('playerDownloadBtn').addEventListener('click', () => downloadPlayerStats());
 
     resetSections();
@@ -383,29 +466,33 @@
   }
 
   function resetSections() {
-    setTeamStatus('Pick a school + year, then load team stats.');
+    setSideStatus('home', 'Pick a school + year, then load home stats.');
+    setSideStatus('away', 'Optional — pick or paste an away team to compare.');
     setPlayerStatus('Pick a school + year, then load player stats (or paste a school URL).');
-    document.getElementById('teamContent').innerHTML = stubMsg('team');
+    document.getElementById('homeContent').innerHTML   = stubMsg('home');
+    document.getElementById('awayContent').innerHTML   = stubMsg('away');
     document.getElementById('playerContent').innerHTML = stubMsg('player');
-    document.getElementById('teamDownloadBtn').disabled = true;
+    document.getElementById('homeDownloadBtn').disabled   = true;
+    document.getElementById('awayDownloadBtn').disabled   = true;
     document.getElementById('playerDownloadBtn').disabled = true;
+    TeamMatchup.home.rows = []; TeamMatchup.away.rows = [];
   }
 
   function stubMsg(which) {
-    const cfg = STATS_CONFIG[_sport]?.[which];
+    // Map matchup-side names → which handler config to look up.
+    const cfgKey = (which === 'home' || which === 'away') ? 'team' : which;
+    const cfg = STATS_CONFIG[_sport]?.[cfgKey];
     if (cfg) return '<div class="empty"><h3>Ready to load</h3><p>Click <strong>Load</strong> above.</p></div>';
-    const phase = which === 'team' ? 'Phase 3 (Football)' : 'Phase 2 (Football)';
+    const label = which === 'home' ? 'Home Team' : which === 'away' ? 'Away Team' : 'Player';
     return `
       <div class="stub-msg">
-        <strong>${escapeHtml(_sport)} ${which === 'team' ? 'Team' : 'Player'} Stats not yet wired up.</strong><br>
-        Football is the first sport — ${phase} of the Master Stats build lands here once shipped.
-        Other sports plug in via the <code>STATS_CONFIG</code> object as they roll out.
+        <strong>${escapeHtml(_sport)} ${label} Stats not yet wired up.</strong><br>
+        Football is the first sport — other sports plug in via the <code>STATS_CONFIG</code> object as they roll out.
       </div>
     `;
   }
 
   /* ── Status helpers ─────────────────────────────────────────────────── */
-  function setTeamStatus(msg, cls)   { setStatus('teamStatus',   msg, cls); }
   function setPlayerStatus(msg, cls) { setStatus('playerStatus', msg, cls); }
   function setStatus(id, msg, cls) {
     const el = document.getElementById(id);
@@ -436,9 +523,11 @@
   /* ── Stats state ────────────────────────────────────────────────────── */
   let _playerRows = [];          // [{ jersey, name, category, numStats, stat1..5 }]
   let _playerSchool = '';        // for the download filename
-  let _teamRows = [];            // [{ row, label, value, rank }]
-  let _teamSchool = '';
-  let _teamYear = '';
+  // Team Stats — matchup model. Each side holds its own scrape result.
+  const TeamMatchup = {
+    home: { rows: [], school: '', year: '', scope: 'overall', type: 'cusa' },
+    away: { rows: [], school: '', year: '', scope: 'overall', type: 'cusa' }
+  };
 
   /* CUSA team identity map — display-name aliases used in the conferenceusa.com
      stats tables. Lets the team stats lookup find rows for "MTSU" when the
@@ -496,57 +585,73 @@
     { row: 34, label: 'Team Takeaways',       caption: 'TAKEAWAYS_DERIVED',         col: null,     fmt: 'int',   rank: 'desc' }
   ];
 
-  /* ── Team Stats — entry points ─────────────────────────────────────── */
-  async function loadTeamStats() {
+  /* ── Team Stats — entry points (matchup-aware) ─────────────────────── */
+  async function loadHomeTeamStats() {
     const cfg = STATS_CONFIG[_sport]?.team;
-    if (!cfg) { setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err'); return; }
-    const school = document.getElementById('teamSchoolSel').value;
-    const year   = document.getElementById('teamYearInput').value;
-    if (!school) { setTeamStatus('Pick a school first.', 'err'); return; }
-    if (!year)   { setTeamStatus('Enter a year first.', 'err'); return; }
-    await scrapeAndRenderTeamStats(cfg, cfg.defaultUrl(year, _teamScope), school, year);
+    if (!cfg) { setSideStatus('home', `${_sport} team stats — coming in a later phase.`, 'err'); return; }
+    const school = document.getElementById('homeSchoolSel').value;
+    const year   = document.getElementById('homeYearInput').value;
+    if (!school) { setSideStatus('home', 'Pick a school first.', 'err'); return; }
+    if (!year)   { setSideStatus('home', 'Enter a year first.', 'err'); return; }
+    TeamMatchup.home.type = 'cusa';
+    await scrapeAndRenderTeamStats('home', cfg, cfg.defaultUrl(year, TeamMatchup.home.scope), school, year, /*context=*/'CUSA');
   }
-  async function pullTeamStatsFromURL() {
+  async function loadAwayTeamStats() {
     const cfg = STATS_CONFIG[_sport]?.team;
-    if (!cfg) { setTeamStatus(`${_sport} team stats — coming in a later phase.`, 'err'); return; }
-    const url = (document.getElementById('teamUrl').value || '').trim();
-    if (!url) { setTeamStatus('Paste a stats URL first.', 'err'); return; }
-    if (!/^https?:\/\//i.test(url)) { setTeamStatus('URL must start with http:// or https://.', 'err'); return; }
-    const school = document.getElementById('teamSchoolSel').value || 'School';
-    const year   = document.getElementById('teamYearInput').value || new Date().getFullYear();
-    await scrapeAndRenderTeamStats(cfg, url, school, year);
+    if (!cfg) { setSideStatus('away', `${_sport} team stats — coming in a later phase.`, 'err'); return; }
+    if (TeamMatchup.away.type === 'cusa') {
+      const school = document.getElementById('awaySchoolSel').value;
+      const year   = document.getElementById('awayYearInput').value;
+      if (!school) { setSideStatus('away', 'Pick a school first.', 'err'); return; }
+      if (!year)   { setSideStatus('away', 'Enter a year first.', 'err'); return; }
+      await scrapeAndRenderTeamStats('away', cfg, cfg.defaultUrl(year, TeamMatchup.away.scope), school, year, 'CUSA');
+    } else {
+      const url  = (document.getElementById('awayConfUrl').value || '').trim();
+      const team = (document.getElementById('awayTeamName').value || '').trim();
+      if (!url)  { setSideStatus('away', 'Paste the away conference\'s stats URL.', 'err'); return; }
+      if (!/^https?:\/\//i.test(url)) { setSideStatus('away', 'URL must start with http:// or https://.', 'err'); return; }
+      if (!team) { setSideStatus('away', 'Enter the team name as it appears in the conference table.', 'err'); return; }
+      const yearMatch = url.match(/[?&]year=(\d{4})/);
+      const year = yearMatch ? yearMatch[1] : (new Date().getFullYear());
+      // Determine the conference label from the URL's hostname for status text.
+      const hostLabel = (() => { try { return new URL(url).hostname.replace(/^www\./,''); } catch { return 'other conf'; } })();
+      await scrapeAndRenderTeamStats('away', cfg, url, team, year, hostLabel);
+    }
   }
 
-  async function scrapeAndRenderTeamStats(cfg, url, school, year) {
-    document.getElementById('teamLoadBtn').disabled = true;
-    document.getElementById('teamPullBtn').disabled = true;
-    startParseStatus('team', `Fetching ${url}…`);
+  async function scrapeAndRenderTeamStats(side, cfg, url, school, year, contextLabel) {
+    const loadBtn = document.getElementById(`${side}LoadBtn`);
+    const dlBtn   = document.getElementById(`${side}DownloadBtn`);
+    loadBtn.disabled = true;
+    startParseStatus(side, `Fetching ${url}…`);
     try {
-      const html = await fetchTextViaCorsProxies(url, 'team');
-      updateParseStatus('team', 'Parsing stat tables…');
+      const html = await fetchTextViaCorsProxies(url, side);
+      updateParseStatus(side, 'Parsing stat tables…');
       const tablesByCaption = parseConferenceStatsHtml(html);
       const captionCount = Object.keys(tablesByCaption).length;
       if (captionCount < 5) {
-        throw new Error(`Only ${captionCount} stat tables found. The proxy may have returned the SPA shell instead of the rendered page — try again or use Pull from URL.`);
+        throw new Error(`Only ${captionCount} stat tables found. The proxy may have returned the SPA shell instead of the rendered page.`);
       }
-      _teamRows = buildTeamStatsRows(tablesByCaption, school);
-      _teamSchool = school;
-      _teamYear   = year;
-      renderTeamStatsTable();
-      document.getElementById('teamDownloadBtn').disabled = false;
-      const populated = _teamRows.filter(r => r.value !== '').length;
-      setTeamStatus(`Loaded ${populated} of ${_teamRows.length} stats for ${school} (${captionCount} CUSA tables, ${year}).`, 'ok');
+      const rows = buildTeamStatsRows(tablesByCaption, school);
+      TeamMatchup[side].rows   = rows;
+      TeamMatchup[side].school = school;
+      TeamMatchup[side].year   = year;
+      renderTeamStatsTable(side);
+      dlBtn.disabled = false;
+      const populated = rows.filter(r => r.value !== '').length;
+      setSideStatus(side, `Loaded ${populated} of ${rows.length} stats for ${school} (${captionCount} ${contextLabel} tables, ${year}).`, 'ok');
     } catch (err) {
       console.error(err);
-      document.getElementById('teamContent').innerHTML = `<div class="empty" style="text-align:left"><h3 style="text-align:center">Failed to load team stats</h3><pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;color:#666;line-height:1.5;margin:0">${escapeHtml(err.message || String(err))}</pre></div>`;
-      document.getElementById('teamDownloadBtn').disabled = true;
-      setTeamStatus('Load failed', 'err');
+      document.getElementById(`${side}Content`).innerHTML = `<div class="empty" style="text-align:left"><h3 style="text-align:center">Failed to load ${side} team stats</h3><pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;color:#666;line-height:1.5;margin:0">${escapeHtml(err.message || String(err))}</pre></div>`;
+      dlBtn.disabled = true;
+      setSideStatus(side, 'Load failed', 'err');
     } finally {
-      document.getElementById('teamLoadBtn').disabled = false;
-      document.getElementById('teamPullBtn').disabled = false;
-      endParseStatus('team');
+      loadBtn.disabled = false;
+      endParseStatus(side);
     }
   }
+
+  function setSideStatus(side, msg, cls) { setStatus(`${side}Status`, msg, cls); }
 
   /* ── ConferenceUSA HTML stats parser ──────────────────────────────────
      Each stat table has a <caption> with the category name (e.g.
@@ -687,10 +792,11 @@
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   }
 
-  /* ── Editable preview table ────────────────────────────────────────── */
-  function renderTeamStatsTable() {
-    const c = document.getElementById('teamContent');
-    const rowsHtml = _teamRows.map((r, idx) => `
+  /* ── Editable preview table (side-aware) ──────────────────────────── */
+  function renderTeamStatsTable(side) {
+    const c = document.getElementById(`${side}Content`);
+    const teamRows = TeamMatchup[side].rows;
+    const rowsHtml = teamRows.map((r, idx) => `
       <tr data-idx="${idx}">
         <td style="text-align:center;font-weight:700;color:#888">${r.row}</td>
         <td>${escapeHtml(r.label)}</td>
@@ -702,36 +808,38 @@
         <table>
           <thead>
             <tr>
-              <th style="min-width:50px">Row</th>
-              <th style="min-width:200px">Stat</th>
-              <th style="min-width:200px">Value (Col B)</th>
-              <th style="min-width:200px">Rank (Col C)</th>
+              <th style="min-width:40px">Row</th>
+              <th style="min-width:160px">Stat</th>
+              <th style="min-width:140px">Value (B)</th>
+              <th style="min-width:160px">Rank (C)</th>
             </tr>
           </thead>
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>
       <div style="padding:10px 0;font-size:11px;color:#666">
-        ${_teamRows.length} stat rows · edit any cell before download · blanks (turnovers, qtr scoring, RZ Def TD %) are operator-typed per spec.
+        ${teamRows.length} stat rows · edit any cell before download.
       </div>
     `;
     c.querySelectorAll('input').forEach(inp => {
       inp.addEventListener('input', () => {
         const idx = +inp.closest('tr').dataset.idx;
-        if (_teamRows[idx]) _teamRows[idx][inp.dataset.key] = inp.value;
+        if (teamRows[idx]) teamRows[idx][inp.dataset.key] = inp.value;
       });
     });
   }
 
-  /* ── Download — write into FB_HOME_TEAM Team Stats sheet ──────────────
+  /* ── Download — write into FB_HOME_TEAM Team Stats sheet (side-aware)
      Per spec §4: write only B (value) and C (rank) for rows 2-34. Leave
      E-K alone (formulas + literal "PPG"/"YPG" strings). Preserve every
-     other sheet. */
-  async function downloadTeamStats() {
+     other sheet. Same writer for both home and away — each downloads its
+     own copy of the workbook with that side's data. */
+  async function downloadTeamStats(side) {
     const cfg = STATS_CONFIG[_sport]?.team;
-    if (!cfg || !_teamRows.length) return;
-    const btn = document.getElementById('teamDownloadBtn');
-    btn.disabled = true; btn.textContent = '⏳ Building…';
+    const teamRows = TeamMatchup[side].rows;
+    if (!cfg || !teamRows.length) return;
+    const btn = document.getElementById(`${side}DownloadBtn`);
+    btn.disabled = true; const origLabel = btn.textContent; btn.textContent = '⏳ Building…';
     try {
       const tplRes = await fetch(cfg.template, { cache: 'no-store' });
       if (!tplRes.ok) throw new Error(`Template not found at ${cfg.template}`);
@@ -739,7 +847,7 @@
       const ws = wb.Sheets[cfg.sheetName];
       if (!ws) throw new Error(`Template missing "${cfg.sheetName}" sheet`);
 
-      _teamRows.forEach(r => {
+      teamRows.forEach(r => {
         const setCell = (c1, val) => {
           const addr = XLSX.utils.encode_cell({ r: r.row - 1, c: c1 - 1 });
           if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
@@ -751,21 +859,21 @@
         setCell(3, r.rank);   // C
       });
 
-      // Extend !ref so any newly-written cells past the stored range get saved.
       const existing = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:33, c:10} };
       ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(existing.e.r, 33), c: Math.max(existing.e.c, 10) } });
 
       const today = new Date().toISOString().split('T')[0];
-      const safe  = (_teamSchool || 'School').replace(/[^A-Za-z0-9]+/g, '_');
-      const filename = `${safe}_FB_HOME_TEAM_TeamStats_${today}.xlsx`;
+      const safe  = (TeamMatchup[side].school || 'School').replace(/[^A-Za-z0-9]+/g, '_');
+      const tmplLabel = side === 'home' ? 'FB_HOME_TEAM' : 'FB_AWAY_TEAM';
+      const filename  = `${safe}_${tmplLabel}_TeamStats_${today}.xlsx`;
       XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
-      setTeamStatus(`✓ Downloaded ${filename}`, 'ok');
+      setSideStatus(side, `✓ Downloaded ${filename}`, 'ok');
     } catch (err) {
       console.error(err);
       alert('Download failed: ' + (err.message || err));
-      setTeamStatus('Download failed', 'err');
+      setSideStatus(side, 'Download failed', 'err');
     } finally {
-      btn.disabled = false; btn.textContent = '⬇ Download Excel';
+      btn.disabled = false; btn.textContent = origLabel;
     }
   }
 

@@ -524,6 +524,18 @@
     return `${out} ${parseInt(m[2], 10)}`;
   }
 
+  /* ── Opponent name cleanup ──
+     Source feeds annotate ranked opponents with "No. 23 Wisconsin" or
+     "#23 Wisconsin". The number is the ranking and belongs at the start
+     of the Opponent name (matches the template style "23 Wisconsin"),
+     so this strips the "No." / "#" annotation while keeping the digit. */
+  function stripRankPrefix(name) {
+    if (!name) return '';
+    return String(name)
+      .replace(/^\s*(no\.?|#)\s*/i, '')   // "No. 23 Wisconsin" → "23 Wisconsin"
+      .trim();
+  }
+
   /* ── Opponent → Logo resolver ──
      Resolution order:
        1. ESPN abbreviation guide (aliases.json) — Official Name + tri-code lookup
@@ -532,7 +544,9 @@
   function resolveOpponentLogo(opponentRaw, logos) {
     if (!opponentRaw || !logos || !logos.length) return '';
     let s = String(opponentRaw).trim();
-    s = s.replace(/^\(?\d+\)?\s+/, '');     // leading rank: "23 ", "(23) "
+    // Strip ranking prefixes in any form: "No. 23 ", "#23 ", "(23) ", "23 ".
+    // Whatever comes after the number is the actual school name we look up.
+    s = s.replace(/^(no\.?\s+|#\s*)?\(?\d+\)?\s+/i, '');
     s = s.replace(/^at\s+/i, '');           // "at Wisconsin"
     s = s.replace(/\s*\(.*?\)\s*/g, ' ');   // strip "(2-2)" etc.
     s = s.replace(/\s+/g, ' ').trim();
@@ -654,7 +668,7 @@
 
       _rows = filtered.map((r, i) => {
         const at = String(r['At'] || '').trim().toLowerCase();
-        const opponent = String(r['Opponent'] || '').trim();
+        const opponent = stripRankPrefix(String(r['Opponent'] || '').trim());
         return {
           week: String(i + 1),
           at: at === 'away' ? 'at' : '',
@@ -728,7 +742,7 @@
       const oppLogos = _opponentLogoCache[cfg.opponentLogoSet] || [];
 
       _rows = parsed.map((r, i) => {
-        const opponent = r.opponent || '';
+        const opponent = stripRankPrefix(r.opponent || '');
         return {
           week: String(i + 1),
           at: /^away$/i.test(r.at) ? 'at' : '',

@@ -448,8 +448,9 @@
     // Sidearm stats pages are Vue/Nuxt SPAs — the HTML is empty of stat
     // tables. The cumulative PDF (cume.pdf) is the canonical text source.
     startParseStatus('player', `Locating cume.pdf for ${school}…`);
-    let pdfUrl;
+    let pdfUrl, hostForCache = '';
     try {
+      hostForCache = (new URL(url)).hostname;
       pdfUrl = await discoverPdfUrl(url, 'player');
     } catch (err) {
       setPlayerStatus(`Couldn't locate cume.pdf for ${url}: ${err.message || err}`, 'err');
@@ -459,7 +460,22 @@
       return;
     }
     try {
-      const buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
+      let buf;
+      try {
+        buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
+      } catch (firstErr) {
+        // The cached site key may have gone stale (school migrated CMS,
+        // changed bucket key, etc.). Clear it and retry once with fresh
+        // discovery before giving up.
+        if (hostForCache && _siteKeyMap()[hostForCache]) {
+          updateParseStatus('player', 'Cached key looks stale — re-discovering…');
+          _clearSiteKey(hostForCache);
+          pdfUrl = await discoverPdfUrl(url, 'player');
+          buf = await fetchPdfViaCorsProxies(pdfUrl, 'player');
+        } else {
+          throw firstErr;
+        }
+      }
       updateParseStatus('player', 'Extracting text from PDF…');
       const text = await extractPdfText(buf);
       updateParseStatus('player', 'Parsing stat sections…');
@@ -516,18 +532,24 @@
       return candidate;
     }
 
-    // Fetch the stats page HTML to extract the Sidearm site key.
+    // Fetch the stats page HTML to extract the Sidearm site key. The SPA
+    // bundle references sidearm.nextgen.sites/<key>/ many times — count
+    // occurrences and pick the most frequent so a one-off match (e.g., an
+    // ad script) doesn't fool us into using the wrong key.
     updateParseStatus(prefix, `Discovering Sidearm site key for ${u.hostname}…`);
     const html = await fetchTextViaCorsProxies(statsUrl, prefix);
-    // The bundle contains literals like:
-    //   sidearm.nextgen.sites/fiu.sidearmsports.com'   ← terminated by quote
-    //   sidearm.nextgen.sites/fiu.sidearmsports.com/...
-    // Match a Sidearm-style hostname only (letters/digits/dots/dashes).
-    const keyMatch = html.match(/sidearm\.nextgen\.sites\/([a-z0-9][a-z0-9.\-]+\.(?:com|org|net|edu|us))/i);
-    if (!keyMatch) throw new Error('Sidearm site key not found in page HTML.');
-    const key = keyMatch[1];
+    const matches = Array.from(html.matchAll(/sidearm\.nextgen\.sites\/([a-z0-9][a-z0-9.\-]+\.(?:com|org|net|edu|us))/gi));
+    if (!matches.length) throw new Error('Sidearm site key not found in page HTML.');
+    const counts = {};
+    for (const m of matches) counts[m[1]] = (counts[m[1]] || 0) + 1;
+    const key = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
     _saveSiteKey(u.hostname, key);
     return `https://s3.us-east-2.amazonaws.com/sidearm.nextgen.sites/${key}/stats/${sport}/${year}/pdf/cume.pdf`;
+  }
+
+  function _clearSiteKey(host) {
+    const m = _siteKeyMap(); delete m[host];
+    try { localStorage.setItem(SITE_KEY_CACHE, JSON.stringify(m)); } catch (e) {}
   }
 
   // Text fetch — same proxy chain as the binary fetcher, but reads .text().
@@ -568,7 +590,8 @@
         failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);
       }
     }
-    throw new Error('All CORS proxies failed fetching the PDF:\n  · ' + failures.join('\n  · '));
+    // Surface the URL we tried so the failing case can be diagnosed at a glance.
+    throw new Error(`All CORS proxies failed fetching the PDF.\nURL tried: ${url}\n  · ` + failures.join('\n  · '));
   }
 
   /* ── pdf.js text extraction ─────────────────────────────────────────────

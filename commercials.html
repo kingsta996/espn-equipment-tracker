@@ -128,6 +128,45 @@
   .tab-bar button.tab-engagement { background: #fffbeb; color: #92400e; font-weight: 700; }
   .tab-bar button.tab-engagement.active { background: #f59e0b; color: var(--white); }
 
+  /* Upload tab — sections + PSA tracker table */
+  .upload-section {
+    background: var(--white);
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .upload-section-header {
+    background: var(--navy); color: var(--white);
+    padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .upload-section-header .us-count {
+    margin-left: auto; font-size: 11px; font-weight: 600;
+    background: rgba(255,255,255,0.15); padding: 3px 9px; border-radius: 100px;
+  }
+  .upload-section-body { padding: 14px 16px; }
+  .upload-empty { padding: 20px; text-align: center; color: #94a3b8; font-style: italic; font-size: 12px; }
+  .psa-tracker-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  .psa-tracker-table th {
+    background: #f1f5f9; color: var(--navy);
+    padding: 7px 10px; border-bottom: 2px solid #e2e8f0;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    text-align: left;
+  }
+  .psa-tracker-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .psa-tracker-table tbody tr:hover { background: #f8fafc; }
+  .psa-tracker-table tr.psa-row-pending td:first-child { border-left: 3px solid #fbbf24; }
+  .psa-tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .psa-tag-school { background: #ecfccb; color: #4d7c0f; }
+  .psa-tag-admin  { background: #fee2e2; color: #991b1b; }
+
   /* Sports sub-tab strip (public view) */
   .sub-tab-bar {
     display: flex; flex-wrap: wrap; gap: 4px;
@@ -869,6 +908,68 @@
   </div>
 </div>
 
+<!-- CUSA Produced PSA upload modal (admin only — opens from Upload tab) -->
+<div class="modal-overlay" id="cusaPsaModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Upload a CUSA Produced PSA</h2>
+      <button class="modal-close" onclick="closeCusaPsaModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:#475569;margin:0 0 14px">
+        Captures sponsor / uploader / sport metadata, then hands you off to the
+        Box File Request. Filename pattern is
+        <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">&lt;NAME&gt;_CUSAPSAH</code>.
+      </p>
+      <div class="form-grid">
+        <div class="full">
+          <label>PSA Name <span style="color:#b91c1c">*</span> <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(letters/numbers only — becomes the start of the filename)</span></label>
+          <input type="text" id="cusaPsaName" placeholder="e.g. RBLAUTO2026" maxlength="20" oninput="cusaPsaUpdatePreview()" style="text-transform:uppercase">
+        </div>
+        <div>
+          <label>Sponsor Name <span style="color:#b91c1c">*</span></label>
+          <input type="text" id="cusaPsaSponsor" placeholder="e.g. Red Bull Auto" oninput="cusaPsaUpdatePreview()">
+        </div>
+        <div>
+          <label>Sport <span style="color:#b91c1c">*</span></label>
+          <select id="cusaPsaSport" onchange="cusaPsaUpdatePreview()">
+            <option value="">— Select sport —</option>
+            <option value="all">All Sports</option>
+            <option value="football">Football</option>
+            <option value="mens_basketball">Men's Basketball</option>
+            <option value="womens_basketball">Women's Basketball</option>
+            <option value="baseball">Baseball</option>
+            <option value="softball">Softball</option>
+            <option value="soccer">Soccer</option>
+            <option value="volleyball">Volleyball</option>
+          </select>
+        </div>
+        <div>
+          <label>Uploader Name <span style="color:#b91c1c">*</span></label>
+          <input type="text" id="cusaPsaUploader" placeholder="Your name" oninput="cusaPsaUpdatePreview()">
+        </div>
+        <div>
+          <label>Uploader Email <span style="color:#b91c1c">*</span></label>
+          <input type="email" id="cusaPsaEmail" placeholder="you@conferenceusa.com" oninput="cusaPsaUpdatePreview()">
+        </div>
+        <div class="full">
+          <label>Rotation Period <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(optional — e.g. "Sept – Nov 2026")</span></label>
+          <input type="text" id="cusaPsaRotation" placeholder="Optional rotation window" oninput="cusaPsaUpdatePreview()">
+        </div>
+        <div class="full">
+          <label>Filename Preview</label>
+          <div id="cusaPsaFilenamePreview" class="psa-filename-preview">—</div>
+          <div id="cusaPsaFilenameHint" class="psa-filename-hint">Enter a name to preview the filename.</div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-cancel" onclick="closeCusaPsaModal()">Cancel</button>
+        <button class="btn btn-save" id="cusaPsaContinueBtn" onclick="submitCusaPsa()" disabled>Continue to Upload</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- School PSA upload modal (ungated; reachable from login screen) -->
 <div class="modal-overlay" id="schoolPsaModal">
   <div class="modal">
@@ -1544,7 +1645,9 @@ function psaBuildFilename(year, code) {
   return `${y}${c}${PSA_SUFFIX}`;
 }
 
-async function openSchoolPsaModal() {
+async function openSchoolPsaModal(opts) {
+  // opts.asAdmin = true when an admin is uploading on a school's behalf.
+  state._psaAsAdmin = !!(opts && opts.asAdmin);
   // Make sure we have schools loaded — login screen normally already populated state.schools.
   if (!state.schools || !state.schools.length) {
     await populateSchoolDropdown();
@@ -1555,6 +1658,11 @@ async function openSchoolPsaModal() {
   document.getElementById('psaYear').value = String(new Date().getFullYear());
   document.getElementById('psaSchoolCode').value = '';
   sel.value = '';
+  // Reflect mode in the modal title.
+  const titleEl = document.querySelector('#schoolPsaModal .modal-header h2');
+  if (titleEl) titleEl.textContent = state._psaAsAdmin
+    ? 'Upload a School PSA (admin)'
+    : 'Upload a School PSA';
   psaUpdatePreview();
   document.getElementById('schoolPsaModal').classList.add('open');
   setTimeout(() => sel.focus(), 50);
@@ -1640,7 +1748,8 @@ async function submitSchoolPsa() {
         school_id: school.id,
         school_name: school.name,
         year,
-        filename
+        filename,
+        uploaded_by_admin: !!state._psaAsAdmin
       });
     } catch (e) {
       console.warn('psa_uploads insert failed:', e);
@@ -1652,6 +1761,116 @@ async function submitSchoolPsa() {
   showToast(`Filename ${filename} copied — opening Box File Request…`);
   window.open(fileRequestUrl, '_blank', 'noopener');
   closeSchoolPsaModal();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   CUSA Produced PSA upload (admin only — opens from the Upload tab).
+   Filename pattern: <NAME>_CUSAPSAH where NAME is admin-supplied.
+   Captures sponsor / uploader / sport / rotation period for the tracker.
+   ─────────────────────────────────────────────────────────────────────── */
+const CUSA_PSA_SUFFIX = '_CUSAPSAH';
+const CUSA_PSA_MAX_LEN = 30;
+
+function openCusaPsaModal() {
+  if (!isAdmin()) return;
+  ['cusaPsaName','cusaPsaSponsor','cusaPsaUploader','cusaPsaEmail','cusaPsaRotation']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const sport = document.getElementById('cusaPsaSport');
+  if (sport) sport.value = '';
+  cusaPsaUpdatePreview();
+  document.getElementById('cusaPsaModal').classList.add('open');
+  setTimeout(() => document.getElementById('cusaPsaName')?.focus(), 50);
+}
+
+function closeCusaPsaModal() {
+  document.getElementById('cusaPsaModal').classList.remove('open');
+}
+
+function cusaPsaBuildFilename(name) {
+  const n = String(name || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (!n) return '';
+  return `${n}${CUSA_PSA_SUFFIX}`;
+}
+
+function cusaPsaUpdatePreview() {
+  const name = document.getElementById('cusaPsaName')?.value || '';
+  const filename = cusaPsaBuildFilename(name);
+  const previewEl = document.getElementById('cusaPsaFilenamePreview');
+  const hintEl = document.getElementById('cusaPsaFilenameHint');
+  const btn = document.getElementById('cusaPsaContinueBtn');
+  if (!previewEl || !hintEl || !btn) return;
+
+  const sponsor = document.getElementById('cusaPsaSponsor')?.value.trim();
+  const uploader = document.getElementById('cusaPsaUploader')?.value.trim();
+  const email = document.getElementById('cusaPsaEmail')?.value.trim();
+  const sport = document.getElementById('cusaPsaSport')?.value;
+  const requiredOk = !!(name && sponsor && uploader && email && sport);
+
+  if (!filename) {
+    previewEl.textContent = '—';
+    previewEl.classList.remove('too-long');
+    hintEl.textContent = 'Enter a name to preview the filename.';
+    hintEl.classList.remove('error');
+    btn.disabled = true;
+    return;
+  }
+  previewEl.textContent = filename;
+  const tooLong = filename.length > CUSA_PSA_MAX_LEN;
+  previewEl.classList.toggle('too-long', tooLong);
+  if (tooLong) {
+    hintEl.textContent = `Filename is ${filename.length} characters — must be ${CUSA_PSA_MAX_LEN} or fewer.`;
+    hintEl.classList.add('error');
+    btn.disabled = true;
+  } else {
+    hintEl.textContent = `${filename.length}/${CUSA_PSA_MAX_LEN} characters. Required fields: name, sponsor, uploader, email, sport.`;
+    hintEl.classList.remove('error');
+    btn.disabled = !requiredOk;
+  }
+}
+
+async function submitCusaPsa() {
+  if (!isAdmin()) return;
+  const name = document.getElementById('cusaPsaName').value.trim();
+  const sponsor = document.getElementById('cusaPsaSponsor').value.trim();
+  const uploader = document.getElementById('cusaPsaUploader').value.trim();
+  const email = document.getElementById('cusaPsaEmail').value.trim();
+  const sport = document.getElementById('cusaPsaSport').value;
+  const rotation = document.getElementById('cusaPsaRotation').value.trim();
+  const filename = cusaPsaBuildFilename(name);
+  if (!name || !sponsor || !uploader || !email || !sport || !filename) return;
+  if (filename.length > CUSA_PSA_MAX_LEN) return;
+
+  let fileRequestUrl = '';
+  if (_db) {
+    const { data, error } = await _db.from('psa_config').select('file_request_url').eq('category', 'cusa_psa').maybeSingle();
+    if (!error) fileRequestUrl = (data?.file_request_url || '').trim();
+  }
+  if (!fileRequestUrl) {
+    showToast('CUSA PSA upload link not configured — set it in the Admin Portal.', true);
+    return;
+  }
+
+  if (_db) {
+    try {
+      await _db.from('psa_uploads').insert({
+        category: 'cusa_psa',
+        filename,
+        sponsor_name: sponsor,
+        uploader_name: uploader,
+        uploader_email: email,
+        sport,
+        rotation_period: rotation || null,
+        uploaded_by_admin: true
+      });
+    } catch (e) {
+      console.warn('psa_uploads insert failed:', e);
+    }
+  }
+
+  try { await navigator.clipboard?.writeText(filename); } catch (e) {}
+  showToast(`Filename ${filename} copied — opening Box File Request…`);
+  window.open(fileRequestUrl, '_blank', 'noopener');
+  closeCusaPsaModal();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -1711,13 +1930,24 @@ async function enterApp() {
    ─────────────────────────────────────────────────────────────────────── */
 async function loadAllData() {
   if (!_db) return;
-  const [commRes, asgRes, settingsRes, schoolsRes] = await Promise.all([
+  const [commRes, asgRes, settingsRes, schoolsRes, psaUpRes, psaCfgRes] = await Promise.all([
     _db.from('commercials').select('*').order('category').order('status').order('name'),
     _db.from('format_assignments').select('*'),
     _db.from('app_settings').select('*'),
-    _db.from('schools').select('id, name').order('name')
+    _db.from('schools').select('id, name, code').order('name'),
+    _db.from('psa_uploads').select('*').order('uploaded_at', { ascending: false })
+      .then(r => r, () => ({ data: [], error: null })),
+    _db.from('psa_config').select('*')
+      .then(r => r, () => ({ data: [], error: null }))
   ]);
   if (schoolsRes && !schoolsRes.error) state.schools = schoolsRes.data || [];
+  // psa_uploads / psa_config may not exist yet on first deploy — degrade quietly.
+  if (psaUpRes?.error && !/does not exist|schema cache/i.test(psaUpRes.error.message || '')) {
+    console.warn('psa_uploads load:', psaUpRes.error);
+  }
+  state.psaUploads = psaUpRes?.data || [];
+  state.psaConfig = {};
+  (psaCfgRes?.data || []).forEach(r => { if (r.category) state.psaConfig[r.category] = r; });
   if (commRes.error) console.error('commercials load:', commRes.error);
   if (asgRes.error)  console.error('assignments load:', asgRes.error);
   state.commercials = commRes.data || [];
@@ -1760,6 +1990,8 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'commercials' }, () => loadAllData().then(renderCurrentTab))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'format_assignments' }, () => loadAllData().then(renderCurrentTab))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => loadAllData().then(renderCurrentTab))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'psa_uploads' }, () => loadAllData().then(renderCurrentTab))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'psa_config' }, () => loadAllData().then(renderCurrentTab))
     .subscribe(s => setLastmodCloud(s === 'SUBSCRIBED'));
 }
 
@@ -1901,19 +2133,153 @@ function switchSportsSubTab(key) {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Upload tab — populated in a later phase (PSA tracker, admin upload,
-   CUSA Produced PSA form). Phase 1 ships the placeholder shell only.
+   Upload tab — School PSA tracker for all users; admin extras for
+   uploading on behalf of a school and submitting CUSA Produced PSAs.
    ─────────────────────────────────────────────────────────────────────── */
 function renderUploadTab() {
   const admin = isAdmin();
   return `
     <div style="background:var(--conf-bg);border:1px solid var(--conf-border);color:var(--conf-fg);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px">
       <b>School PSA tracker.</b> See which schools have submitted their latest School PSA and when it was last updated.
-      ${admin ? ' Admins can also upload spots on a school\'s behalf and submit CUSA Produced PSAs from this tab.' : ' To submit a new School PSA, sign out and use the <b>Upload</b> button on the login screen.'}
+      ${admin
+        ? ' As admin, you can also upload spots on a school\'s behalf and submit CUSA Produced PSAs from this tab.'
+        : ' To submit a new School PSA, <a href="javascript:signOut()" style="color:var(--conf-fg);font-weight:700">sign out</a> and use the <b>Upload a School PSA</b> button on the login screen.'}
     </div>
-    <div class="upload-tab-shell" style="padding:24px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc;color:#64748b;text-align:center;font-size:13px">
-      Tracker and upload tools land here in the next phase.
+
+    <div class="upload-section">
+      <div class="upload-section-header">
+        <span>School PSA Tracker</span>
+        <span class="us-count" id="psaTrackerCount"></span>
+      </div>
+      <div class="upload-section-body">
+        ${renderPsaTrackerTable()}
+      </div>
     </div>
+
+    ${admin ? renderUploadAdminSections() : ''}
+  `;
+}
+
+function renderPsaTrackerTable() {
+  const schools = (state.schools || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!schools.length) {
+    return '<div class="upload-empty">No schools loaded yet.</div>';
+  }
+  // Latest school_psa upload per school_id
+  const latest = {};
+  (state.psaUploads || []).forEach(u => {
+    if (u.category !== 'school_psa' || !u.school_id) return;
+    const prev = latest[u.school_id];
+    if (!prev || (u.uploaded_at || '') > (prev.uploaded_at || '')) latest[u.school_id] = u;
+  });
+  const uploadedCount = Object.keys(latest).length;
+  setTimeout(() => {
+    const el = document.getElementById('psaTrackerCount');
+    if (el) el.textContent = `${uploadedCount} of ${schools.length} schools uploaded`;
+  }, 0);
+
+  const rows = schools.map(s => {
+    const u = latest[s.id];
+    const uploadedHow = u
+      ? (u.uploaded_by_admin
+          ? '<span class="psa-tag psa-tag-admin">By admin</span>'
+          : '<span class="psa-tag psa-tag-school">Self</span>')
+      : '';
+    return `
+      <tr class="${u ? '' : 'psa-row-pending'}">
+        <td><b>${esc(s.name)}</b><span style="color:#64748b;font-size:10px;margin-left:6px">${esc(s.code || '')}</span></td>
+        <td>${u ? `<code style="font-size:11px">${esc(u.filename)}</code>` : '<span style="color:#94a3b8;font-style:italic">No upload yet</span>'}</td>
+        <td>${u ? esc(String(u.year || '—')) : '—'}</td>
+        <td>${u ? esc(fmtDateTime(u.uploaded_at)) : '—'}</td>
+        <td>${uploadedHow}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <table class="psa-tracker-table">
+      <thead>
+        <tr>
+          <th>School</th>
+          <th>Latest Filename</th>
+          <th>Year</th>
+          <th>Uploaded</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderUploadAdminSections() {
+  const schoolUrl = (state.psaConfig?.school_psa?.file_request_url || '').trim();
+  const cusaUrl   = (state.psaConfig?.cusa_psa?.file_request_url || '').trim();
+  return `
+    <div class="upload-section">
+      <div class="upload-section-header">
+        <span>📤 Upload a School PSA on behalf of a school</span>
+      </div>
+      <div class="upload-section-body" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px;font-size:12px;color:#475569">
+          Builds the agency-required filename, logs the upload as <b>By admin</b>, then opens the Box File Request.
+          ${schoolUrl ? '' : '<div style="color:#b91c1c;font-weight:600;margin-top:6px">⚠ School PSA File Request URL is not set in the Admin Portal.</div>'}
+        </div>
+        <button class="btn btn-add" onclick="openSchoolPsaModal({ asAdmin: true })" ${schoolUrl ? '' : 'disabled'}>Open School PSA form</button>
+      </div>
+    </div>
+
+    <div class="upload-section">
+      <div class="upload-section-header">
+        <span>🎬 Upload a CUSA Produced PSA</span>
+      </div>
+      <div class="upload-section-body" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px;font-size:12px;color:#475569">
+          Records sponsor / uploader / sport metadata, builds a <code>_CUSAPSAH</code> filename, then opens the CUSA-PSA File Request.
+          ${cusaUrl ? '' : '<div style="color:#b91c1c;font-weight:600;margin-top:6px">⚠ CUSA Produced PSA File Request URL is not set in the Admin Portal.</div>'}
+        </div>
+        <button class="btn btn-add" onclick="openCusaPsaModal()" ${cusaUrl ? '' : 'disabled'}>Open CUSA Produced PSA form</button>
+      </div>
+    </div>
+
+    <div class="upload-section">
+      <div class="upload-section-header">
+        <span>Recent CUSA Produced PSAs</span>
+      </div>
+      <div class="upload-section-body">
+        ${renderCusaPsaList()}
+      </div>
+    </div>
+  `;
+}
+
+function renderCusaPsaList() {
+  const rows = (state.psaUploads || []).filter(u => u.category === 'cusa_psa').slice(0, 25);
+  if (!rows.length) return '<div class="upload-empty">No CUSA Produced PSAs uploaded yet.</div>';
+  return `
+    <table class="psa-tracker-table">
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Sponsor</th>
+          <th>Sport</th>
+          <th>Rotation</th>
+          <th>Uploader</th>
+          <th>Uploaded</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(u => `
+          <tr>
+            <td><code style="font-size:11px">${esc(u.filename)}</code></td>
+            <td>${esc(u.sponsor_name || '—')}</td>
+            <td>${esc(u.sport === 'all' ? 'All Sports' : (prettySport(u.sport) || u.sport || '—'))}</td>
+            <td>${esc(u.rotation_period || '—')}</td>
+            <td>${esc(u.uploader_name || '—')}<br><span style="color:#64748b;font-size:10px">${esc(u.uploader_email || '')}</span></td>
+            <td>${esc(fmtDateTime(u.uploaded_at))}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
   `;
 }
 

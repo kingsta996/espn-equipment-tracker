@@ -24,9 +24,7 @@ update schools set code = 'FIU'   where name = 'FIU';
 update schools set code = 'DEL'   where name = 'Delaware';
 update schools set code = 'KSU'   where name = 'Kennesaw State';
 update schools set code = 'DBU'   where name = 'Dallas Baptist';
-update schools set code = 'LATECH' where name = 'Louisiana Tech';
 update schools set code = 'MOST'  where name = 'Missouri State';
-update schools set code = 'UTEP'  where name = 'UTEP';
 
 -- Sanity check
 select name, code from schools order by name;

@@ -355,6 +355,16 @@
     'Western Kentucky':   y => `https://wkusports.com/sports/football/stats/${y}`
   };
 
+  // Per-school volleyball host map (runtime discovers the Sidearm site key
+  // from the SPA bundle and the cume.pdf is at /stats/wvball/<year>/pdf/cume.pdf).
+  const SCHOOL_HOST_VB = {
+    'Delaware': 'bluehens.com', 'FIU': 'fiusports.com', 'Jacksonville State': 'jaxstatesports.com',
+    'Kennesaw State': 'ksuowls.com', 'Liberty': 'libertyflames.com',
+    'Middle Tennessee': 'goblueraiders.com', 'Missouri State': 'missouristatebears.com',
+    'New Mexico State': 'nmstatesports.com', 'Sam Houston': 'gobearkats.com',
+    'Western Kentucky': 'wkusports.com'
+  };
+
   /* ── Per-sport stats config ─────────────────────────────────────────────
      Each sport's TEAM and PLAYER handler is filled in as it ships. Football
      player is wired in Phase 2; team will land in Phase 3. */
@@ -370,10 +380,27 @@
       player: {
         template:   'templates/master-schedule/football.xlsx',  // shared FB_HOME_TEAM source
         sheetName:  'Player Stats',
-        defaultUrl: (school, year) => SCHOOL_STATS_URL_FB[school]?.(year) || ''
+        defaultUrl: (school, year) => SCHOOL_STATS_URL_FB[school]?.(year) || '',
+        parsePdf:   (text) => parseFootballPdfSections(text),
+        buildRows:  (sections) => buildFootballPlayerRows(sections),
+        renderRows: () => renderFootballPlayerStatsTable(),
+        writeRows:  (ws) => writeFootballPlayerStatsRows(ws),
+        outputFilename: (school, today) => `${school}_FB_HOME_TEAM_PlayerStats_${today}.xlsx`
       }
     },
-    Volleyball:           { team: null, player: null },
+    Volleyball: {
+      team:   null,                  // VB has no Team Stats sheet in the template
+      player: {
+        template:   'templates/master-schedule/volleyball.xlsx',
+        sheetName:  'Season Stats',
+        defaultUrl: (school, year) => `https://${SCHOOL_HOST_VB[school] || ''}/sports/womens-volleyball/stats/${year}`,
+        parsePdf:   (text) => parseVolleyballPdf(text),
+        buildRows:  (sections) => buildVolleyballPlayerRows(sections),
+        renderRows: () => renderVolleyballPlayerStatsTable(),
+        writeRows:  (ws) => writeVolleyballPlayerStatsRows(ws),
+        outputFilename: (school, today) => `${school}_VB_HOME_PlayerStats_${today}.xlsx`
+      }
+    },
     Soccer:               { team: null, player: null },
     "Men's Basketball":   { team: null, player: null },
     "Women's Basketball": { team: null, player: null },
@@ -905,11 +932,19 @@
     document.getElementById('playerPullBtn').disabled = true;
     // Sidearm stats pages are Vue/Nuxt SPAs — the HTML is empty of stat
     // tables. The cumulative PDF (cume.pdf) is the canonical text source.
+    // Two URL shapes accepted:
+    //   1. Stats page URL (.../sports/<sport>/stats/<year>) → discover cume.pdf
+    //   2. Direct .pdf URL (e.g. UAB's /documents/.../FB_Stat_File.pdf) →
+    //      use as-is, no discovery
     startParseStatus('player', `Locating cume.pdf for ${school}…`);
     let pdfUrls, hostForCache = '';
     try {
       hostForCache = (new URL(url)).hostname;
-      pdfUrls = await discoverPdfUrls(url, 'player');
+      if (/\.pdf(\?|#|$)/i.test(url)) {
+        pdfUrls = [url];
+      } else {
+        pdfUrls = await discoverPdfUrls(url, 'player');
+      }
     } catch (err) {
       setPlayerStatus(`Couldn't locate cume.pdf for ${url}: ${err.message || err}`, 'err');
       document.getElementById('playerLoadBtn').disabled = false;
@@ -947,15 +982,14 @@
       updateParseStatus('player', 'Extracting text from PDF…');
       const text = await extractPdfText(buf);
       updateParseStatus('player', 'Parsing stat sections…');
-      const tables = parseFootballPdfSections(text);
-      const tableCount = Object.values(tables).filter(t => t && t.length).length;
-      if (!tableCount) throw new Error('No stat sections found in the PDF. The cume.pdf layout may have changed.');
-      _playerRows = buildFootballPlayerRows(tables);
+      const sections = cfg.parsePdf(text);
+      const sectionCount = (sections && Object.values(sections).filter(t => t && t.length).length) || 0;
+      _playerRows = cfg.buildRows(sections);
       _playerSchool = school;
-      if (!_playerRows.length) throw new Error(`Parsed ${tableCount} section(s) but no players with valid jersey numbers.`);
-      renderPlayerStatsTable();
+      if (!_playerRows.length) throw new Error(`Parsed PDF but no players with valid jersey numbers.`);
+      cfg.renderRows();
       document.getElementById('playerDownloadBtn').disabled = false;
-      setPlayerStatus(`Loaded ${_playerRows.length} player${_playerRows.length === 1 ? '' : 's'} across ${tableCount} stat section${tableCount === 1 ? '' : 's'} for ${school} ${year}.`, 'ok');
+      setPlayerStatus(`Loaded ${_playerRows.length} player${_playerRows.length === 1 ? '' : 's'} for ${school} ${year}.`, 'ok');
     } catch (err) {
       console.error(err);
       document.getElementById('playerContent').innerHTML = `<div class="empty" style="text-align:left"><h3 style="text-align:center">Failed to load player stats</h3><pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;color:#666;line-height:1.5;margin:0">${escapeHtml(err.message || String(err))}</pre></div>`;
@@ -981,11 +1015,12 @@
      abbreviations (`fb`, `vb`, `mbb`). We try the alias list per sport. */
   const SPORT_PATH_ALIASES = {
     'football':           ['football', 'fb'],
-    'volleyball':         ['volleyball', 'vb', 'wvball'],
-    'soccer':             ['soccer', 'womens-soccer', 'wsoc'],
-    'womens-soccer':      ['womens-soccer', 'wsoc', 'soccer'],
-    'mens-basketball':    ['mens-basketball', 'mbball', 'mbb'],
-    'womens-basketball':  ['womens-basketball', 'wbball', 'wbb'],
+    'volleyball':         ['wvball', 'volleyball', 'vb'],
+    'womens-volleyball':  ['wvball', 'womens-volleyball', 'volleyball', 'vb'],
+    'soccer':             ['wsoc', 'soccer', 'womens-soccer'],
+    'womens-soccer':      ['wsoc', 'womens-soccer', 'soccer'],
+    'mens-basketball':    ['mbball', 'mens-basketball', 'mbb'],
+    'womens-basketball':  ['wbball', 'womens-basketball', 'wbb'],
     'baseball':           ['baseball', 'bsb'],
     'softball':           ['softball', 'sb']
   };
@@ -1097,9 +1132,15 @@
     throw new Error('All proxies failed:\n  · ' + failures.join('\n  · '));
   }
 
-  /* ── CORS-proxy fetch (binary) ──────────────────────────────────────── */
-  async function fetchPdfViaCorsProxies(url, prefix) {
+  /* ── CORS-proxy fetch (binary) ────────────────────────────────────────
+     Sidearm hosts some PDFs behind a viewer-page wrapper (e.g. UAB's
+     /documents/.../FB_Stat.pdf returns HTML, not the PDF itself). When
+     the fetched body fails the %PDF- magic-byte check, we try once to
+     parse it as HTML and look inside for the canonical S3 / download
+     URL of the real PDF, then retry with that. */
+  async function fetchPdfViaCorsProxies(url, prefix, depth = 0) {
     const failures = [];
+    let unwrappedUrl = null;
     for (const proxy of CORS_PROXIES) {
       try {
         updateParseStatus(prefix, `Fetching PDF via ${proxy.name}…`);
@@ -1107,17 +1148,37 @@
         if (!res.ok) { failures.push(`${proxy.name}: HTTP ${res.status}`); continue; }
         const buf = await res.arrayBuffer();
         if (!buf || buf.byteLength < 1000) { failures.push(`${proxy.name}: response too small (${buf?.byteLength || 0} bytes)`); continue; }
-        // Sanity-check PDF signature so a JSON error envelope doesn't slip through.
         const head = new Uint8Array(buf.slice(0, 5));
         const sig  = String.fromCharCode(...head);
-        if (!sig.startsWith('%PDF-')) { failures.push(`${proxy.name}: not a PDF (got "${sig}")`); continue; }
-        return buf;
+        if (sig.startsWith('%PDF-')) return buf;
+        // Not a PDF — could be a Sidearm wrapper page. Try to unwrap once.
+        if (depth === 0 && !unwrappedUrl) {
+          try {
+            const text = new TextDecoder('utf-8').decode(buf);
+            unwrappedUrl = extractEmbeddedPdfUrl(text);
+          } catch (e) { /* binary that's not a PDF and not decodable — skip */ }
+        }
+        failures.push(`${proxy.name}: not a PDF (got "${sig}")`);
       } catch (err) {
         failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);
       }
     }
-    // Surface the URL we tried so the failing case can be diagnosed at a glance.
+    if (unwrappedUrl && unwrappedUrl !== url) {
+      updateParseStatus(prefix, `Unwrapping viewer page → ${unwrappedUrl}…`);
+      return await fetchPdfViaCorsProxies(unwrappedUrl, prefix, depth + 1);
+    }
     throw new Error(`All CORS proxies failed fetching the PDF.\nURL tried: ${url}\n  · ` + failures.join('\n  · '));
+  }
+
+  /* Find the canonical raw-PDF URL inside a Sidearm document-viewer page.
+     Prefers the S3 sidearm.nextgen.sites URL since that's the source-of-
+     truth asset; falls back to any /documents/download/ direct URL. */
+  function extractEmbeddedPdfUrl(html) {
+    const s3 = html.match(/https?:\/\/s3[^"\s]+sidearm\.nextgen\.sites\/[^"\s]+\.pdf[^"\s]*/i);
+    if (s3) return s3[0];
+    const dl = html.match(/https?:\/\/[^"\s]+\/documents\/download\/[^"\s]+\.pdf[^"\s]*/i);
+    if (dl) return dl[0];
+    return null;
   }
 
   /* ── pdf.js text extraction ─────────────────────────────────────────────
@@ -1311,9 +1372,9 @@
     return Number.isFinite(pct) ? `${pct.toFixed(1)}%` : (Number.isFinite(comp) && Number.isFinite(att) ? `${comp}/${att}` : '');
   }
 
-  /* ── Editable preview table ────────────────────────────────────────── */
+  /* ── Football editable preview table ──────────────────────────────── */
   const CAT_LABEL = { passing:'Passing', rushing:'Rushing', receiving:'Receiving', defense:'Defensive', fieldGoals:'Field Goal', punting:'Punting' };
-  function renderPlayerStatsTable() {
+  function renderFootballPlayerStatsTable() {
     const c = document.getElementById('playerContent');
     if (!_playerRows.length) {
       c.innerHTML = `<div class="empty"><h3>No players parsed.</h3></div>`;
@@ -1370,9 +1431,221 @@
       btn.addEventListener('click', () => {
         const idx = +btn.closest('tr').dataset.idx;
         _playerRows.splice(idx, 1);
-        renderPlayerStatsTable();
+        renderFootballPlayerStatsTable();
       });
     });
+  }
+
+  /* ── Volleyball PDF parser ────────────────────────────────────────────
+     The VB cume.pdf is one consolidated table per player (no section
+     headers). Headers seen on Sidearm cume:
+       # Player SP K K/S E TA Pct A A/S SA SE SA/S RE DIG DIG/S BS BA BLK BLK/S BE BHE PTS
+     Find the header line, then take subsequent rows that start with
+     a 1-3 digit jersey number. */
+  function parseVolleyballPdf(text) {
+    const lines = text.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    let headerIdx = -1, headers = [];
+    for (let i = 0; i < lines.length; i++) {
+      // Header always starts with "# Player" and contains the canonical Pct + DIG keywords.
+      if (/^#\s+Player\b/.test(lines[i]) && /\bPct\b/.test(lines[i]) && /\bDIG\b/.test(lines[i])) {
+        headerIdx = i;
+        // Drop the leading "#" + "Player" so headers match the value tokens.
+        headers = lines[i].replace(/^#\s+Player\s+/, '').split(/\s+/);
+        break;
+      }
+    }
+    if (headerIdx < 0) return { roster: [] };
+
+    const out = [];
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^(Total|Opponents|Team|Overall|Conf|Home|Away|Neutral|Result)\b/i.test(line)) continue;
+      const m = line.match(/^(\d{1,3})\s+(.+)$/);
+      if (!m) continue;
+      const jersey = parseInt(m[1], 10);
+      if (jersey < 0 || jersey > 99) continue;
+      const rest = m[2].split(/\s+/);
+      if (rest.length < headers.length + 1) continue;
+      const values = rest.slice(-headers.length);
+      const name   = rest.slice(0, rest.length - headers.length).join(' ');
+      const row = { jersey, name };
+      headers.forEach((h, idx) => { row[h.toLowerCase()] = values[idx] || ''; });
+      out.push(row);
+    }
+    return { roster: out };
+  }
+
+  // Position → CAT slot mapping (spec §18.3). Each entry is the 3-stat
+  // formatter that returns { cat1, cat2, cat3 } given a parsed VB row.
+  const VB_SLOT_MAPPERS = {
+    OH:  r => ({ cat1: vbCount(r, 'k', 'KILLS'),    cat2: vbHitPct(r),               cat3: vbCount(r, 'dig', 'DIGS')  }),
+    OPP: r => ({ cat1: vbCount(r, 'k', 'KILLS'),    cat2: vbHitPct(r),               cat3: vbCount(r, 'pts', 'POINTS') }),
+    MB:  r => ({ cat1: vbCount(r, 'k', 'KILLS'),    cat2: vbHitPct(r),               cat3: vbBlocks(r)                }),
+    S:   r => ({ cat1: vbCount(r, 'a', 'ASSISTS'),  cat2: vbCount(r, 'sa', 'ACES'),  cat3: vbCount(r, 'dig', 'DIGS')  }),
+    L:   r => ({ cat1: vbCount(r, 'dig', 'DIGS'),   cat2: vbCount(r, 'sa', 'ACES'),  cat3: vbCount(r, 're', 'REC ERRORS') })
+  };
+  const VB_POSITIONS = Object.keys(VB_SLOT_MAPPERS);
+
+  function vbCount(r, key, label) {
+    const n = parseInt(r[key], 10);
+    return Number.isFinite(n) ? `${n} ${label}` : '';
+  }
+  function vbHitPct(r) {
+    // Sidearm reports as decimal (".223" or "-.083"). Convert to "22.3%".
+    const raw = String(r['pct'] || '').trim();
+    if (!raw) return '';
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n)) return '';
+    return `${(n * 100).toFixed(1)}% HIT %`;
+  }
+  function vbBlocks(r) {
+    const bs = parseInt(r['bs'], 10);
+    const ba = parseInt(r['ba'], 10);
+    const tot = (Number.isFinite(bs) ? bs : 0) + (Number.isFinite(ba) ? ba : 0);
+    return tot > 0 ? `${tot} BLOCKS` : '';
+  }
+
+  // Default-position heuristic for first-load preview — guesses position
+  // from the player's stat profile so the user usually doesn't have to
+  // pick manually. They can override per row in the dropdown.
+  function vbGuessPosition(r) {
+    const k   = parseInt(r['k']  || 0, 10);
+    const a   = parseInt(r['a']  || 0, 10);
+    const dig = parseInt(r['dig']|| 0, 10);
+    const bs  = parseInt(r['bs'] || 0, 10);
+    const ba  = parseInt(r['ba'] || 0, 10);
+    const blk = (Number.isFinite(bs)?bs:0) + (Number.isFinite(ba)?ba:0);
+    if (a >= 100 && a > k) return 'S';                              // setter
+    if (dig >= 100 && k < 30) return 'L';                           // libero
+    if (blk >= 50 && k < 100) return 'MB';                          // middle blocker
+    if (k >= 30) return 'OH';                                       // attacker (default)
+    return 'OH';
+  }
+
+  function buildVolleyballPlayerRows(sections) {
+    const roster = (sections && sections.roster) || [];
+    return roster.sort((a, b) => a.jersey - b.jersey).map(r => {
+      const position = vbGuessPosition(r);
+      const slots = VB_SLOT_MAPPERS[position](r);
+      return { jersey: r.jersey, name: r.name, position, raw: r, ...slots };
+    });
+  }
+
+  function renderVolleyballPlayerStatsTable() {
+    const c = document.getElementById('playerContent');
+    if (!_playerRows.length) {
+      c.innerHTML = `<div class="empty"><h3>No players parsed.</h3></div>`;
+      return;
+    }
+    const posOptions = VB_POSITIONS.map(p => `<option value="${p}">${p}</option>`).join('');
+    const rows = _playerRows.map((row, idx) => `
+      <tr data-idx="${idx}">
+        <td style="text-align:center;font-weight:700"><input type="text" data-key="jersey" value="${escapeHtml(row.jersey)}" style="text-align:center"></td>
+        <td><input type="text" data-key="name" value="${escapeHtml(row.name)}"></td>
+        <td>
+          <select data-key="position">
+            ${posOptions.replace(`value="${row.position}"`, `value="${row.position}" selected`)}
+          </select>
+        </td>
+        <td><input type="text" data-key="cat1" value="${escapeHtml(row.cat1)}"></td>
+        <td><input type="text" data-key="cat2" value="${escapeHtml(row.cat2)}"></td>
+        <td><input type="text" data-key="cat3" value="${escapeHtml(row.cat3)}"></td>
+        <td style="text-align:center"><button class="remove-btn" data-action="remove" title="Remove player" style="background:transparent;border:0;color:#c00;cursor:pointer;font-size:14px;padding:4px 6px">✕</button></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:60px">#</th>
+              <th style="min-width:180px">Player</th>
+              <th style="min-width:80px">Position</th>
+              <th style="min-width:130px">CAT1 (D)</th>
+              <th style="min-width:130px">CAT2 (F)</th>
+              <th style="min-width:130px">CAT3 (H)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 0;font-size:11px;color:#666">
+        ${_playerRows.length} player${_playerRows.length===1?'':'s'} · changing Position auto-recomputes CAT1/2/3 from raw stats · edit any cell to override · jersey-aligned (row in template = jersey + 1)
+      </div>
+    `;
+    c.querySelectorAll('input,select').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.closest('tr').dataset.idx;
+        const key = inp.dataset.key;
+        if (!_playerRows[idx]) return;
+        if (key === 'position' && VB_SLOT_MAPPERS[inp.value]) {
+          // Recompute the 3 slots from the player's raw stats.
+          _playerRows[idx].position = inp.value;
+          const slots = VB_SLOT_MAPPERS[inp.value](_playerRows[idx].raw);
+          Object.assign(_playerRows[idx], slots);
+          renderVolleyballPlayerStatsTable();
+          return;
+        }
+        _playerRows[idx][key] = inp.value;
+      });
+    });
+    c.querySelectorAll('button[data-action="remove"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.closest('tr').dataset.idx;
+        _playerRows.splice(idx, 1);
+        renderVolleyballPlayerStatsTable();
+      });
+    });
+  }
+
+  /* Volleyball writer — Season Stats sheet, jersey+1 row offset, columns
+     D / F / H (CAT1 / CAT2 / CAT3). Per spec §18 leave A/B/C formulas,
+     E/G/I HILITE columns, J STAT HILITE NOTE, and L-U broken refs alone. */
+  function writeVolleyballPlayerStatsRows(ws) {
+    const writeCell = (r1, c1, val) => {
+      const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
+      if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+      ws[addr] = { t: 's', v: String(val) };
+    };
+    _playerRows.forEach(p => {
+      const j = parseInt(p.jersey, 10);
+      if (!Number.isFinite(j) || j < 0 || j > 99) return;
+      const r = j + 1;
+      writeCell(r, 4, p.cat1);   // D
+      writeCell(r, 6, p.cat2);   // F
+      writeCell(r, 8, p.cat3);   // H
+    });
+    const existingRef = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:101, c:25} };
+    const lastJersey = Math.max(...(_playerRows.map(p => parseInt(p.jersey, 10) || 0)));
+    const lastRow = Math.max(existingRef.e.r, (lastJersey + 1) - 1);
+    const lastCol = Math.max(existingRef.e.c, 7);  // through column H
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
+  }
+
+  /* Football writer — extracted from the old monolithic downloadPlayerStats. */
+  function writeFootballPlayerStatsRows(ws) {
+    const writeCell = (r1, c1, val) => {
+      const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
+      if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+      const num = Number(val);
+      ws[addr] = (typeof val === 'number' || (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)))
+        ? { t: 'n', v: Number.isFinite(num) ? num : 0 }
+        : { t: 's', v: String(val) };
+    };
+    _playerRows.forEach(p => {
+      const j = parseInt(p.jersey, 10);
+      if (!Number.isFinite(j) || j < 0 || j > 99) return;
+      const r = j + 8;
+      writeCell(r,  4, parseInt(p.numStats, 10) || (p.category === 'defense' ? 5 : p.category === 'fieldGoals' ? 3 : 4));
+      writeCell(r,  5, p.stat1);   writeCell(r,  7, p.stat2);
+      writeCell(r,  9, p.stat3);   writeCell(r, 11, p.stat4);
+      writeCell(r, 13, p.stat5 || '');
+    });
+    const existingRef = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:107, c:30} };
+    const lastJersey = Math.max(...(_playerRows.map(p => parseInt(p.jersey, 10) || 0)));
+    const lastRow = Math.max(existingRef.e.r, (lastJersey + 8) - 1);
+    const lastCol = Math.max(existingRef.e.c, 12);
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
   }
 
   /* ── Download — write into FB_HOME_TEAM Player Stats sheet ──────────────
@@ -1394,38 +1667,12 @@
       const ws = wb.Sheets[cfg.sheetName];
       if (!ws) throw new Error(`Template missing "${cfg.sheetName}" sheet`);
 
-      const writeCell = (r1, c1, val) => {
-        const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
-        if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
-        const num = Number(val);
-        ws[addr] = (typeof val === 'number' || (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)))
-          ? { t: 'n', v: Number.isFinite(num) ? num : 0 }
-          : { t: 's', v: String(val) };
-      };
-
-      _playerRows.forEach(p => {
-        const j = parseInt(p.jersey, 10);
-        if (!Number.isFinite(j) || j < 0 || j > 99) return;
-        const r = j + 8;                    // §5c jersey-to-row formula
-        writeCell(r,  4, parseInt(p.numStats, 10) || (p.category === 'defense' ? 5 : p.category === 'fieldGoals' ? 3 : 4));  // D
-        writeCell(r,  5, p.stat1);          // E
-        writeCell(r,  7, p.stat2);          // G
-        writeCell(r,  9, p.stat3);          // I
-        writeCell(r, 11, p.stat4);          // K
-        writeCell(r, 13, p.stat5 || '');    // M (defensive)
-      });
-
-      // Update !ref so XLSX recognizes any newly-written cells past the
-      // template's stored range — but DO NOT delete sheets or columns.
-      const existingRef = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:107, c:30} };
-      const lastJersey = Math.max(...(_playerRows.map(p => parseInt(p.jersey, 10) || 0)));
-      const lastRow = Math.max(existingRef.e.r, (lastJersey + 8) - 1);
-      const lastCol = Math.max(existingRef.e.c, 12); // through column M
-      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
+      // Per-sport writer fills the right cells.
+      cfg.writeRows(ws);
 
       const today = new Date().toISOString().split('T')[0];
       const safe  = (_playerSchool || 'School').replace(/[^A-Za-z0-9]+/g, '_');
-      const filename = `${safe}_FB_HOME_TEAM_PlayerStats_${today}.xlsx`;
+      const filename = cfg.outputFilename(safe, today);
       XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
       setPlayerStatus(`✓ Downloaded ${filename}`, 'ok');
     } catch (err) {

@@ -792,14 +792,13 @@
       c.innerHTML = `<div class="empty"><h3>No games on this schedule yet.</h3><p>Click <strong>+ Add Game</strong> below to add one manually.</p></div>`;
       return;
     }
-    const networkOptions = logoSet.map(n => `<option value="${n}">${n}</option>`).join('');
-
     const cfg = _config || {};
     const weekLabel = cfg.weekColumnLabel || 'Week';
     const datePh    = cfg.datePlaceholder || 'Sept 6';
     const maxRows   = (cfg.dataEndRow || 0) - (cfg.dataStartRow || 0) + 1;
     const showOppLogo = !!cfg.supportsOpponentLogo;
     const logoSet     = NETWORK_LOGO_SETS[cfg.networkLogoSet] || NETWORK_LOGO_SETS.standard;
+    const networkOptions = logoSet.map(n => `<option value="${n}">${n}</option>`).join('');
 
     const head = `
       <tr>

@@ -402,13 +402,15 @@
           whitespace into the same 7-column shape and the score-vs-location
           shifting logic from the LET formula is replicated here. */
   async function pullFromURL() {
-    const url = (document.getElementById('scheduleUrl').value || '').trim();
+    const raw = (document.getElementById('scheduleUrl').value || '').trim();
     const sport  = document.getElementById('sportSel').value;
     const school = document.getElementById('schoolSel').value;
     const cfg = SPORT_CONFIG[sport];
-    if (!url)  { setStatus('Paste a schedule URL first.', 'err'); return; }
+    if (!raw)  { setStatus('Paste a schedule URL first.', 'err'); return; }
     if (!cfg)  { setStatus(`${sport} isn't wired up.`, 'err'); return; }
-    if (!/^https?:\/\//i.test(url)) { setStatus('URL must start with http:// or https://.', 'err'); return; }
+    if (!/^https?:\/\//i.test(raw)) { setStatus('URL must start with http:// or https://.', 'err'); return; }
+
+    const url = normalizeScheduleUrl(raw);
 
     document.getElementById('pullBtn').disabled = true;
     document.getElementById('loadBtn').disabled = true;
@@ -446,6 +448,20 @@
       document.getElementById('pullBtn').disabled = false;
       document.getElementById('loadBtn').disabled = false;
     }
+  }
+
+  /* SideArm-style schedule pages render as a Vue/Nuxt SPA at the bare
+     /sports/<sport>/schedule URL — the data only lives in a hydration
+     blob there. Appending /text/ gives you a server-rendered HTML table
+     with the same Date/Time/At/Opponent shape, which our parser handles.
+     Auto-rewrite so users don't have to remember the suffix. */
+  function normalizeScheduleUrl(url) {
+    if (/\/schedule_txt\.ashx/i.test(url)) return url;        // SideArm text endpoint
+    if (/\/schedule\/text\/?(\?|#|$)/i.test(url)) return url; // already correct
+    if (/\/sports\/[^/]+\/schedule\/?(\?|#|$)/i.test(url)) {
+      return url.replace(/\/?(\?|#|$)/, '/text/$1');
+    }
+    return url;
   }
 
   async function fetchViaCorsProxies(url) {

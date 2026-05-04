@@ -159,6 +159,11 @@
     <button id="downloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
     <span class="status" id="status">Pick a sport, then load the standings.</span>
   </div>
+  <div class="controls" style="margin-top:0">
+    <label for="standingsUrl">Or pull from URL</label>
+    <input type="url" id="standingsUrl" placeholder="https://conferenceusa.com/standings.aspx?standings=1156" style="flex:1;min-width:260px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+    <button id="pullBtn" class="btn-primary">🌐 Pull from URL</button>
+  </div>
 
   <div id="parseStatus" class="parse-status">
     <div class="ps-label"><div class="ps-spinner"></div><span id="parseStatusLabel">Working…</span></div>
@@ -375,20 +380,20 @@
     throw new Error('Could not find a standings table on the page (no Team + CUSA header pair).');
   }
 
-  /* ── Load handler ── */
-  async function loadStandings() {
-    const sport = document.getElementById('sportSel').value;
-    const cfg = SPORT_CONFIG[sport];
-    const meta = CUSA_STANDINGS_IDS[sport];
-    if (!cfg || !meta) {
-      setStatus('That sport is not yet wired up.', 'err');
+  /* ── Shared scrape pipeline ──
+     Both "Load Standings" (default sport URL) and "Pull from URL" route
+     through here. The sport selector picks the template + E-column variant;
+     the URL determines which page we scrape. */
+  async function scrapeStandings(url, sportKey, label) {
+    const cfg = SPORT_CONFIG[sportKey];
+    if (!cfg) {
+      setStatus('Pick a sport first so the right template is used.', 'err');
       return;
     }
-
-    const url = standingsUrlFor(sport);
-    setStatus(`Scraping ${meta.label}…`);
-    startParseStatus(`Fetching ${meta.label} standings…`);
+    setStatus(`Scraping ${label}…`);
+    startParseStatus(`Fetching ${label} standings…`);
     document.getElementById('loadBtn').disabled = true;
+    document.getElementById('pullBtn').disabled = true;
     document.getElementById('downloadBtn').disabled = true;
 
     try {
@@ -398,20 +403,41 @@
       if (!teams.length) throw new Error('No team rows found on the standings page.');
       _teams = teams;
       _config = cfg;
-      _sportKey = sport;
-      try { sessionStorage.setItem('cusa_standings_last_sport', sport); } catch (_) {}
+      _sportKey = sportKey;
+      try { sessionStorage.setItem('cusa_standings_last_sport', sportKey); } catch (_) {}
       renderTable();
       renderWarnings();
       document.getElementById('downloadBtn').disabled = false;
-      setStatus(`Loaded ${teams.length} teams for ${meta.label}.`, 'ok');
+      setStatus(`Loaded ${teams.length} teams for ${label}.`, 'ok');
     } catch (err) {
       console.error(err);
       document.getElementById('content').innerHTML = `<div class="empty"><h3>Failed to load standings</h3><p>${escapeHtml(err.message || String(err))}</p></div>`;
       setStatus('Load failed', 'err');
     } finally {
       document.getElementById('loadBtn').disabled = false;
+      document.getElementById('pullBtn').disabled = false;
       endParseStatus();
     }
+  }
+
+  async function loadStandings() {
+    const sport = document.getElementById('sportSel').value;
+    const meta = CUSA_STANDINGS_IDS[sport];
+    if (!meta) {
+      setStatus('Pick a sport first.', 'err');
+      return;
+    }
+    return scrapeStandings(standingsUrlFor(sport), sport, meta.label);
+  }
+
+  async function pullFromUrl() {
+    const sport = document.getElementById('sportSel').value;
+    const meta = CUSA_STANDINGS_IDS[sport];
+    const url = (document.getElementById('standingsUrl').value || '').trim();
+    if (!url) { setStatus('Paste a standings URL first.', 'err'); return; }
+    if (!/^https?:\/\//i.test(url)) { setStatus('URL must start with http:// or https://.', 'err'); return; }
+    if (!meta) { setStatus('Pick a sport so the right template is used.', 'err'); return; }
+    return scrapeStandings(url, sport, meta.label);
   }
 
   function renderWarnings() {
@@ -570,7 +596,11 @@
 
   /* ── Wire up ── */
   document.getElementById('loadBtn').addEventListener('click', loadStandings);
+  document.getElementById('pullBtn').addEventListener('click', pullFromUrl);
   document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
+  document.getElementById('standingsUrl').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); pullFromUrl(); }
+  });
 
   // Restore last-picked sport across reloads
   try {

@@ -305,6 +305,20 @@
     el.appendChild(div);
     el.scrollTop = el.scrollHeight;
   }
+  function logActionRow(cls, msg, btnLabel, onClick) {
+    const el = document.getElementById('runlog');
+    el.classList.add('active');
+    const div = document.createElement('div');
+    div.className = 'row ' + (cls || '');
+    div.appendChild(document.createTextNode(msg + ' '));
+    const btn = document.createElement('button');
+    btn.textContent = btnLabel;
+    btn.style.cssText = 'margin-left:8px;padding:4px 10px;background:var(--blue);color:#fff;border:0;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit';
+    btn.addEventListener('click', onClick);
+    div.appendChild(btn);
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  }
   function clearLog() {
     const el = document.getElementById('runlog');
     el.innerHTML = '';
@@ -594,7 +608,13 @@
 
     if (!cards.length) {
       if (urlOverride) {
-        logRow('warn', `  ⚠ no cards found in static fetch or cache. Trigger an overnight render: ${CACHE_WORKFLOW_URL} (paste this URL into the workflow's "urls" input, then re-run after ~3 min)`);
+        logActionRow('warn',
+          `  ⚠ no cards via static or cache. Click to copy this URL and open the workflow — paste it into the "urls" input, click Run workflow, then re-run here in ~3 min.`,
+          '📋 Copy URL & Open Workflow',
+          async () => {
+            try { await navigator.clipboard.writeText(urlOverride); } catch (_) { /* clipboard may be blocked; user can still open + paste */ }
+            window.open(CACHE_WORKFLOW_URL, '_blank', 'noopener');
+          });
       } else {
         logRow('warn', `  ⚠ no cards found — page needs JS rendering and isn't in the cache yet. Tonight's run will pick it up.`);
       }

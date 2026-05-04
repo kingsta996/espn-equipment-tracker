@@ -1,0 +1,64 @@
+name: Headshot Cache
+
+on:
+  schedule:
+    # Nightly at 09:00 UTC (≈ 04:00 ET / 05:00 EDT). Refreshes the headshot
+    # cache for the host-school × sport matrix.
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: 'Optional newline-separated roster URLs to render and cache as one-off pulls. Leave empty to refresh the host-school matrix.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: headshot-cache
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.47.2
+          npx playwright install --with-deps chromium
+
+      - name: Render headshot cache
+        env:
+          EXTRA_URLS: ${{ inputs.urls }}
+        run: node scripts/headshot-cache.mjs
+
+      - name: Commit cache changes
+        run: |
+          git config user.name  "headshot-cache-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add headshot-cache
+          if git diff --staged --quiet; then
+            echo "No cache changes to commit."
+          else
+            STAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+            if [ -n "${EXTRA_URLS}" ]; then
+              MSG="chore(cache): on-demand pulls — ${STAMP}"
+            else
+              MSG="chore(cache): nightly headshot refresh — ${STAMP}"
+            fi
+            git commit -m "$MSG"
+            git push
+          fi
+        env:
+          EXTRA_URLS: ${{ inputs.urls }}

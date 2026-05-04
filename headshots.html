@@ -471,6 +471,28 @@
     return sport.replace(/^Womens\b/, "Women's").replace(/^Mens\b/, "Men's");
   }
 
+  // Slug for the nightly Playwright cache path. Mirrors slug() in
+  // scripts/headshot-cache.mjs — must stay in sync.
+  function slugForCache(s) {
+    return String(s || '')
+      .toLowerCase()
+      .replace(/'/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+  async function sha1Hex(s) {
+    const data = new TextEncoder().encode(s);
+    const buf  = await crypto.subtle.digest('SHA-1', data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  async function cachePathFor(school, sport, urlOverride) {
+    if (urlOverride) return `headshot-cache/_pulls/${await sha1Hex(urlOverride)}.html`;
+    return `headshot-cache/${slugForCache(school)}/${slugForCache(sport)}.html`;
+  }
+  // GitHub deep link to manually trigger a one-off Playwright render of the
+  // pasted URL. Repo + workflow file are stable.
+  const CACHE_WORKFLOW_URL = 'https://github.com/kingsta996/espn-equipment-tracker/actions/workflows/headshot-cache.yml';
+
   /* ── Fetchers ── */
   async function fetchHtmlViaProxies(url, onProgress) {
     const failures = [];
@@ -535,21 +557,50 @@
     const url = urlOverride || `${baseUrl}/${path}`;
     logRow('head', `[${school} / ${sport}]  ${url}`);
 
-    let html;
+    let html = null;
+    let source = 'static';
     try {
       html = await fetchHtmlViaProxies(url, msg => updateParseStatus(`${school} ${sport} — ${msg}`));
     } catch (err) {
       logRow('err', `  page fetch failed: ${err.message}`);
-      return [];
     }
     if (runId !== _runId) return [];
 
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const cards = findCards(doc);
+    let doc = html ? new DOMParser().parseFromString(html, 'text/html') : null;
+    let cards = doc ? findCards(doc) : [];
+
+    // Static fetch returned 0 cards (page likely React-rendered).
+    // Fall back to the nightly Playwright cache committed to the repo.
     if (!cards.length) {
-      logRow('warn', `  ⚠ no player cards found — page likely needs JS rendering (browser-only mode can't help here)`);
+      updateParseStatus(`${school} ${sport} — checking nightly cache…`);
+      const cachePath = await cachePathFor(school, sport, urlOverride);
+      try {
+        const res = await fetch('/' + cachePath, { cache: 'no-cache' });
+        if (res.ok) {
+          const cachedHtml = await res.text();
+          const cachedDoc = new DOMParser().parseFromString(cachedHtml, 'text/html');
+          const cachedCards = findCards(cachedDoc);
+          if (cachedCards.length) {
+            logRow('info', `  ↪ using nightly cache (${cachedCards.length} cards)`);
+            doc = cachedDoc;
+            cards = cachedCards;
+            source = 'cache';
+          } else {
+            logRow('warn', `  ⚠ cache exists but no card selector matched — page may not have a roster yet`);
+          }
+        }
+      } catch (_) { /* cache miss is normal — fall through */ }
+    }
+
+    if (!cards.length) {
+      if (urlOverride) {
+        logRow('warn', `  ⚠ no cards found in static fetch or cache. Trigger an overnight render: ${CACHE_WORKFLOW_URL} (paste this URL into the workflow's "urls" input, then re-run after ~3 min)`);
+      } else {
+        logRow('warn', `  ⚠ no cards found — page needs JS rendering and isn't in the cache yet. Tonight's run will pick it up.`);
+      }
       return [];
     }
+    if (source === 'static') logRow('info', `  source: static fetch`);
 
     const parsed = cards.map(c => parseCard(c, baseUrl, school, sport)).filter(p => p.name);
     logRow('ok', `  ${parsed.length} athletes parsed`);

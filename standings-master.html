@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Master Standings</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f4f6f8; font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; min-height: 100vh; color: #222; }
+
+  .header {
+    background: var(--navy);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; margin: 0; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .hdr-fallback { color: var(--white); font-weight: 900; letter-spacing: -0.5px; font-size: 18px; }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 22px; }
+  .controls {
+    background: #fff; padding: 16px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .controls label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .controls select, .controls button, .controls input {
+    padding: 8px 12px; font-size: 13px; border: 1px solid #d1d5db; border-radius: 6px;
+    font-family: inherit; background: #fff;
+  }
+  .controls select:disabled, .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.btn-primary { background: var(--navy); color: #fff; border: 0; padding: 9px 16px; cursor: pointer; font-weight: 600; }
+  button.btn-primary:not(:disabled):hover { background: #001f30; }
+  button.btn-export { background: var(--green); color: var(--navy); border: 0; padding: 9px 16px; cursor: pointer; font-weight: 700; }
+  button.btn-export:not(:disabled):hover { background: #95c200; }
+  .status {
+    flex: 1; min-width: 200px; font-size: 12px; color: #555; text-align: right;
+  }
+  .status.ok { color: #166534; font-weight: 600; }
+  .status.err { color: #991b1b; font-weight: 600; }
+  .table-wrap {
+    background: #fff; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    overflow: auto; max-height: calc(100vh - 280px);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: var(--navy); color: #fff; position: sticky; top: 0; z-index: 1; }
+  thead th { padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap; }
+  tbody td { border-bottom: 1px solid #eef0f2; padding: 0; }
+  tbody td input {
+    width: 100%; padding: 8px; border: 0; background: transparent;
+    font-family: inherit; font-size: 12px; color: #222;
+  }
+  tbody td input:focus { outline: 2px solid var(--blue); outline-offset: -2px; background: #fff; }
+  tbody tr:nth-child(even) { background: #fafbfc; }
+  tbody tr:hover { background: rgba(0,181,226,0.06); }
+  tbody tr.warn td { background: #fff8e1; }
+  .empty { padding: 80px 20px; text-align: center; color: #888; font-size: 14px; }
+  .empty h3 { color: #444; margin-bottom: 8px; font-size: 16px; }
+  .row-actions { width: 40px; text-align: center; }
+  .remove-btn {
+    background: transparent; border: 0; color: #c00; cursor: pointer; font-size: 14px; padding: 4px 6px;
+  }
+  .remove-btn:hover { background: rgba(239,64,53,0.1); border-radius: 4px; }
+  .add-row-bar {
+    background: #fff; padding: 12px 16px; border-top: 1px solid #eef0f2;
+    display: flex; align-items: center; gap: 10px; font-size: 12px; color: #666;
+  }
+  .add-row-bar button {
+    background: var(--blue); color: #fff; border: 0; padding: 6px 14px; border-radius: 6px;
+    cursor: pointer; font-weight: 600; font-size: 12px;
+  }
+  .add-row-bar button:hover { background: #009ec8; }
+  .warnings {
+    background: #fff8e1; border: 1px solid #fbcf00; border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 14px; color: #6b4c00; font-size: 12px;
+    display: none;
+  }
+  .warnings.active { display: block; }
+  .warnings strong { color: #7a3d00; }
+  .warnings ul { margin: 6px 0 0 18px; }
+
+  /* Parse-status bar — visible indicator for any URL/link fetch */
+  .parse-status {
+    display: none;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .parse-status.active { display: block; }
+  .parse-status .ps-label {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--navy); font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .parse-status .ps-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid #e5e7eb;
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: ps-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes ps-spin { to { transform: rotate(360deg); } }
+  .parse-status .ps-bar {
+    position: relative; height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden;
+  }
+  .parse-status .ps-bar::before {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -30%; width: 30%;
+    background: var(--blue); border-radius: 2px;
+    animation: ps-indet 1.4s ease-in-out infinite;
+  }
+  @keyframes ps-indet {
+    0%   { left: -30%; }
+    100% { left: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hdr-fallback').style.display='inline'">
+  <span class="hdr-fallback" style="display:none">CUSA × ESPN</span>
+  <h1>🏆 Master Standings</h1>
+  <a href="xpression-hub.html">← Xpression Hub</a>
+</div>
+
+<main>
+  <div class="controls">
+    <label for="sportSel">Sport</label>
+    <select id="sportSel">
+      <option value="" disabled selected>Pick a sport…</option>
+      <option value="football" disabled>Football — coming soon</option>
+      <option value="mbball">Men's Basketball</option>
+      <option value="wbball">Women's Basketball</option>
+      <option value="baseball">Baseball</option>
+      <option value="softball">Softball</option>
+      <option value="wsoccer">Soccer (Women's)</option>
+      <option value="wvolleyball">Volleyball (Women's)</option>
+    </select>
+    <button id="loadBtn" class="btn-primary">📥 Load Standings</button>
+    <button id="downloadBtn" class="btn-export" disabled>⬇ Download Excel</button>
+    <span class="status" id="status">Pick a sport, then load the standings.</span>
+  </div>
+
+  <div id="parseStatus" class="parse-status">
+    <div class="ps-label"><div class="ps-spinner"></div><span id="parseStatusLabel">Working…</span></div>
+    <div class="ps-bar"></div>
+  </div>
+
+  <div id="warnings" class="warnings"></div>
+
+  <div id="content" class="table-wrap">
+    <div class="empty">
+      <h3>No standings loaded</h3>
+      <p>Select a sport above and click <strong>Load Standings</strong> to scrape the live CUSA standings.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  /* ── Constants ──────────────────────────────────────────────────────────
+     CUSA standings page IDs change every season. Keith re-verifies once a
+     year by opening https://conferenceusa.com/standings.aspx, picking each
+     sport, and copying the new `standings=NNNN` value from the URL.
+     Verified working on 2026-05-03. */
+  const CUSA_STANDINGS_IDS = {
+    mbball:      { id: 1156, host: 'conferenceusa.com',       season: '2025-26', label: "Men's Basketball" },
+    wbball:      { id: 1155, host: 'admin.conferenceusa.com', season: '2025-26', label: "Women's Basketball" },
+    baseball:    { id: 1159, host: 'conferenceusa.com',       season: '2026',    label: 'Baseball' },
+    softball:    { id: 1160, host: 'conferenceusa.com',       season: '2026',    label: 'Softball' },
+    wsoccer:     { id: 1153, host: 'conferenceusa.com',       season: '2025',    label: "Soccer (Women's)" },
+    wvolleyball: { id: 1154, host: 'admin.conferenceusa.com', season: '2025',    label: "Volleyball (Women's)" },
+  };
+
+  function standingsUrlFor(sportKey) {
+    const e = CUSA_STANDINGS_IDS[sportKey];
+    if (!e) return null;
+    return `https://${e.host}/standings.aspx?id=${e.id}&standings=${e.id}`;
+  }
+
+  /* CORS proxy chain — same shape as stats-master.html. Our own Netlify
+     Function is first; two public proxies as fallback. */
+  const CORS_PROXIES = [
+    { name: 'netlify-proxy', build: u => '/.netlify/functions/proxy-fetch?url=' + encodeURIComponent(u) },
+    { name: 'codetabs.com',  build: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u) },
+    { name: 'corsproxy.io',  build: u => 'https://corsproxy.io/?' + encodeURIComponent(u) },
+  ];
+
+  /* CUSA team identity — tricodes confirmed against
+     ESPN College Sports Abbreviation Grid 6.10.25 Update.xlsx. */
+  const CUSA_TEAMS = [
+    { canonical: 'Delaware',          display: 'Delaware',        tricode: 'DEL',  logo: 'DELAWARE' },
+    { canonical: 'FIU',               display: 'FIU',             tricode: 'FIU',  logo: 'FIU' },
+    { canonical: 'Jacksonville State',display: 'Jax State',       tricode: 'JVST', logo: 'JAX_STATE' },
+    { canonical: 'Kennesaw State',    display: 'Kennesaw State',  tricode: 'KENN', logo: 'KENNESAW_STATE' },
+    { canonical: 'Liberty',           display: 'Liberty',         tricode: 'LIB',  logo: 'LIBERTY' },
+    { canonical: 'Louisiana Tech',    display: 'LA Tech',         tricode: 'LT',   logo: 'LA_TECH' },
+    { canonical: 'Middle Tennessee',  display: 'MTSU',            tricode: 'MTSU', logo: 'MTSU' },
+    { canonical: 'Missouri State',    display: 'Missouri State',  tricode: 'MOST', logo: 'MISSOURI_STATE' },
+    { canonical: 'New Mexico State',  display: 'NM State',        tricode: 'NMSU', logo: 'NM_STATE' },
+    { canonical: 'Sam Houston',       display: 'Sam Houston',     tricode: 'SHSU', logo: 'SAM_HOUSTON' },
+    { canonical: 'UTEP',              display: 'UTEP',            tricode: 'UTEP', logo: 'UTEP' },
+    { canonical: 'Western Kentucky',  display: 'WKU',             tricode: 'WKU',  logo: 'WKU' },
+    { canonical: 'Dallas Baptist',    display: 'Dallas Baptist',  tricode: 'DBU',  logo: 'DALLAS_BAPTIST' },
+  ];
+
+  /* Per-sport tool config. Templates live in /templates/title/. Soccer uses
+     its own template with a "Points" column in E. */
+  const SPORT_CONFIG = {
+    mbball:      { template: 'templates/title/ESPN_CBB_TITLE.xlsx',      eColumn: 'overall' },
+    wbball:      { template: 'templates/title/ESPN_CBB_TITLE.xlsx',      eColumn: 'overall' },
+    baseball:    { template: 'templates/title/ESPN_BASEBALL_TITLE.xlsx', eColumn: 'gb' },
+    softball:    { template: 'templates/title/ESPN_BASEBALL_TITLE.xlsx', eColumn: 'gb' },
+    wsoccer:     { template: 'templates/title/ESPN_SOCCER_TITLE.xlsx',   eColumn: 'points' },
+    wvolleyball: { template: 'templates/title/ESPN_VB_TITLE.xlsx',       eColumn: 'overall' },
+  };
+
+  function eColumnLabel(eColumn) {
+    if (eColumn === 'gb') return 'GB';
+    if (eColumn === 'points') return 'Points';
+    return 'Overall Record';
+  }
+
+  /* ── State ── */
+  let _teams = [];
+  let _config = null;
+  let _sportKey = null;
+  let _warnings = [];
+
+  /* ── DOM helpers ── */
+  function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+  function startParseStatus(msg) {
+    const el = document.getElementById('parseStatus');
+    const lbl = document.getElementById('parseStatusLabel');
+    if (lbl) lbl.textContent = msg || 'Working…';
+    if (el) el.classList.add('active');
+  }
+  function updateParseStatus(msg) {
+    const lbl = document.getElementById('parseStatusLabel');
+    if (lbl) lbl.textContent = msg;
+  }
+  function endParseStatus() {
+    const el = document.getElementById('parseStatus');
+    if (el) el.classList.remove('active');
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function normalizeText(s) {
+    return String(s || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /* ── Fetch via CORS-proxy chain ── */
+  async function fetchHtmlViaProxies(url) {
+    const failures = [];
+    for (const proxy of CORS_PROXIES) {
+      try {
+        updateParseStatus(`Fetching via ${proxy.name}…`);
+        const res = await fetch(proxy.build(url));
+        if (!res.ok) { failures.push(`${proxy.name}: HTTP ${res.status}`); continue; }
+        const html = await res.text();
+        if (!html || html.length < 200) { failures.push(`${proxy.name}: empty response`); continue; }
+        if (/^\{"error"/.test(html)) { failures.push(`${proxy.name}: ${html.slice(0,80)}`); continue; }
+        return html;
+      } catch (err) {
+        failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);
+      }
+    }
+    throw new Error('All CORS proxies failed:\n  · ' + failures.join('\n  · '));
+  }
+
+  /* ── Team resolution ── */
+  function resolveTeam(display) {
+    const norm = normalizeText(display).toLowerCase();
+    if (!norm) return null;
+    return CUSA_TEAMS.find(t => t.display.toLowerCase() === norm)
+        || CUSA_TEAMS.find(t => t.canonical.toLowerCase() === norm)
+        // Loose fallbacks for common Sidearm-rendered variants
+        || CUSA_TEAMS.find(t => norm === t.canonical.toLowerCase().replace(/\./g,''))
+        || CUSA_TEAMS.find(t => norm === t.logo.toLowerCase().replace(/_/g,' '));
+  }
+
+  /* ── GB compute (baseball / softball) ── */
+  function gbFromConfRecord(top, team) {
+    const tp = String(top  || '').split('-').map(Number);
+    const tm = String(team || '').split('-').map(Number);
+    if (tp.length < 2 || tm.length < 2 || tp.some(isNaN) || tm.some(isNaN)) return '';
+    const [tw, tl] = tp;
+    const [w,  l ] = tm;
+    const gb = ((tw - w) + (l - tl)) / 2;
+    if (gb === 0) return '--';
+    return formatHalfGames(gb);
+  }
+  function formatHalfGames(n) {
+    const whole = Math.trunc(n);
+    const half = (n - whole) >= 0.5;
+    if (whole === 0 && half) return '½';
+    return `${whole}${half ? '½' : ''}`;
+  }
+
+  /* ── Parse standings table from HTML ── */
+  function parseStandingsTable(html, cfg) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const tables = Array.from(doc.querySelectorAll('table'));
+    const warnings = [];
+
+    for (const t of tables) {
+      const trs = Array.from(t.querySelectorAll('tr'));
+      if (trs.length < 2) continue;
+      const headerRow = trs[0];
+      const headers = Array.from(headerRow.querySelectorAll('th, td'))
+        .map(c => normalizeText(c.textContent).toLowerCase());
+      if (!headers.includes('team') || !headers.includes('cusa')) continue;
+
+      const teamIdx     = headers.indexOf('team');
+      const cusaIdx     = headers.indexOf('cusa');
+      const overallIdx  = headers.indexOf('overall');
+      const pointsIdx   = headers.indexOf('points');
+
+      const teams = [];
+      trs.slice(1).forEach((tr, rowIdx) => {
+        const cells = Array.from(tr.querySelectorAll('th, td'))
+          .map(c => normalizeText(c.textContent));
+        if (!cells.length) return;
+        const display = cells[teamIdx];
+        if (!display) return;
+
+        const id = resolveTeam(display);
+        if (!id) {
+          warnings.push(`Unknown team "${display}" — wrote as-is, logo set to BLANK_DUMMY.`);
+        }
+
+        teams.push({
+          rank: teams.length + 1,
+          display,
+          tricode: id?.tricode || '',
+          logo: id?.logo || 'BLANK_DUMMY',
+          confRecord: cells[cusaIdx] || '',
+          overallRecord: overallIdx >= 0 ? (cells[overallIdx] || '') : '',
+          points: pointsIdx >= 0 ? (cells[pointsIdx] || '') : '',
+          unknown: !id,
+        });
+      });
+
+      if (cfg.eColumn === 'gb' && teams.length) {
+        const top = teams[0].confRecord;
+        teams.forEach(tm => { tm.gb = gbFromConfRecord(top, tm.confRecord); });
+      }
+
+      _warnings = warnings;
+      return teams;
+    }
+    throw new Error('Could not find a standings table on the page (no Team + CUSA header pair).');
+  }
+
+  /* ── Load handler ── */
+  async function loadStandings() {
+    const sport = document.getElementById('sportSel').value;
+    const cfg = SPORT_CONFIG[sport];
+    const meta = CUSA_STANDINGS_IDS[sport];
+    if (!cfg || !meta) {
+      setStatus('That sport is not yet wired up.', 'err');
+      return;
+    }
+
+    const url = standingsUrlFor(sport);
+    setStatus(`Scraping ${meta.label}…`);
+    startParseStatus(`Fetching ${meta.label} standings…`);
+    document.getElementById('loadBtn').disabled = true;
+    document.getElementById('downloadBtn').disabled = true;
+
+    try {
+      const html = await fetchHtmlViaProxies(url);
+      updateParseStatus('Parsing standings table…');
+      const teams = parseStandingsTable(html, cfg);
+      if (!teams.length) throw new Error('No team rows found on the standings page.');
+      _teams = teams;
+      _config = cfg;
+      _sportKey = sport;
+      try { sessionStorage.setItem('cusa_standings_last_sport', sport); } catch (_) {}
+      renderTable();
+      renderWarnings();
+      document.getElementById('downloadBtn').disabled = false;
+      setStatus(`Loaded ${teams.length} teams for ${meta.label}.`, 'ok');
+    } catch (err) {
+      console.error(err);
+      document.getElementById('content').innerHTML = `<div class="empty"><h3>Failed to load standings</h3><p>${escapeHtml(err.message || String(err))}</p></div>`;
+      setStatus('Load failed', 'err');
+    } finally {
+      document.getElementById('loadBtn').disabled = false;
+      endParseStatus();
+    }
+  }
+
+  function renderWarnings() {
+    const w = document.getElementById('warnings');
+    if (!_warnings.length) { w.classList.remove('active'); w.innerHTML = ''; return; }
+    w.innerHTML = `<strong>${_warnings.length} warning${_warnings.length === 1 ? '' : 's'}:</strong>
+      <ul>${_warnings.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`;
+    w.classList.add('active');
+  }
+
+  /* ── Render editable table ── */
+  function renderTable() {
+    const c = document.getElementById('content');
+    const eLabel = eColumnLabel(_config.eColumn);
+    const cols = [
+      { label: 'Rank',           key: 'rank',          width: 60 },
+      { label: 'Team Name',      key: 'display',       width: 180 },
+      { label: 'Tri-Code',       key: 'tricode',       width: 90 },
+      { label: 'Conf Record',    key: 'confRecord',    width: 110 },
+      { label: eLabel,           key: _config.eColumn === 'gb' ? 'gb' : (_config.eColumn === 'points' ? 'points' : 'overallRecord'), width: 130 },
+      { label: 'Logo Asset',     key: 'logo',          width: 170 },
+    ];
+    const headers = cols.map(c => `<th style="min-width:${c.width}px">${c.label}</th>`).join('') + '<th class="row-actions"></th>';
+    const body = _teams.map((row, idx) => `
+      <tr data-idx="${idx}" class="${row.unknown ? 'warn' : ''}">
+        ${cols.map(col => `<td><input type="text" data-key="${col.key}" value="${escapeHtml(row[col.key] != null ? row[col.key] : '')}"></td>`).join('')}
+        <td class="row-actions"><button class="remove-btn" data-action="remove" title="Remove team">✕</button></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <table>
+        <thead><tr>${headers}</tr></thead>
+        <tbody>${body || `<tr><td colspan="${cols.length + 1}" class="empty">No teams.</td></tr>`}</tbody>
+      </table>
+      <div class="add-row-bar">
+        <span>${_teams.length} team${_teams.length === 1 ? '' : 's'} · edit any cell to change before download</span>
+        <button id="addRowBtn">+ Add Row</button>
+      </div>
+    `;
+    // Wire input edits
+    c.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const tr = e.target.closest('tr');
+        const idx = parseInt(tr.getAttribute('data-idx'), 10);
+        const key = e.target.getAttribute('data-key');
+        if (key === 'rank') {
+          const n = parseInt(e.target.value, 10);
+          _teams[idx][key] = isNaN(n) ? '' : n;
+        } else {
+          _teams[idx][key] = e.target.value;
+        }
+      });
+    });
+    // Wire remove buttons
+    c.querySelectorAll('button[data-action="remove"]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const tr = e.target.closest('tr');
+        const idx = parseInt(tr.getAttribute('data-idx'), 10);
+        _teams.splice(idx, 1);
+        // Re-rank
+        _teams.forEach((t, i) => { t.rank = i + 1; });
+        // Recompute GB if applicable
+        if (_config.eColumn === 'gb' && _teams.length) {
+          const top = _teams[0].confRecord;
+          _teams.forEach(tm => { tm.gb = gbFromConfRecord(top, tm.confRecord); });
+        }
+        renderTable();
+      });
+    });
+    // Wire add-row
+    const addBtn = document.getElementById('addRowBtn');
+    if (addBtn) addBtn.addEventListener('click', () => {
+      _teams.push({
+        rank: _teams.length + 1,
+        display: '',
+        tricode: '',
+        logo: 'BLANK_DUMMY',
+        confRecord: '',
+        overallRecord: '',
+        points: '',
+        gb: '',
+        unknown: false,
+      });
+      renderTable();
+    });
+  }
+
+  /* ── Excel write helpers ── */
+  function writeCell(ws, r, c, v) {
+    const addr = XLSX.utils.encode_cell({ r: r - 1, c: c - 1 });
+    if (v === '' || v == null)        ws[addr] = { t: 's', v: '' };
+    else if (typeof v === 'number')   ws[addr] = { t: 'n', v };
+    else                              ws[addr] = { t: 's', v: String(v) };
+    // Keep the !ref bounding box current so writers that re-encode the sheet
+    // don't drop our writes.
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+    if (r - 1 > range.e.r) range.e.r = r - 1;
+    if (c - 1 > range.e.c) range.e.c = c - 1;
+    ws['!ref'] = XLSX.utils.encode_range(range);
+  }
+
+  /* ── Download handler ── */
+  async function downloadExcel() {
+    if (!_config || !_teams.length) return;
+    const meta = CUSA_STANDINGS_IDS[_sportKey];
+    setStatus('Building workbook…');
+    startParseStatus('Loading template…');
+    document.getElementById('downloadBtn').disabled = true;
+
+    try {
+      const tplRes = await fetch(_config.template, { cache: 'no-store' });
+      if (!tplRes.ok) throw new Error(`Template not found at ${_config.template}`);
+      const buf = await tplRes.arrayBuffer();
+      updateParseStatus('Reading template workbook…');
+      const wb = XLSX.read(buf, { type: 'array', cellStyles: true, cellFormula: true });
+      if (!wb.Sheets['Conf Standings']) throw new Error('Template missing "Conf Standings" sheet');
+      const ws = wb.Sheets['Conf Standings'];
+
+      // Write CUSA conference labels to the spec rows.
+      writeCell(ws, 4, 2, 'CONFERENCE USA'); // B4 — Conference Name
+      writeCell(ws, 6, 2, 'CUSA');           // B6 — Conference Logo basename
+
+      // Write rows 9-28, cols A-F. Anything past _teams.length gets blanked.
+      for (let r = 9; r <= 28; r++) {
+        const i = r - 9;
+        const t = _teams[i];
+        if (t) {
+          writeCell(ws, r, 1, i + 1);                                     // A: Rank
+          writeCell(ws, r, 2, t.display);                                 // B: Team Name
+          writeCell(ws, r, 3, t.tricode);                                 // C: Tri-Code
+          writeCell(ws, r, 4, t.confRecord);                              // D: Conf Record
+          let eVal = '';
+          if (_config.eColumn === 'gb')          eVal = t.gb || '';
+          else if (_config.eColumn === 'points') eVal = t.points || '';
+          else                                   eVal = t.overallRecord || '';
+          writeCell(ws, r, 5, eVal);                                      // E: variant
+          writeCell(ws, r, 6, t.logo);                                    // F: Logo
+        } else {
+          [1,2,3,4,5,6].forEach(c => writeCell(ws, r, c, ''));
+        }
+      }
+
+      updateParseStatus('Writing file…');
+      const today = new Date().toISOString().slice(0, 10);
+      const safeSport = meta.label.replace(/[^A-Za-z0-9]+/g, '_');
+      XLSX.writeFile(wb, `CUSA_${safeSport}_Standings_${today}.xlsx`,
+        { bookType: 'xlsx', cellStyles: true });
+      setStatus('✓ Downloaded.', 'ok');
+    } catch (err) {
+      console.error(err);
+      setStatus('Download failed: ' + (err.message || err), 'err');
+    } finally {
+      document.getElementById('downloadBtn').disabled = !_teams.length;
+      endParseStatus();
+    }
+  }
+
+  /* ── Wire up ── */
+  document.getElementById('loadBtn').addEventListener('click', loadStandings);
+  document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
+
+  // Restore last-picked sport across reloads
+  try {
+    const last = sessionStorage.getItem('cusa_standings_last_sport');
+    if (last && SPORT_CONFIG[last]) {
+      document.getElementById('sportSel').value = last;
+    }
+  } catch (_) {}
+</script>
+</body>
+</html>

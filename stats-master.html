@@ -476,8 +476,46 @@
         outputFilename: (school, today) => `${school}_WBB_HOME_PlayerStats_${today}.xlsx`
       }
     },
-    Baseball:             { team: null, player: null },
-    Softball:             { team: null, player: null }
+    Baseball: {
+      team: {
+        template:   'templates/master-schedule/diamond.xlsx',
+        sheetName:  'Team Stats',     // not in template — writer will append
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=baseball&year=${year}` + (scope === 'conference' ? '&conf=true' : ''),
+        statsMap:   () => DIAMOND_TEAM_STATS_MAP,
+        writeRows:  (wb, rows, side) => writeVbTeamStatsRows(wb, rows, side),
+        outputFilename: (school, today, side) => `${school}_BSB_${side === 'home' ? 'HOME' : 'AWAY'}_TeamStats_${today}.xlsx`
+      },
+      player: {
+        template:   'templates/master-schedule/diamond.xlsx',
+        sheetName:  'MAIN',           // writer fills MAIN; Stats sheet pulls via VLOOKUP/INPUT_RANGE
+        defaultUrl: (school, year) => `https://${SCHOOL_HOST_VB[school] || ''}/sports/baseball/stats/${year}`,
+        parsePdf:   (text) => parseDiamondPdf(text),
+        buildRows:  (sections) => buildDiamondPlayerRows(sections),
+        renderRows: () => renderDiamondPlayerStatsTable(),
+        writeRows:  (wb) => writeDiamondPlayerStatsRows(wb),
+        outputFilename: (school, today) => `${school}_BSB_HOME_PlayerStats_${today}.xlsx`
+      }
+    },
+    Softball: {
+      team: {
+        template:   'templates/master-schedule/diamond.xlsx',
+        sheetName:  'Team Stats',
+        defaultUrl: (year, scope) => `https://conferenceusa.com/stats.aspx?path=softball&year=${year}` + (scope === 'conference' ? '&conf=true' : ''),
+        statsMap:   () => DIAMOND_TEAM_STATS_MAP,
+        writeRows:  (wb, rows, side) => writeVbTeamStatsRows(wb, rows, side),
+        outputFilename: (school, today, side) => `${school}_SB_${side === 'home' ? 'HOME' : 'AWAY'}_TeamStats_${today}.xlsx`
+      },
+      player: {
+        template:   'templates/master-schedule/diamond.xlsx',
+        sheetName:  'MAIN',
+        defaultUrl: (school, year) => `https://${SCHOOL_HOST_VB[school] || ''}/sports/softball/stats/${year}`,
+        parsePdf:   (text) => parseDiamondPdf(text),
+        buildRows:  (sections) => buildDiamondPlayerRows(sections),
+        renderRows: () => renderDiamondPlayerStatsTable(),
+        writeRows:  (wb) => writeDiamondPlayerStatsRows(wb),
+        outputFilename: (school, today) => `${school}_SB_HOME_PlayerStats_${today}.xlsx`
+      }
+    }
   };
 
   /* ── State ──────────────────────────────────────────────────────────── */
@@ -2188,6 +2226,301 @@
     { row: 12, label: 'Fouls Per Game',         caption: 'Team Stats Fouls',         col: 'F/G',     fmt: 'dec2', rank: 'asc'  },
     { row: 13, label: 'Corners Per Game',       caption: 'Team Stats Misc',          col: 'C/G',     fmt: 'dec2', rank: 'desc' },
     { row: 14, label: 'Offsides Per Game',      caption: 'Team Stats Misc',          col: 'Off/G',   fmt: 'dec2', rank: 'asc'  }
+  ];
+
+  /* ── Diamond Sports (Baseball + Softball) PDF parser ──────────────────
+     Sidearm cume.pdf has 3 sections — batting, pitching, fielding.
+     Section headers all start with "# Player" (or "# Goalie"-style equiv);
+     we discriminate by the trailing column tokens:
+       Batting:  AVG GP-GS AB R H 2B 3B HR RBI TB SLG% BB HBP SO GDP OB% SF SH SB-ATT PO A E FLD%
+       Pitching: ERA W-L APP GS CG SHO SV IP H R ER BB SO 2B 3B HR B/AVG WP HP BK SFA SHA
+       Fielding: C PO A E FLD% DP SBA CSB SBA% PB CI
+     We only need batting + pitching for the diamond MAIN tab. */
+  function parseDiamondPdf(text) {
+    const lines = text.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const sections = { batting: [], pitching: [] };
+    let mode = null, headers = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^#\s+Player\b/i.test(l)) {
+        // Identify the section by which distinctive tokens are present.
+        // Pitching has ERA + W-L; batting has SLG% (or OB%); fielding has the
+        // bare "C PO A E FLD% DP" fielding-only marker without AB/ERA.
+        if (/\bERA\b/.test(l) && /\bW-L\b/.test(l))                mode = 'pitching';
+        else if (/\bSLG%\b/.test(l) || /\bOB%\b/.test(l))          mode = 'batting';
+        else                                                       mode = 'fielding';
+        headers = l.replace(/^#\s+Player\s+/i, '').split(/\s+/);
+        continue;
+      }
+      if (!mode) continue;
+      // Stop the section when we hit a Total/Opponents/Team aggregate row.
+      if (/^(Total|Opponents?|Team)\b/i.test(l)) { mode = null; continue; }
+
+      const m = l.match(/^(\d{1,3})\s+(.+)$/);
+      if (!m) continue;
+      const jersey = parseInt(m[1], 10);
+      if (jersey < 0 || jersey > 99) continue;
+      const rest = m[2].split(/\s+/);
+      if (rest.length < headers.length + 1) continue;
+      const values = rest.slice(-headers.length);
+      const name   = rest.slice(0, rest.length - headers.length).join(' ');
+      const row = { jersey, name };
+      headers.forEach((h, idx) => { row[h] = values[idx] || ''; });
+      if (mode === 'batting' || mode === 'pitching') sections[mode].push(row);
+    }
+    return sections;
+  }
+
+  /* Merge batting + pitching by jersey. A two-way player gets both stat
+     blocks; pitcher-only / hitter-only players get the fields they have. */
+  function buildDiamondPlayerRows(sections) {
+    const byJersey = new Map();
+    const upsert = (j, name) => {
+      if (!byJersey.has(j)) byJersey.set(j, { jersey: j, name });
+      else if (!byJersey.get(j).name && name) byJersey.get(j).name = name;
+      return byJersey.get(j);
+    };
+    (sections.batting || []).forEach(b => {
+      const r = upsert(b.jersey, b.name);
+      r.batting = b;
+    });
+    (sections.pitching || []).forEach(p => {
+      const r = upsert(p.jersey, p.name);
+      r.pitching = p;
+    });
+    return Array.from(byJersey.values()).sort((a, b) => a.jersey - b.jersey).map(p => {
+      const b  = p.batting  || {};
+      const pi = p.pitching || {};
+      // SB-ATT in PDF = "5-7" (5 SB out of 7 attempts). Split into SB + CS.
+      const sbAttRaw = b['SB-ATT'] || '';
+      const [sbStr, attStr] = sbAttRaw.split('-');
+      const sb  = sbStr ? parseInt(sbStr, 10) : '';
+      const att = attStr ? parseInt(attStr, 10) : '';
+      const cs  = (Number.isFinite(sb) && Number.isFinite(att)) ? (att - sb) : '';
+      // W-L in PDF = "1-0". Split into W + L.
+      const wlRaw = pi['W-L'] || '';
+      const [wStr, lStr] = wlRaw.split('-');
+      return {
+        jersey: p.jersey,
+        name:   p.name || '',
+        // Batting (left blank for pitcher-only players)
+        ab:    b['AB']    || '',
+        r:     b['R']     || '',
+        h:     b['H']     || '',
+        b2:    b['2B']    || '',
+        b3:    b['3B']    || '',
+        hr:    b['HR']    || '',
+        rbi:   b['RBI']   || '',
+        bb:    b['BB']    || '',
+        hbp:   b['HBP']   || '',
+        so:    b['SO']    || '',
+        gdp:   b['GDP']   || '',
+        sf:    b['SF']    || '',
+        sh:    b['SH']    || '',
+        sb:    Number.isFinite(sb) ? String(sb) : '',
+        cs:    Number.isFinite(cs) ? String(cs) : '',
+        avg:   b['AVG']   || '',
+        // Pitching (left blank for hitter-only players)
+        pW:    wStr || '',
+        pL:    lStr || '',
+        pG:    pi['APP']  || '',
+        pGs:   pi['GS']   || '',
+        pCg:   pi['CG']   || '',
+        pSho:  pi['SHO']  || '',
+        pSv:   pi['SV']   || '',
+        pIp:   pi['IP']   || '',
+        pH:    pi['H']    || '',
+        pR:    pi['R']    || '',
+        pEr:   pi['ER']   || '',
+        pBb:   pi['BB']   || '',
+        pSo:   pi['SO']   || '',
+        pHr:   pi['HR']   || '',
+        era:   pi['ERA']  || '',
+        twoWay: !!(p.batting && p.pitching)
+      };
+    });
+  }
+
+  function renderDiamondPlayerStatsTable() {
+    const c = document.getElementById('playerContent');
+    if (!_playerRows.length) {
+      c.innerHTML = `<div class="empty"><h3>No players parsed.</h3></div>`;
+      return;
+    }
+    const rows = _playerRows.map((row, idx) => `
+      <tr data-idx="${idx}">
+        <td style="text-align:center;font-weight:700"><input type="text" data-key="jersey" value="${escapeHtml(row.jersey)}" style="text-align:center"></td>
+        <td><input type="text" data-key="name" value="${escapeHtml(row.name)}"></td>
+        <td><input type="text" data-key="avg" value="${escapeHtml(row.avg)}" style="width:60px"></td>
+        <td><input type="text" data-key="ab"  value="${escapeHtml(row.ab)}"  style="width:50px"></td>
+        <td><input type="text" data-key="h"   value="${escapeHtml(row.h)}"   style="width:50px"></td>
+        <td><input type="text" data-key="hr"  value="${escapeHtml(row.hr)}"  style="width:50px"></td>
+        <td><input type="text" data-key="rbi" value="${escapeHtml(row.rbi)}" style="width:50px"></td>
+        <td><input type="text" data-key="sb"  value="${escapeHtml(row.sb)}"  style="width:50px"></td>
+        <td style="border-left:2px solid #ccc"><input type="text" data-key="era" value="${escapeHtml(row.era)}" style="width:60px"></td>
+        <td><input type="text" data-key="pW"  value="${escapeHtml(row.pW)}"  style="width:40px"></td>
+        <td><input type="text" data-key="pL"  value="${escapeHtml(row.pL)}"  style="width:40px"></td>
+        <td><input type="text" data-key="pSv" value="${escapeHtml(row.pSv)}" style="width:40px"></td>
+        <td><input type="text" data-key="pIp" value="${escapeHtml(row.pIp)}" style="width:55px"></td>
+        <td><input type="text" data-key="pSo" value="${escapeHtml(row.pSo)}" style="width:50px"></td>
+        <td style="text-align:center"><button class="remove-btn" data-action="remove" title="Remove player" style="background:transparent;border:0;color:#c00;cursor:pointer;font-size:14px;padding:4px 6px">✕</button></td>
+      </tr>`).join('');
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th style="min-width:140px">Player</th>
+              <th colspan="6" style="background:#eef;border-bottom:2px solid #99c">BATTING</th>
+              <th colspan="6" style="background:#fee;border-bottom:2px solid #c99;border-left:2px solid #ccc">PITCHING</th>
+              <th></th>
+            </tr>
+            <tr>
+              <th></th><th></th>
+              <th>AVG</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th><th>SB</th>
+              <th style="border-left:2px solid #ccc">ERA</th><th>W</th><th>L</th><th>SV</th><th>IP</th><th>K</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 0;font-size:11px;color:#666">
+        ${_playerRows.length} player${_playerRows.length===1?'':'s'} · preview shows headline stats; full batting (2B/3B/BB/HBP/SO/GDP/SF/SH/CS) + pitching (G/GS/CG/SHO/H/R/ER/BB/HR) write to the MAIN tab on download · jersey-aligned (MAIN row = jersey + 3)
+      </div>
+    `;
+    c.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.closest('tr').dataset.idx;
+        if (_playerRows[idx]) _playerRows[idx][inp.dataset.key] = inp.value;
+      });
+    });
+    c.querySelectorAll('button[data-action="remove"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.closest('tr').dataset.idx;
+        _playerRows.splice(idx, 1);
+        renderDiamondPlayerStatsTable();
+      });
+    });
+  }
+
+  /* Diamond writer — fills the MAIN tab (INPUT_RANGE = MAIN!$C$4:$CM$104).
+     Stats sheet pulls from MAIN via VLOOKUP keyed on jersey at C column.
+     Row offset: jersey + 3 (header row 3, so jersey 1 → row 4).
+     Columns:
+       A LastName · B Firstname · C Number  (jersey is the lookup key)
+       Batting   54-72: AB R H 2B 3B HR RBI BB HBP SO GDP SF SH SB CS
+       Pitching  77-90: W L G GS CG SHO SV IP H R ER BB SO HR
+     Leave AU/AV/AW (1B/SLG%/OPS) alone — those are formulas. IP is written
+     as a STRING ("11.2") so the Stats-sheet IP-by-3rds parser still works. */
+  function writeDiamondPlayerStatsRows(wb) {
+    const ws = wb.Sheets['MAIN'];
+    if (!ws) throw new Error('Template missing "MAIN" sheet');
+    const writeCell = (r1, c1, val, opts) => {
+      const addr = XLSX.utils.encode_cell({ r: r1 - 1, c: c1 - 1 });
+      if (val === '' || val == null) { ws[addr] = { t: 's', v: '' }; return; }
+      // Some cells (IP) need to stay strings even though they look numeric —
+      // the Stats sheet formulas inspect the trailing ".1"/".2" suffix.
+      if (opts && opts.forceString) { ws[addr] = { t: 's', v: String(val) }; return; }
+      const num = Number(val);
+      ws[addr] = (typeof val === 'number' || (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)))
+        ? { t: 'n', v: Number.isFinite(num) ? num : 0 }
+        : { t: 's', v: String(val) };
+    };
+
+    // Split "First Last" → ["First", "Last"] (Sidearm gives "Last, First"; the
+    // PDF parser reverses to "First Last"). Some last names have multiple
+    // tokens — assume the LAST token is the last name.
+    const splitName = (full) => {
+      const parts = String(full || '').trim().split(/\s+/);
+      if (parts.length === 0) return ['', ''];
+      if (parts.length === 1) return [parts[0], ''];
+      const last = parts.pop();
+      return [parts.join(' '), last];
+    };
+
+    _playerRows.forEach(p => {
+      const j = parseInt(p.jersey, 10);
+      if (!Number.isFinite(j) || j < 0 || j > 99) return;
+      const r = j + 3;
+      const [first, last] = splitName(p.name);
+      writeCell(r,  1, last);          // A  LastName
+      writeCell(r,  2, first);         // B  Firstname
+      writeCell(r,  3, j);             // C  Number
+      // Batting — cols 54-72 (BB-BT): AB R H 2B 3B HR RBI BB HBP SO GDP SF SH SB CS
+      writeCell(r, 54, p.ab);
+      writeCell(r, 55, p.r);
+      writeCell(r, 56, p.h);
+      writeCell(r, 57, p.b2);
+      writeCell(r, 58, p.b3);
+      writeCell(r, 59, p.hr);
+      writeCell(r, 60, p.rbi);
+      writeCell(r, 61, p.bb);
+      writeCell(r, 62, p.hbp);
+      writeCell(r, 63, p.so);
+      writeCell(r, 64, p.gdp);
+      writeCell(r, 65, p.sf);
+      writeCell(r, 66, p.sh);
+      writeCell(r, 67, p.sb);
+      writeCell(r, 68, p.cs);
+      // Pitching — cols 77-90 (BY-CL): W L G GS CG SHO SV IP H R ER BB SO HR
+      writeCell(r, 77, p.pW);
+      writeCell(r, 78, p.pL);
+      writeCell(r, 79, p.pG);
+      writeCell(r, 80, p.pGs);
+      writeCell(r, 81, p.pCg);
+      writeCell(r, 82, p.pSho);
+      writeCell(r, 83, p.pSv);
+      writeCell(r, 84, p.pIp, { forceString: true });   // IP must stay string for Stats parser
+      writeCell(r, 85, p.pH);
+      writeCell(r, 86, p.pR);
+      writeCell(r, 87, p.pEr);
+      writeCell(r, 88, p.pBb);
+      writeCell(r, 89, p.pSo);
+      writeCell(r, 90, p.pHr);
+    });
+
+    const existingRef = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:103, c:128} };
+    const lastJersey = Math.max(...(_playerRows.map(p => parseInt(p.jersey, 10) || 0)));
+    const lastRow = Math.max(existingRef.e.r, (lastJersey + 3) - 1);
+    const lastCol = Math.max(existingRef.e.c, 90);   // through column CL
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } });
+  }
+
+  /* Diamond Team Stats mapping — shared between Baseball + Softball since
+     CUSA's stats page uses identical Overall-table structure for both.
+     We pull from the 3 per-team aggregate tables (each row = one team):
+       Overall Batting Stats:  Team | AVG G AB R H 2B 3B HR RBI TB SLG% BB HBP SO GDP OB% SF SH SB-ATT PO A E FLD%
+       Overall Pitching Stats: Team | ERA W-L G SHO SV IP H R ER BB SO 2B 3B HR AB B/AVG WP HBP BK SFA SHA
+       Overall Field Stats:    Team | C PO A E FLD% DP SBA CSB SBA% PB CI
+     The individual leader tables ("Batting Average", "Earned Run Average",
+     etc.) list players, not teams, so they're not usable for team rankings.
+     Writer appends a new "Team Stats" sheet via writeVbTeamStatsRows. */
+  const DIAMOND_TEAM_STATS_MAP = [
+    { row: 2,  label: 'Batting Average',      caption: 'Overall Batting Stats',  col: 'AVG',   fmt: 'dec3', rank: 'desc' },
+    { row: 3,  label: 'Slugging %',           caption: 'Overall Batting Stats',  col: 'SLG%',  fmt: 'dec3', rank: 'desc' },
+    { row: 4,  label: 'On-Base %',            caption: 'Overall Batting Stats',  col: 'OB%',   fmt: 'dec3', rank: 'desc' },
+    { row: 5,  label: 'Runs Scored',          caption: 'Overall Batting Stats',  col: 'R',     fmt: 'int',  rank: 'desc' },
+    { row: 6,  label: 'Hits',                 caption: 'Overall Batting Stats',  col: 'H',     fmt: 'int',  rank: 'desc' },
+    { row: 7,  label: 'Doubles',              caption: 'Overall Batting Stats',  col: '2B',    fmt: 'int',  rank: 'desc' },
+    { row: 8,  label: 'Triples',              caption: 'Overall Batting Stats',  col: '3B',    fmt: 'int',  rank: 'desc' },
+    { row: 9,  label: 'Home Runs',            caption: 'Overall Batting Stats',  col: 'HR',    fmt: 'int',  rank: 'desc' },
+    { row: 10, label: 'RBI',                  caption: 'Overall Batting Stats',  col: 'RBI',   fmt: 'int',  rank: 'desc' },
+    { row: 11, label: 'Walks',                caption: 'Overall Batting Stats',  col: 'BB',    fmt: 'int',  rank: 'desc' },
+    { row: 12, label: 'Stolen Bases',         caption: 'Overall Batting Stats',  col: 'SB-ATT',fmt: 'splitL',rank: 'desc' },
+    { row: 13, label: 'ERA',                  caption: 'Overall Pitching Stats', col: 'ERA',   fmt: 'dec2', rank: 'asc'  },
+    { row: 14, label: 'Wins',                 caption: 'Overall Pitching Stats', col: 'W-L',   fmt: 'splitL',rank: 'desc' },
+    { row: 15, label: 'Losses',               caption: 'Overall Pitching Stats', col: 'W-L',   fmt: 'splitR',rank: 'asc'  },
+    { row: 16, label: 'Saves',                caption: 'Overall Pitching Stats', col: 'SV',    fmt: 'int',  rank: 'desc' },
+    { row: 17, label: 'Shutouts',             caption: 'Overall Pitching Stats', col: 'SHO',   fmt: 'int',  rank: 'desc' },
+    { row: 18, label: 'Innings Pitched',      caption: 'Overall Pitching Stats', col: 'IP',    fmt: 'dec1', rank: 'desc' },
+    { row: 19, label: 'Strikeouts (Pitching)',caption: 'Overall Pitching Stats', col: 'SO',    fmt: 'splitL',rank: 'desc' },
+    { row: 20, label: 'Hits Allowed',         caption: 'Overall Pitching Stats', col: 'H',     fmt: 'int',  rank: 'asc'  },
+    { row: 21, label: 'Walks Allowed',        caption: 'Overall Pitching Stats', col: 'BB',    fmt: 'int',  rank: 'asc'  },
+    { row: 22, label: 'Opponent Batting Avg', caption: 'Overall Pitching Stats', col: 'B/AVG', fmt: 'dec3', rank: 'asc'  },
+    { row: 23, label: 'Fielding %',           caption: 'Overall Field Stats',    col: 'FLD%',  fmt: 'dec3', rank: 'desc' },
+    { row: 24, label: 'Errors',               caption: 'Overall Field Stats',    col: 'E',     fmt: 'int',  rank: 'asc'  },
+    { row: 25, label: 'Double Plays',         caption: 'Overall Field Stats',    col: 'DP',    fmt: 'int',  rank: 'desc' }
   ];
 
   /* Football writer — extracted from the old monolithic downloadPlayerStats. */

@@ -286,6 +286,21 @@ alter table commercials add column if not exists year int;
 alter table commercials add column if not exists advertiser text;
 create index if not exists commercials_school_id_idx on commercials(school_id);
 
+-- Per-break advertiser text for CBSSN Championships
+create table if not exists champ_break_advertisers (
+  sport text not null,
+  break_key text not null,
+  advertiser text,
+  updated_at timestamptz default now(),
+  updated_by text,
+  primary key (sport, break_key)
+);
+alter table champ_break_advertisers enable row level security;
+drop policy if exists "public read champ break advertisers"  on champ_break_advertisers;
+drop policy if exists "public write champ break advertisers" on champ_break_advertisers;
+create policy "public read champ break advertisers"  on champ_break_advertisers for select using (true);
+create policy "public write champ break advertisers" on champ_break_advertisers for all    using (true) with check (true);
+
 -- Touch updated_at on every row update so the change banner can fire
 create or replace function touch_commercials_updated_at()
 returns trigger language plpgsql as $$

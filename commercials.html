@@ -841,6 +841,17 @@
   .champ-row .cell-local, .champ-row .cell-psa { font-variant-numeric: tabular-nums; color: #aaa; font-size: 11px; vertical-align: top; }
   .champ-row .cell-local.filled { background: var(--conf-bg); }
   .champ-row .cell-psa.filled { color: #4d7c0f; font-weight: 700; background: #ecfccb; }
+  .champ-row .cell-advertiser { font-size: 11px; color: #94a3b8; vertical-align: top; min-width: 130px; }
+  .champ-row .cell-advertiser.filled { color: var(--navy); font-weight: 600; }
+  .champ-adv-input {
+    width: 100%; padding: 4px 6px;
+    border: 1px solid #e2e8f0; border-radius: 4px;
+    font-size: 11px; background: var(--white);
+    color: var(--navy); font-weight: 600;
+  }
+  .champ-adv-input::placeholder { color: #94a3b8; font-weight: 400; }
+  .champ-adv-input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .champ-adv-input.saved { border-color: #84cc16; background: #f7fee7; }
   .local-slots { display: flex; flex-direction: column; gap: 3px; min-width: 180px; }
   .local-slots-header { font-size: 10px; font-weight: 700; color: var(--conf-fg); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
   .local-slot-display {
@@ -905,6 +916,16 @@
   }
   .save-toast.show { opacity: 1; transform: translateY(0); }
   .save-toast.error { background: var(--red); }
+
+  /* ── Build version badge — bottom-left, faint; "dev" when unbuilt ── */
+  .build-version {
+    position: fixed; bottom: 6px; left: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px; color: #94a3b8; opacity: 0.6;
+    z-index: 50; pointer-events: none; user-select: none;
+    background: rgba(255,255,255,0.7); padding: 2px 6px; border-radius: 3px;
+  }
+  .build-version.dev { color: #b45309; }
 
   @media (max-width: 600px) {
     .content { padding: 12px; }
@@ -2089,7 +2110,7 @@ async function enterApp() {
    ─────────────────────────────────────────────────────────────────────── */
 async function loadAllData() {
   if (!_db) return;
-  const [commRes, asgRes, settingsRes, schoolsRes, psaUpRes, psaCfgRes] = await Promise.all([
+  const [commRes, asgRes, settingsRes, schoolsRes, psaUpRes, psaCfgRes, champAdvRes] = await Promise.all([
     _db.from('commercials').select('*').order('category').order('status').order('name'),
     _db.from('format_assignments').select('*'),
     _db.from('app_settings').select('*'),
@@ -2100,6 +2121,8 @@ async function loadAllData() {
     _db.from('psa_uploads').select('*').order('uploaded_at', { ascending: false })
       .then(r => r, () => ({ data: [], error: null })),
     _db.from('psa_config').select('*')
+      .then(r => r, () => ({ data: [], error: null })),
+    _db.from('champ_break_advertisers').select('*')
       .then(r => r, () => ({ data: [], error: null }))
   ]);
   if (schoolsRes && !schoolsRes.error) state.schools = schoolsRes.data || [];
@@ -2110,6 +2133,13 @@ async function loadAllData() {
   state.psaUploads = psaUpRes?.data || [];
   state.psaConfig = {};
   (psaCfgRes?.data || []).forEach(r => { if (r.category) state.psaConfig[r.category] = r; });
+  if (champAdvRes?.error && !/does not exist|schema cache/i.test(champAdvRes.error.message || '')) {
+    console.warn('champ_break_advertisers load:', champAdvRes.error);
+  }
+  state.champBreakAdvertisers = {};
+  (champAdvRes?.data || []).forEach(r => {
+    if (r.sport && r.break_key) state.champBreakAdvertisers[`${r.sport}:${r.break_key}`] = r.advertiser || null;
+  });
   if (commRes.error) console.error('commercials load:', commRes.error);
   if (asgRes.error)  console.error('assignments load:', asgRes.error);
   state.commercials = commRes.data || [];
@@ -2154,6 +2184,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => loadAllData().then(renderCurrentTab))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'psa_uploads' }, () => loadAllData().then(renderCurrentTab))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'psa_config' }, () => loadAllData().then(renderCurrentTab))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'champ_break_advertisers' }, () => loadAllData().then(renderCurrentTab))
     .subscribe(s => setLastmodCloud(s === 'SUBSCRIBED'));
 }
 
@@ -2793,15 +2824,22 @@ function renderChampionshipsTab() {
       return `
         <tr class="champ-row segment-only">
           <td class="cell-break">—</td>
-          <td colspan="5" class="cell-segment">${esc(s.name || '')} <span style="font-weight:400;color:#777;font-style:italic;font-size:11px">(no commercial)</span></td>
+          <td colspan="6" class="cell-segment">${esc(s.name || '')} <span style="font-weight:400;color:#777;font-style:italic;font-size:11px">(no commercial)</span></td>
         </tr>`;
     }
+    const advertiser = (state.champBreakAdvertisers || {})[`${sport}:${s.brk}`] || '';
+    const advertiserCell = isAdmin()
+      ? `<input type="text" class="champ-adv-input" value="${esc(advertiser)}" placeholder="—"
+           onblur="saveChampBreakAdvertiser('${esc(sport)}', '${esc(s.brk)}', this.value, this)"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`
+      : esc(advertiser || '—');
     return `
       <tr class="champ-row${s.local || s.psa ? ' has-local' : ''}">
         <td class="cell-break">${esc(s.brk || '')}</td>
         <td class="cell-segment">${esc(showSeg ? s.name : '')}</td>
         <td class="cell-dur">${esc(s.dur || '')}</td>
         <td class="cell-note">${esc(s.note || '')}</td>
+        <td class="cell-advertiser ${advertiser ? 'filled' : ''}">${advertiserCell}</td>
         <td class="cell-local ${s.local ? 'filled' : ''}">${renderLocalSlots(sport, s.brk, s.local)}</td>
         <td class="cell-psa ${s.psa ? 'filled' : ''}">${esc(s.psa || '')}</td>
       </tr>
@@ -2846,6 +2884,7 @@ function renderChampionshipsTab() {
             <th>Segment</th>
             <th>Duration</th>
             <th>Notes</th>
+            <th>Advertiser</th>
             <th>Local</th>
             <th>PSA</th>
           </tr>
@@ -2861,6 +2900,29 @@ function renderChampionshipsTab() {
 function setChampSport(sport) {
   state.champSport = sport;
   renderCurrentTab();
+}
+
+async function saveChampBreakAdvertiser(sport, brk, value, inputEl) {
+  if (!isAdmin() || !_db) return;
+  const newVal = (value || '').trim() || null;
+  const key = `${sport}:${brk}`;
+  const oldVal = (state.champBreakAdvertisers || {})[key] || null;
+  if (newVal === oldVal) return;
+
+  const row = { sport, break_key: brk, advertiser: newVal, updated_at: new Date().toISOString() };
+  const { error } = await _db.from('champ_break_advertisers')
+    .upsert(row, { onConflict: 'sport,break_key' });
+
+  if (error) {
+    showToast('Save failed: ' + error.message, true);
+    return;
+  }
+  state.champBreakAdvertisers = state.champBreakAdvertisers || {};
+  state.champBreakAdvertisers[key] = newVal;
+  if (inputEl) {
+    inputEl.classList.add('saved');
+    setTimeout(() => inputEl?.classList.remove('saved'), 800);
+  }
 }
 
 function parseDurationToSec(dur) {
@@ -3579,7 +3641,7 @@ async function exportChampFormatPdf(sport) {
     if (isWrap) {
       body.push([
         { content: s.brk || '—', styles: { halign: 'center', fontStyle: 'bold', textColor: [0, 38, 58] } },
-        { content: `${s.name || ''}  (no commercial)`, colSpan: 5, styles: { fillColor: [248, 249, 250], fontStyle: 'italic', textColor: [136, 136, 136] } }
+        { content: `${s.name || ''}  (no commercial)`, colSpan: 6, styles: { fillColor: [248, 249, 250], fontStyle: 'italic', textColor: [136, 136, 136] } }
       ]);
       continue;
     }
@@ -3603,11 +3665,19 @@ async function exportChampFormatPdf(sport) {
       localFilled = true;
     }
 
+    const advertiser = (state.champBreakAdvertisers || {})[`${sport}:${s.brk}`] || '';
+
     body.push([
       { content: s.brk || '', styles: { halign: 'center', fontStyle: 'bold', textColor: [0, 38, 58] } },
       { content: s.name || '', styles: { fontStyle: s.name ? 'bold' : 'normal', textColor: [0, 38, 58] } },
       { content: s.dur || '', styles: { halign: 'center', fontStyle: 'bold' } },
       { content: s.note || '', styles: { fontSize: 8, fontStyle: 'italic', textColor: [85, 85, 85] } },
+      {
+        content: advertiser || '',
+        styles: advertiser
+          ? { textColor: [0, 38, 58], fontStyle: 'bold', fontSize: 9 }
+          : { textColor: [170, 170, 170], fontSize: 9 }
+      },
       {
         content: localContent || '',
         styles: localFilled
@@ -3625,18 +3695,19 @@ async function exportChampFormatPdf(sport) {
 
   doc.autoTable({
     startY: my + 16,
-    head: [['Break', 'Segment', 'Duration', 'Notes', 'Local', 'PSA']],
+    head: [['Break', 'Segment', 'Duration', 'Notes', 'Advertiser', 'Local', 'PSA']],
     body,
     margin: { left: margin, right: margin },
     headStyles: { fillColor: [0, 38, 58], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold', cellPadding: { top: 6, bottom: 6, left: 6, right: 6 } },
     bodyStyles: { fontSize: 9, cellPadding: 5, valign: 'top' },
     columnStyles: {
       0: { cellWidth: 42 },
-      1: { cellWidth: 130 },
+      1: { cellWidth: 120 },
       2: { cellWidth: 50 },
       3: { cellWidth: 'auto' },
-      4: { cellWidth: 200 },
-      5: { cellWidth: 50 }
+      4: { cellWidth: 110 },
+      5: { cellWidth: 180 },
+      6: { cellWidth: 50 }
     },
     didDrawPage: () => _pdfFooter(doc, margin)
   });
@@ -4034,6 +4105,22 @@ async function init() {
 }
 
 init();
+
+// Build version badge — populated from window.BUILD_VERSION (set by build.sh
+// at deploy time). Locally there's no config.js, so it shows "dev".
+(function paintBuildVersion() {
+  const el = document.getElementById('buildVersion');
+  if (!el) return;
+  const v = (typeof window.BUILD_VERSION === 'string' && window.BUILD_VERSION.trim()) || '';
+  if (v) {
+    el.textContent = `build ${v}`;
+    el.classList.remove('dev');
+  } else {
+    el.textContent = 'dev';
+    el.classList.add('dev');
+  }
+})();
 </script>
+<div class="build-version" id="buildVersion">dev</div>
 </body>
 </html>

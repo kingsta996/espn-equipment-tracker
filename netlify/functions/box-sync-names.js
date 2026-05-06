@@ -35,7 +35,10 @@ function supabase() {
   if (!_supabase) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
-    if (!url || !key) throw new Error('SUPABASE_URL or SUPABASE_SERVICE_KEY env var missing');
+    const missing = [];
+    if (!url) missing.push('SUPABASE_URL');
+    if (!key) missing.push('SUPABASE_SERVICE_KEY');
+    if (missing.length) throw new Error(`Missing Netlify env var(s): ${missing.join(', ')}`);
     _supabase = createClient(url, key, { auth: { persistSession: false } });
   }
   return _supabase;

@@ -1162,6 +1162,22 @@
         </div>
       </div>
 
+      <!-- Sync filenames from Box -->
+      <div class="modal-section">
+        <h3>Sync Filenames from Box</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">
+          Pulls each commercial's current name from Box (using the saved
+          <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">box_file_id</code>)
+          and updates the catalog if the file was renamed in Box. Skips rows
+          without a Box file ID.
+        </p>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-add" id="boxSyncBtn" onclick="runBoxSync()">↻ Sync from Box</button>
+          <span id="boxSyncStatus" style="font-size:12px;color:#475569;min-height:16px"></span>
+        </div>
+        <div id="boxSyncResults" style="margin-top:10px;font-size:12px"></div>
+      </div>
+
       <!-- Format uploads -->
       <div class="modal-section">
         <h3>Upload Sport Formats <span style="font-size:10px;color:#888;font-weight:400;text-transform:none;letter-spacing:0">(ESPN+)</span></h3>
@@ -1643,6 +1659,7 @@ function isSchool() { return state.session?.kind === 'school'; }
 
 function signOut() {
   saveSession(null);
+  try { localStorage.removeItem('commHubAdminPwHash'); } catch (e) {}
   if (_realtimeChannel) {
     try { _db && _db.removeChannel(_realtimeChannel); } catch(e) {}
     _realtimeChannel = null;
@@ -1739,6 +1756,8 @@ async function submitAdminLogin() {
     return;
   }
   saveSession({ kind: 'admin', loggedInAt: new Date().toISOString() });
+  // Stash the hash for Netlify Function calls (Box Sync). Cleared on sign-out.
+  try { localStorage.setItem('commHubAdminPwHash', h); } catch (e) {}
   await logActivity('admin_login', null, 'commercials');
   await enterApp();
 }
@@ -2027,6 +2046,71 @@ function renderAdvertiserTable() {
       <tbody>${tbody}</tbody>
     </table>
   `;
+}
+
+async function runBoxSync() {
+  if (!isAdmin()) return;
+  const btn = document.getElementById('boxSyncBtn');
+  const statusEl = document.getElementById('boxSyncStatus');
+  const resultsEl = document.getElementById('boxSyncResults');
+  const pwHash = (() => { try { return localStorage.getItem('commHubAdminPwHash') || ''; } catch (e) { return ''; } })();
+  if (!pwHash) {
+    statusEl.textContent = 'Sign out and back in to refresh the admin token, then retry.';
+    statusEl.style.color = '#b91c1c';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Syncing…';
+  statusEl.style.color = '#475569';
+  statusEl.textContent = 'Calling Box…';
+  resultsEl.innerHTML = '';
+
+  try {
+    const res = await fetch('/.netlify/functions/box-sync-names', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Pw-Hash': pwHash },
+      body: '{}'
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      statusEl.style.color = '#b91c1c';
+      statusEl.textContent = `Failed: ${data.error || `HTTP ${res.status}`}`;
+      return;
+    }
+    statusEl.style.color = '#15803d';
+    statusEl.textContent = `Done — ${data.updated} updated, ${data.unchanged} unchanged, ${data.missing} missing, ${data.errors.length} errors (of ${data.total} with a Box file ID).`;
+
+    const blocks = [];
+    if (data.renames?.length) {
+      blocks.push(`<div style="margin-top:6px"><b>Renamed:</b><ul style="margin:4px 0 0 18px;padding:0">${
+        data.renames.map(r => `<li><code>${esc(r.oldName)}</code> → <code>${esc(r.newName)}</code></li>`).join('')
+      }</ul></div>`);
+    }
+    if (data.missingFiles?.length) {
+      blocks.push(`<div style="margin-top:6px;color:#b45309"><b>Missing in Box:</b><ul style="margin:4px 0 0 18px;padding:0">${
+        data.missingFiles.map(r => `<li><code>${esc(r.name)}</code></li>`).join('')
+      }</ul></div>`);
+    }
+    if (data.errors?.length) {
+      blocks.push(`<div style="margin-top:6px;color:#b91c1c"><b>Errors:</b><ul style="margin:4px 0 0 18px;padding:0">${
+        data.errors.map(r => `<li><code>${esc(r.name || r.id)}</code> — ${esc(r.error)}</li>`).join('')
+      }</ul></div>`);
+    }
+    resultsEl.innerHTML = blocks.join('');
+
+    if (data.updated > 0) {
+      await loadAllData();
+      renderAdvertiserTable();
+      renderCurrentTab();
+    }
+  } catch (e) {
+    statusEl.style.color = '#b91c1c';
+    statusEl.textContent = `Network error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↻ Sync from Box';
+  }
 }
 
 async function saveAdvertiser(commId, inputEl) {

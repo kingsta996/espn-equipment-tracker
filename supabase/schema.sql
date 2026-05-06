@@ -283,6 +283,7 @@ alter table commercials add column if not exists sports text[] default '{}';
 alter table commercials add column if not exists notes text;
 alter table commercials add column if not exists school_id uuid references schools(id) on delete set null;
 alter table commercials add column if not exists year int;
+alter table commercials add column if not exists advertiser text;
 create index if not exists commercials_school_id_idx on commercials(school_id);
 
 -- Touch updated_at on every row update so the change banner can fire

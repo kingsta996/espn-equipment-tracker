@@ -286,15 +286,20 @@ alter table commercials add column if not exists year int;
 alter table commercials add column if not exists advertiser text;
 create index if not exists commercials_school_id_idx on commercials(school_id);
 
--- Per-break advertiser text for CBSSN Championships
+-- Per-slot advertiser text for CBSSN Championships (one row per :30 slot)
 create table if not exists champ_break_advertisers (
   sport text not null,
   break_key text not null,
+  spot_index int not null default 0,
   advertiser text,
   updated_at timestamptz default now(),
   updated_by text,
-  primary key (sport, break_key)
+  primary key (sport, break_key, spot_index)
 );
+-- Promote older per-break rows that pre-date the spot_index column.
+alter table champ_break_advertisers add column if not exists spot_index int not null default 0;
+alter table champ_break_advertisers drop constraint if exists champ_break_advertisers_pkey;
+alter table champ_break_advertisers add primary key (sport, break_key, spot_index);
 alter table champ_break_advertisers enable row level security;
 drop policy if exists "public read champ break advertisers"  on champ_break_advertisers;
 drop policy if exists "public write champ break advertisers" on champ_break_advertisers;

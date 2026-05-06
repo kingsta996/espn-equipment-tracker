@@ -841,17 +841,24 @@
   .champ-row .cell-local, .champ-row .cell-psa { font-variant-numeric: tabular-nums; color: #aaa; font-size: 11px; vertical-align: top; }
   .champ-row .cell-local.filled { background: var(--conf-bg); }
   .champ-row .cell-psa.filled { color: #4d7c0f; font-weight: 700; background: #ecfccb; }
-  .champ-row .cell-advertiser { font-size: 11px; color: #94a3b8; vertical-align: top; min-width: 130px; }
-  .champ-row .cell-advertiser.filled { color: var(--navy); font-weight: 600; }
+  .champ-row .cell-advertiser { vertical-align: top; min-width: 140px; }
+  .champ-adv-slots { display: flex; flex-direction: column; gap: 3px; min-width: 140px; }
+  .champ-adv-slots-header { font-size: 10px; line-height: 14px; margin-bottom: 2px; visibility: hidden; }
   .champ-adv-input {
-    width: 100%; padding: 4px 6px;
+    width: 100%; padding: 4px 8px;
     border: 1px solid #e2e8f0; border-radius: 4px;
-    font-size: 11px; background: var(--white);
-    color: var(--navy); font-weight: 600;
+    font-size: 11px; line-height: 16px;
+    background: var(--white); color: var(--navy); font-weight: 600;
   }
   .champ-adv-input::placeholder { color: #94a3b8; font-weight: 400; }
   .champ-adv-input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
   .champ-adv-input.saved { border-color: #84cc16; background: #f7fee7; }
+  .champ-adv-display {
+    padding: 4px 8px; border: 1px solid transparent;
+    font-size: 11px; line-height: 16px;
+    color: var(--navy); font-weight: 600;
+  }
+  .champ-adv-display.empty { color: #bbb; font-style: italic; font-weight: 400; }
   .local-slots { display: flex; flex-direction: column; gap: 3px; min-width: 180px; }
   .local-slots-header { font-size: 10px; font-weight: 700; color: var(--conf-fg); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
   .local-slot-display {
@@ -2138,7 +2145,9 @@ async function loadAllData() {
   }
   state.champBreakAdvertisers = {};
   (champAdvRes?.data || []).forEach(r => {
-    if (r.sport && r.break_key) state.champBreakAdvertisers[`${r.sport}:${r.break_key}`] = r.advertiser || null;
+    if (!r.sport || !r.break_key) return;
+    const idx = (r.spot_index ?? 0);
+    state.champBreakAdvertisers[`${r.sport}:${r.break_key}:${idx}`] = r.advertiser || null;
   });
   if (commRes.error) console.error('commercials load:', commRes.error);
   if (asgRes.error)  console.error('assignments load:', asgRes.error);
@@ -2827,19 +2836,14 @@ function renderChampionshipsTab() {
           <td colspan="6" class="cell-segment">${esc(s.name || '')} <span style="font-weight:400;color:#777;font-style:italic;font-size:11px">(no commercial)</span></td>
         </tr>`;
     }
-    const advertiser = (state.champBreakAdvertisers || {})[`${sport}:${s.brk}`] || '';
-    const advertiserCell = isAdmin()
-      ? `<input type="text" class="champ-adv-input" value="${esc(advertiser)}" placeholder="—"
-           onblur="saveChampBreakAdvertiser('${esc(sport)}', '${esc(s.brk)}', this.value, this)"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`
-      : esc(advertiser || '—');
+    const advertiserSlots = renderAdvertiserSlots(sport, s.brk, s.local);
     return `
       <tr class="champ-row${s.local || s.psa ? ' has-local' : ''}">
         <td class="cell-break">${esc(s.brk || '')}</td>
         <td class="cell-segment">${esc(showSeg ? s.name : '')}</td>
         <td class="cell-dur">${esc(s.dur || '')}</td>
         <td class="cell-note">${esc(s.note || '')}</td>
-        <td class="cell-advertiser ${advertiser ? 'filled' : ''}">${advertiserCell}</td>
+        <td class="cell-advertiser">${advertiserSlots}</td>
         <td class="cell-local ${s.local ? 'filled' : ''}">${renderLocalSlots(sport, s.brk, s.local)}</td>
         <td class="cell-psa ${s.psa ? 'filled' : ''}">${esc(s.psa || '')}</td>
       </tr>
@@ -2902,16 +2906,42 @@ function setChampSport(sport) {
   renderCurrentTab();
 }
 
-async function saveChampBreakAdvertiser(sport, brk, value, inputEl) {
+function renderAdvertiserSlots(sport, brk, localStr) {
+  if (!localStr || !brk) return '';
+  const seconds = parseDurationToSec(localStr);
+  const numSpots = Math.floor(seconds / 30);
+  if (numSpots <= 0) return '';
+  const admin = isAdmin();
+  const rows = [];
+  for (let i = 0; i < numSpots; i++) {
+    const adv = (state.champBreakAdvertisers || {})[`${sport}:${brk}:${i}`] || '';
+    if (admin) {
+      rows.push(`<input type="text" class="champ-adv-input champ-adv-slot-input" value="${esc(adv)}" placeholder="—"
+        onblur="saveChampSlotAdvertiser('${esc(sport)}', '${esc(brk)}', ${i}, this.value, this)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`);
+    } else {
+      rows.push(`<div class="champ-adv-display ${adv ? '' : 'empty'}">${esc(adv || '—')}</div>`);
+    }
+  }
+  return `<div class="champ-adv-slots">
+    <div class="champ-adv-slots-header">&nbsp;</div>
+    ${rows.join('')}
+  </div>`;
+}
+
+async function saveChampSlotAdvertiser(sport, brk, spotIndex, value, inputEl) {
   if (!isAdmin() || !_db) return;
   const newVal = (value || '').trim() || null;
-  const key = `${sport}:${brk}`;
+  const key = `${sport}:${brk}:${spotIndex}`;
   const oldVal = (state.champBreakAdvertisers || {})[key] || null;
   if (newVal === oldVal) return;
 
-  const row = { sport, break_key: brk, advertiser: newVal, updated_at: new Date().toISOString() };
+  const row = {
+    sport, break_key: brk, spot_index: spotIndex,
+    advertiser: newVal, updated_at: new Date().toISOString()
+  };
   const { error } = await _db.from('champ_break_advertisers')
-    .upsert(row, { onConflict: 'sport,break_key' });
+    .upsert(row, { onConflict: 'sport,break_key,spot_index' });
 
   if (error) {
     showToast('Save failed: ' + error.message, true);
@@ -3648,24 +3678,29 @@ async function exportChampFormatPdf(sport) {
 
     let localContent = '';
     let localFilled = false;
+    let advertiserContent = '';
+    let advertiserFilled = false;
     if (s.local) {
       const sec = parseDurationToSec(s.local);
       const numSlots = Math.floor(sec / 30);
       if (numSlots > 0 && s.brk) {
-        const lines = [`${s.local} · ${numSlots} × :30`];
+        const localLines = [`${s.local} · ${numSlots} × :30`];
+        const advLines = [' ']; // spacer to align with the Local header line
         for (let i = 0; i < numSlots; i++) {
           const aid = state.assignments[`${assignSport}:${s.brk}:${i}`] || '';
           const c = state.commercials.find(x => x.id === aid);
-          lines.push(c ? `:30 #${i + 1}  ${c.name}` : `:30 #${i + 1}  —`);
+          localLines.push(c ? `:30 #${i + 1}  ${c.name}` : `:30 #${i + 1}  —`);
+          const adv = (state.champBreakAdvertisers || {})[`${sport}:${s.brk}:${i}`] || '';
+          if (adv) advertiserFilled = true;
+          advLines.push(adv || '—');
         }
-        localContent = lines.join('\n');
+        localContent = localLines.join('\n');
+        advertiserContent = advLines.join('\n');
       } else {
         localContent = s.local;
       }
       localFilled = true;
     }
-
-    const advertiser = (state.champBreakAdvertisers || {})[`${sport}:${s.brk}`] || '';
 
     body.push([
       { content: s.brk || '', styles: { halign: 'center', fontStyle: 'bold', textColor: [0, 38, 58] } },
@@ -3673,10 +3708,10 @@ async function exportChampFormatPdf(sport) {
       { content: s.dur || '', styles: { halign: 'center', fontStyle: 'bold' } },
       { content: s.note || '', styles: { fontSize: 8, fontStyle: 'italic', textColor: [85, 85, 85] } },
       {
-        content: advertiser || '',
-        styles: advertiser
-          ? { textColor: [0, 38, 58], fontStyle: 'bold', fontSize: 9 }
-          : { textColor: [170, 170, 170], fontSize: 9 }
+        content: advertiserContent || '',
+        styles: advertiserFilled
+          ? { textColor: [0, 38, 58], fontStyle: 'bold', fontSize: 8 }
+          : { textColor: [170, 170, 170], fontSize: 8 }
       },
       {
         content: localContent || '',

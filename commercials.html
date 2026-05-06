@@ -2078,6 +2078,14 @@ async function runBoxSync() {
       statusEl.textContent = `Failed: ${data.error || `HTTP ${res.status}`}`;
       return;
     }
+    // Dump full per-file diagnostic to the console so we can debug edge cases.
+    console.log('[box-sync-names] response:', data);
+    if (Array.isArray(data.details)) {
+      window._lastBoxSyncDetails = data.details;
+      console.table(data.details.map(r => ({
+        kind: r.kind, id: r.id, dbName: r.dbName || r.name, boxName: r.boxName, status: r.status, error: r.error
+      })));
+    }
     statusEl.style.color = '#15803d';
     statusEl.textContent = `Done — ${data.updated} updated, ${data.unchanged} unchanged, ${data.missing} missing, ${data.errors.length} errors (of ${data.total} with a Box file ID).`;
 
@@ -2088,8 +2096,8 @@ async function runBoxSync() {
       }</ul></div>`);
     }
     if (data.missingFiles?.length) {
-      blocks.push(`<div style="margin-top:6px;color:#b45309"><b>Missing in Box:</b><ul style="margin:4px 0 0 18px;padding:0">${
-        data.missingFiles.map(r => `<li><code>${esc(r.name)}</code></li>`).join('')
+      blocks.push(`<div style="margin-top:6px;color:#b45309"><b>Missing / inaccessible in Box:</b><ul style="margin:4px 0 0 18px;padding:0">${
+        data.missingFiles.map(r => `<li><code>${esc(r.name)}</code> <span style="color:#94a3b8">(file id ${esc(String(r.boxFileId || '?'))}${r.status ? `, HTTP ${r.status}` : ''})</span></li>`).join('')
       }</ul></div>`);
     }
     if (data.errors?.length) {

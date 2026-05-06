@@ -91,18 +91,19 @@ exports.handler = async (event) => {
   const results = await inChunks(candidates, 5, async (c) => {
     try {
       const file = await box.files.get(String(c.box_file_id).trim(), { fields: 'id,name' });
-      const newName = (file && file.name) ? String(file.name) : '';
-      if (!newName) return { kind: 'missing', id: c.id, name: c.name };
-      if (newName === c.name) return { kind: 'unchanged' };
+      const boxName = (file && file.name) ? String(file.name) : '';
+      if (!boxName) return { kind: 'missing', id: c.id, name: c.name, boxFileId: c.box_file_id, dbName: c.name, boxName: '' };
+      if (boxName === c.name) return { kind: 'unchanged', id: c.id, dbName: c.name, boxName };
       const { error: upErr } = await sb.from('commercials')
-        .update({ name: newName }).eq('id', c.id);
-      if (upErr) return { kind: 'error', id: c.id, name: c.name, error: upErr.message };
-      return { kind: 'updated', id: c.id, oldName: c.name, newName };
+        .update({ name: boxName }).eq('id', c.id);
+      if (upErr) return { kind: 'error', id: c.id, name: c.name, dbName: c.name, boxName, error: upErr.message };
+      return { kind: 'updated', id: c.id, oldName: c.name, newName: boxName, dbName: c.name, boxName };
     } catch (e) {
-      if (e && (e.statusCode === 404 || e.statusCode === 410)) {
-        return { kind: 'missing', id: c.id, name: c.name };
+      const status = e && (e.statusCode || (e.response && e.response.statusCode));
+      if (status === 404 || status === 410) {
+        return { kind: 'missing', id: c.id, name: c.name, boxFileId: c.box_file_id, dbName: c.name, status };
       }
-      return { kind: 'error', id: c.id, name: c.name, error: (e && e.message) || String(e) };
+      return { kind: 'error', id: c.id, name: c.name, dbName: c.name, status, error: (e && e.message) || String(e) };
     }
   });
 
@@ -113,7 +114,8 @@ exports.handler = async (event) => {
     missing: results.filter(r => r.kind === 'missing').length,
     errors: results.filter(r => r.kind === 'error'),
     renames: results.filter(r => r.kind === 'updated').map(r => ({ id: r.id, oldName: r.oldName, newName: r.newName })),
-    missingFiles: results.filter(r => r.kind === 'missing').map(r => ({ id: r.id, name: r.name }))
+    missingFiles: results.filter(r => r.kind === 'missing').map(r => ({ id: r.id, name: r.name, boxFileId: r.boxFileId, status: r.status })),
+    details: results // full per-file diagnostic for the client to dump on demand
   };
   return jsonResponse(200, summary);
 };

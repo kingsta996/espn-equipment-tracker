@@ -1139,8 +1139,12 @@
           For each <b>Active</b> School PSA in the catalog, designate the
           <b>Advertiser</b> (school) and the <b>Year</b>. We'll build the ISCI
           code as <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">&lt;YEAR&gt;&lt;TRICODE&gt;_PSAH</code>
-          (≤ 15 characters) and rename the row. Download the file from Box, rename it
-          locally, then re-upload via the School PSA File Request link.
+          (≤ 15 characters) and rename the row. If a school has more than one
+          PSA in the same year, we append <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">2</code>,
+          <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">3</code>, …
+          after the tricode (e.g. <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">2026FIU2_PSAH</code>).
+          Download the file from Box, rename it locally, then re-upload via the
+          School PSA File Request link.
         </p>
         <div class="isci-rename-wrap">
           <div id="isciRenameTable"></div>
@@ -2058,14 +2062,40 @@ function _isciRowEls(commId) {
   };
 }
 
+// Stable suffix for school+year collisions: the earliest-saved PSA gets no
+// suffix; the 2nd, 3rd, … get "2", "3", … so multiple PSAs from the same
+// school in the same year don't collide on filename.
+function _isciSuffixFor(commId, schoolId, year) {
+  const peers = (state.commercials || []).filter(c =>
+    c.category === 'school_psa' &&
+    c.status === 'active' &&
+    c.school_id === schoolId &&
+    Number(c.year) === Number(year)
+  );
+  peers.sort((a, b) =>
+    (a.created_at || '').localeCompare(b.created_at || '') ||
+    String(a.id).localeCompare(String(b.id))
+  );
+  let idx = peers.findIndex(c => c.id === commId);
+  if (idx === -1) idx = peers.length;
+  return idx === 0 ? '' : String(idx + 1);
+}
+
+function _isciFilenameFor(commId, schoolId, year) {
+  const school = (state.schools || []).find(s => s.id === schoolId);
+  if (!school || !year) return '';
+  const code = (school.code || '').toUpperCase();
+  if (!code) return '';
+  const suffix = _isciSuffixFor(commId, schoolId, year);
+  return psaBuildFilename(year, code + suffix);
+}
+
 function isciPreview(commId) {
   const els = _isciRowEls(commId);
   if (!els) return;
   const schoolId = els.schoolSel.value;
   const year = parseInt(els.yearInput.value, 10);
-  const school = (state.schools || []).find(s => s.id === schoolId);
-  const code = (school?.code || '').toUpperCase();
-  const filename = psaBuildFilename(year, code);
+  const filename = _isciFilenameFor(commId, schoolId, year);
 
   els.previewCell.classList.remove('too-long', 'empty');
   if (!filename || !schoolId || !year) {
@@ -2090,8 +2120,7 @@ async function applyIsciNaming(commId) {
   const year = parseInt(els.yearInput.value, 10);
   const school = (state.schools || []).find(s => s.id === schoolId);
   if (!school || !year) { showToast('Pick an advertiser and a year', true); return; }
-  const code = (school.code || '').toUpperCase();
-  const filename = psaBuildFilename(year, code);
+  const filename = _isciFilenameFor(commId, schoolId, year);
   if (!filename || filename.length > PSA_MAX_LEN) {
     showToast(`Filename is ${filename.length} chars — must be ≤ ${PSA_MAX_LEN}`, true);
     return;

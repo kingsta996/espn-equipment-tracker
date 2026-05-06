@@ -185,6 +185,40 @@
   .psa-tag-school { background: #ecfccb; color: #4d7c0f; }
   .psa-tag-admin  { background: #fee2e2; color: #991b1b; }
 
+  /* Admin Panel — Apply ISCI Naming table */
+  .isci-rename-wrap { max-height: 380px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+  .isci-rename-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .isci-rename-table th {
+    position: sticky; top: 0; z-index: 1;
+    background: #f8fafc; color: var(--navy);
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;
+    padding: 8px 10px; text-align: left; border-bottom: 1px solid #e5e7eb;
+  }
+  .isci-rename-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .isci-rename-table tbody tr:hover { background: #f8fafc; }
+  .isci-rename-table .col-current code { font-size: 11px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; }
+  .isci-rename-table select, .isci-rename-table input[type="number"] {
+    width: 100%; min-width: 110px;
+    padding: 5px 7px; border: 1px solid #d1d5db; border-radius: 4px;
+    font-size: 12px; background: var(--white);
+  }
+  .isci-rename-table input[type="number"] { min-width: 80px; }
+  .isci-rename-table select:focus, .isci-rename-table input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .isci-preview-cell { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: var(--navy); }
+  .isci-preview-cell.empty { color: #94a3b8; font-weight: 400; font-style: italic; }
+  .isci-preview-cell.too-long { color: #b91c1c; }
+  .isci-preview-cell .len { font-size: 10px; color: #64748b; font-weight: 400; margin-left: 4px; }
+  .isci-apply-btn {
+    background: var(--espn-red); color: var(--white);
+    border: none; border-radius: 4px; padding: 5px 10px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .isci-apply-btn:hover:not(:disabled) { filter: brightness(1.1); }
+  .isci-apply-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+  .isci-current-school { font-size: 10px; color: #4d7c0f; font-weight: 600; margin-top: 2px; }
+  .isci-empty { padding: 16px; text-align: center; color: #64748b; font-style: italic; font-size: 12px; }
+
   /* Sports sub-tab strip (public view) */
   .sub-tab-bar {
     display: flex; flex-wrap: wrap; gap: 4px;
@@ -1098,6 +1132,21 @@
         <div id="psaConfigStatus" class="psa-config-status"></div>
       </div>
 
+      <!-- Apply ISCI Naming to existing School PSAs -->
+      <div class="modal-section">
+        <h3>Apply ISCI Naming to Existing School PSAs</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">
+          For each <b>Active</b> School PSA in the catalog, designate the
+          <b>Advertiser</b> (school) and the <b>Year</b>. We'll build the ISCI
+          code as <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">&lt;YEAR&gt;&lt;TRICODE&gt;_PSAH</code>
+          (≤ 15 characters) and rename the row. Download the file from Box, rename it
+          locally, then re-upload via the School PSA File Request link.
+        </p>
+        <div class="isci-rename-wrap">
+          <div id="isciRenameTable"></div>
+        </div>
+      </div>
+
       <!-- Format uploads -->
       <div class="modal-section">
         <h3>Upload Sport Formats <span style="font-size:10px;color:#888;font-weight:400;text-transform:none;letter-spacing:0">(ESPN+)</span></h3>
@@ -1919,6 +1968,163 @@ async function submitCusaPsa() {
   showToast(`Filename ${filename} copied — opening Box File Request…`);
   window.open(fileRequestUrl, '_blank', 'noopener');
   closeCusaPsaModal();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Apply ISCI Naming — Admin Panel section that lets the admin set the
+   advertiser (school) + year on each Active School PSA, building the
+   canonical <YEAR><TRICODE>_PSAH filename and saving it back to the
+   commercials row. The file itself is renamed by the admin off-platform.
+   ─────────────────────────────────────────────────────────────────────── */
+function renderIsciRenameTable() {
+  const host = document.getElementById('isciRenameTable');
+  if (!host) return;
+  const rows = (state.commercials || [])
+    .filter(c => c.category === 'school_psa' && c.status === 'active')
+    .slice()
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  if (!rows.length) {
+    host.innerHTML = '<div class="isci-empty">No Active School PSAs in the catalog yet.</div>';
+    return;
+  }
+
+  const schoolOpts = (state.schools || [])
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(s => `<option value="${esc(s.id)}" data-code="${esc((s.code || '').toUpperCase())}">${esc(s.name)} (${esc((s.code || '').toUpperCase())})</option>`)
+    .join('');
+
+  const defaultYear = String(new Date().getFullYear());
+
+  const tbody = rows.map(c => {
+    const schoolId = c.school_id || '';
+    const year = c.year || defaultYear;
+    const currentSchool = schoolId ? (state.schools || []).find(s => s.id === schoolId) : null;
+    const currentBadge = currentSchool
+      ? `<div class="isci-current-school">Advertiser: ${esc(currentSchool.name)}</div>`
+      : '';
+    return `
+      <tr data-comm-id="${esc(c.id)}">
+        <td class="col-current">
+          <code>${esc(c.name)}</code>
+          ${currentBadge}
+        </td>
+        <td>
+          <select onchange="isciPreview('${esc(c.id)}')" data-field="school">
+            <option value="">— Select advertiser —</option>
+            ${schoolOpts.replace(`value="${esc(schoolId)}"`, `value="${esc(schoolId)}" selected`)}
+          </select>
+        </td>
+        <td>
+          <input type="number" min="2024" max="2099" value="${esc(String(year))}" oninput="isciPreview('${esc(c.id)}')" data-field="year">
+        </td>
+        <td class="isci-preview-cell empty" data-preview><span data-preview-text>—</span><span class="len" data-preview-len></span></td>
+        <td><button class="isci-apply-btn" onclick="applyIsciNaming('${esc(c.id)}')" data-apply disabled>Apply</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  host.innerHTML = `
+    <table class="isci-rename-table">
+      <thead>
+        <tr>
+          <th style="min-width:180px">Current Filename</th>
+          <th style="min-width:200px">Advertiser (School)</th>
+          <th style="min-width:90px">Year</th>
+          <th style="min-width:160px">New ISCI Code</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${tbody}</tbody>
+    </table>
+  `;
+
+  // Compute initial previews for any rows that already have school + year set.
+  rows.forEach(c => isciPreview(c.id));
+}
+
+function _isciRowEls(commId) {
+  const tr = document.querySelector(`#isciRenameTable tr[data-comm-id="${commId}"]`);
+  if (!tr) return null;
+  return {
+    tr,
+    schoolSel: tr.querySelector('select[data-field="school"]'),
+    yearInput: tr.querySelector('input[data-field="year"]'),
+    previewCell: tr.querySelector('[data-preview]'),
+    previewText: tr.querySelector('[data-preview-text]'),
+    previewLen:  tr.querySelector('[data-preview-len]'),
+    applyBtn: tr.querySelector('[data-apply]')
+  };
+}
+
+function isciPreview(commId) {
+  const els = _isciRowEls(commId);
+  if (!els) return;
+  const schoolId = els.schoolSel.value;
+  const year = parseInt(els.yearInput.value, 10);
+  const school = (state.schools || []).find(s => s.id === schoolId);
+  const code = (school?.code || '').toUpperCase();
+  const filename = psaBuildFilename(year, code);
+
+  els.previewCell.classList.remove('too-long', 'empty');
+  if (!filename || !schoolId || !year) {
+    els.previewText.textContent = '—';
+    els.previewLen.textContent = '';
+    els.previewCell.classList.add('empty');
+    els.applyBtn.disabled = true;
+    return;
+  }
+  els.previewText.textContent = filename;
+  els.previewLen.textContent = `${filename.length}/${PSA_MAX_LEN}`;
+  const tooLong = filename.length > PSA_MAX_LEN;
+  if (tooLong) els.previewCell.classList.add('too-long');
+  els.applyBtn.disabled = tooLong;
+}
+
+async function applyIsciNaming(commId) {
+  if (!isAdmin() || !_db) return;
+  const els = _isciRowEls(commId);
+  if (!els) return;
+  const schoolId = els.schoolSel.value;
+  const year = parseInt(els.yearInput.value, 10);
+  const school = (state.schools || []).find(s => s.id === schoolId);
+  if (!school || !year) { showToast('Pick an advertiser and a year', true); return; }
+  const code = (school.code || '').toUpperCase();
+  const filename = psaBuildFilename(year, code);
+  if (!filename || filename.length > PSA_MAX_LEN) {
+    showToast(`Filename is ${filename.length} chars — must be ≤ ${PSA_MAX_LEN}`, true);
+    return;
+  }
+
+  const current = state.commercials.find(c => c.id === commId);
+  const oldName = current?.name || '';
+  if (oldName === filename && current?.school_id === schoolId && current?.year === year) {
+    showToast('No change');
+    return;
+  }
+  if (oldName && oldName !== filename) {
+    const ok = confirm(`Rename "${oldName}" → "${filename}"?\n\nAdvertiser: ${school.name}\nYear: ${year}\n\nThis updates the catalog only — re-upload the renamed file via the School PSA File Request.`);
+    if (!ok) return;
+  }
+
+  els.applyBtn.disabled = true;
+  els.applyBtn.textContent = '…';
+
+  const { error } = await _db.from('commercials')
+    .update({ name: filename, school_id: schoolId, year })
+    .eq('id', commId);
+
+  if (error) {
+    showToast('Save failed: ' + error.message, true);
+    els.applyBtn.disabled = false;
+    els.applyBtn.textContent = 'Apply';
+    return;
+  }
+  showToast(`Renamed to ${filename}`);
+  await loadAllData();
+  renderIsciRenameTable();
+  renderCurrentTab();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -3068,6 +3274,7 @@ function openAdminModal() {
   renderUploadList();
   renderChampUploadList();
   loadActivityLog();
+  renderIsciRenameTable();
   // Populate the PSA URL inputs from the cached psa_config so admins always
   // see the current value when the panel opens.
   const sEl = document.getElementById('adminSchoolPsaUrl');

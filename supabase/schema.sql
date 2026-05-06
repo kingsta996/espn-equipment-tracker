@@ -281,6 +281,9 @@ alter table commercials add column if not exists box_link text;
 alter table commercials add column if not exists box_file_id text;
 alter table commercials add column if not exists sports text[] default '{}';
 alter table commercials add column if not exists notes text;
+alter table commercials add column if not exists school_id uuid references schools(id) on delete set null;
+alter table commercials add column if not exists year int;
+create index if not exists commercials_school_id_idx on commercials(school_id);
 
 -- Touch updated_at on every row update so the change banner can fire
 create or replace function touch_commercials_updated_at()

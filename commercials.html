@@ -2054,15 +2054,16 @@ function psaBuildFilename(year, code) {
    download. Used by all three upload modals when "Add CUSA slate" is on.
    ─────────────────────────────────────────────────────────────────────── */
 const SLATE_TEMPLATE_URL = 'Logos/Slates/PSA_Slate_Template.png';
-const SLATE_VALUE_X = 510;
-// Top-edge Y of each label's visual band in the 1920×1080 template. Used
-// with textBaseline = 'top' so positioning is independent of font metrics
-// (Share Tech Mono and similar fonts have unusual "alphabetic" offsets).
-const SLATE_TOPS = { iscii: 170, advertiser: 390, title: 610, length: 830 };
-// Available value width per row. ISCI and Advertiser sit beside the CUSA
-// logo (which begins ~x=820), so they get a narrower budget; Title and
-// Length sit below the logo and have full width to ~x=1850.
-const SLATE_MAX_W = { iscii: 305, advertiser: 305, title: 1340, length: 1340 };
+// Stacked layout: each value is rendered BELOW its label so all values
+// can stay at the same large size without colliding with the CUSA logo.
+// X aligns with the labels' left margin in the 1920×1080 template.
+const SLATE_VALUE_X = 95;
+const SLATE_TOPS = { iscii: 250, advertiser: 470, title: 690, length: 910 };
+// Available widths after the value drops below its label. Advertiser /
+// Title / Length sit below the logo so they get the full canvas width;
+// ISCI value is at y≈250 which is still inside the logo's vertical band
+// (logo y≈170–460), so it stops before the logo's left edge ~x=820.
+const SLATE_MAX_W = { iscii: 720, advertiser: 1750, title: 1750, length: 1750 };
 const SLATE_FONT_FAMILY = '"Share Tech Mono", "Roboto Mono", "Courier New", ui-monospace, monospace';
 const SLATE_FONT_DEFAULT_PX = 72;
 const SLATE_FONT_MIN_PX = 28;

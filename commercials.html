@@ -181,6 +181,12 @@
   .psa-tracker-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
   .psa-tracker-table tbody tr:hover { background: #f8fafc; }
   .psa-tracker-table tr.psa-row-pending td:first-child { border-left: 3px solid #fbbf24; }
+  .psa-row-delete {
+    background: transparent; border: 1px solid #e5e7eb; color: #94a3b8;
+    border-radius: 4px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+    line-height: 1; font-weight: 700;
+  }
+  .psa-row-delete:hover { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
   .psa-tag {
     display: inline-block; font-size: 10px; font-weight: 700;
     padding: 2px 8px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -3031,6 +3037,33 @@ function renderUploadTab() {
   `;
 }
 
+async function deletePsaUpload(id, filename) {
+  if (!isAdmin() || !_db || !id) return;
+  if (!confirm(`Remove tracker entry for "${filename || id}"?\n\nThe file in Box is unaffected — only the tracker row is deleted.`)) return;
+  const { error } = await _db.from('psa_uploads').delete().eq('id', id);
+  if (error) { showToast('Delete failed: ' + error.message, true); return; }
+  showToast('Tracker entry removed');
+  await loadAllData();
+  renderCurrentTab();
+}
+
+async function clearTodayPsaUploads() {
+  if (!isAdmin() || !_db) return;
+  const today = new Date();
+  const todayCount = (state.psaUploads || []).filter(u => {
+    if (!u.uploaded_at) return false;
+    return new Date(u.uploaded_at).toDateString() === today.toDateString();
+  }).length;
+  if (!todayCount) { showToast('No PSA uploads from today.'); return; }
+  if (!confirm(`Remove ${todayCount} PSA tracker entr${todayCount === 1 ? 'y' : 'ies'} from today?\n\nFiles in Box are unaffected — only tracker rows are deleted.`)) return;
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const { error } = await _db.from('psa_uploads').delete().gte('uploaded_at', todayStart.toISOString());
+  if (error) { showToast('Delete failed: ' + error.message, true); return; }
+  showToast(`Removed ${todayCount} entr${todayCount === 1 ? 'y' : 'ies'}`);
+  await loadAllData();
+  renderCurrentTab();
+}
+
 function renderPsaTrackerTable() {
   const schools = (state.schools || []).slice().sort((a, b) => a.name.localeCompare(b.name));
   if (!schools.length) {
@@ -3049,12 +3082,16 @@ function renderPsaTrackerTable() {
     if (el) el.textContent = `${uploadedCount} of ${schools.length} schools uploaded`;
   }, 0);
 
+  const admin = isAdmin();
   const rows = schools.map(s => {
     const u = latest[s.id];
     const uploadedHow = u
       ? (u.uploaded_by_admin
           ? '<span class="psa-tag psa-tag-admin">By admin</span>'
           : '<span class="psa-tag psa-tag-school">Self</span>')
+      : '';
+    const delBtn = (admin && u)
+      ? `<button class="psa-row-delete" title="Remove tracker entry" onclick="deletePsaUpload('${esc(u.id)}', '${esc(u.filename)}')">✕</button>`
       : '';
     return `
       <tr class="${u ? '' : 'psa-row-pending'}">
@@ -3063,6 +3100,7 @@ function renderPsaTrackerTable() {
         <td>${u ? esc(String(u.year || '—')) : '—'}</td>
         <td>${u ? esc(fmtDateTime(u.uploaded_at)) : '—'}</td>
         <td>${uploadedHow}</td>
+        ${admin ? `<td>${delBtn}</td>` : ''}
       </tr>`;
   }).join('');
 
@@ -3075,6 +3113,7 @@ function renderPsaTrackerTable() {
           <th>Year</th>
           <th>Uploaded</th>
           <th></th>
+          ${admin ? '<th></th>' : ''}
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -3086,7 +3125,25 @@ function renderUploadAdminSections() {
   const schoolUrl  = (state.psaConfig?.school_psa?.file_request_url || '').trim();
   const cusaUrl    = (state.psaConfig?.cusa_psa?.file_request_url || '').trim();
   const sponsorUrl = (state.psaConfig?.sponsor?.file_request_url || '').trim();
+  // Count today's tracker rows so we can label the reset button.
+  const today = new Date();
+  const todayCount = (state.psaUploads || []).filter(u => {
+    if (!u.uploaded_at) return false;
+    return new Date(u.uploaded_at).toDateString() === today.toDateString();
+  }).length;
   return `
+    <div class="upload-section" style="background:#fef3c7;border-color:#fcd34d">
+      <div class="upload-section-header" style="background:#fbbf24;color:#78350f">
+        <span>🧹 Reset PSA tracker</span>
+      </div>
+      <div class="upload-section-body" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px;font-size:12px;color:#78350f">
+          Removes today's <b>${todayCount}</b> tracker entr${todayCount === 1 ? 'y' : 'ies'} so the trackers go back to a clean slate. <b>Files in Box are not touched</b> — only the tracker rows in Supabase. Use the ✕ on any row to remove that single entry instead.
+        </div>
+        <button class="btn btn-add" onclick="clearTodayPsaUploads()" ${todayCount ? '' : 'disabled'} style="background:#b45309">Clear today's entries</button>
+      </div>
+    </div>
+
     <div class="upload-section">
       <div class="upload-section-header">
         <span>📤 Upload a School PSA on behalf of a school</span>
@@ -3149,6 +3206,7 @@ function renderUploadAdminSections() {
 function renderSponsorshipList() {
   const rows = (state.psaUploads || []).filter(u => u.category === 'sponsor').slice(0, 25);
   if (!rows.length) return '<div class="upload-empty">No Sponsorship Spots uploaded yet.</div>';
+  const admin = isAdmin();
   return `
     <table class="psa-tracker-table">
       <thead>
@@ -3160,6 +3218,7 @@ function renderSponsorshipList() {
           <th>Sport</th>
           <th>Uploader</th>
           <th>Uploaded</th>
+          ${admin ? '<th></th>' : ''}
         </tr>
       </thead>
       <tbody>
@@ -3172,6 +3231,7 @@ function renderSponsorshipList() {
             <td>${esc(u.sport === 'all' ? 'All Sports' : (prettySport(u.sport) || u.sport || '—'))}</td>
             <td>${esc(u.uploader_name || '—')}<br><span style="color:#64748b;font-size:10px">${esc(u.uploader_email || '')}</span></td>
             <td>${esc(fmtDateTime(u.uploaded_at))}</td>
+            ${admin ? `<td><button class="psa-row-delete" title="Remove tracker entry" onclick="deletePsaUpload('${esc(u.id)}', '${esc(u.filename)}')">✕</button></td>` : ''}
           </tr>
         `).join('')}
       </tbody>
@@ -3182,6 +3242,7 @@ function renderSponsorshipList() {
 function renderCusaPsaList() {
   const rows = (state.psaUploads || []).filter(u => u.category === 'cusa_psa').slice(0, 25);
   if (!rows.length) return '<div class="upload-empty">No CUSA Produced PSAs uploaded yet.</div>';
+  const admin = isAdmin();
   return `
     <table class="psa-tracker-table">
       <thead>
@@ -3192,6 +3253,7 @@ function renderCusaPsaList() {
           <th>Rotation</th>
           <th>Uploader</th>
           <th>Uploaded</th>
+          ${admin ? '<th></th>' : ''}
         </tr>
       </thead>
       <tbody>
@@ -3203,6 +3265,7 @@ function renderCusaPsaList() {
             <td>${esc(u.rotation_period || '—')}</td>
             <td>${esc(u.uploader_name || '—')}<br><span style="color:#64748b;font-size:10px">${esc(u.uploader_email || '')}</span></td>
             <td>${esc(fmtDateTime(u.uploaded_at))}</td>
+            ${admin ? `<td><button class="psa-row-delete" title="Remove tracker entry" onclick="deletePsaUpload('${esc(u.id)}', '${esc(u.filename)}')">✕</button></td>` : ''}
           </tr>
         `).join('')}
       </tbody>

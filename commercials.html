@@ -2059,7 +2059,14 @@ const SLATE_VALUE_X = 510;
 // with textBaseline = 'top' so positioning is independent of font metrics
 // (Share Tech Mono and similar fonts have unusual "alphabetic" offsets).
 const SLATE_TOPS = { iscii: 170, advertiser: 390, title: 610, length: 830 };
-const SLATE_FONT = 'bold 72px "Share Tech Mono", "Roboto Mono", "Courier New", ui-monospace, monospace';
+// Available value width per row. ISCI and Advertiser sit beside the CUSA
+// logo (which begins ~x=820), so they get a narrower budget; Title and
+// Length sit below the logo and have full width to ~x=1850.
+const SLATE_MAX_W = { iscii: 305, advertiser: 305, title: 1340, length: 1340 };
+const SLATE_FONT_FAMILY = '"Share Tech Mono", "Roboto Mono", "Courier New", ui-monospace, monospace';
+const SLATE_FONT_DEFAULT_PX = 72;
+const SLATE_FONT_MIN_PX = 28;
+const SLATE_FONT_STEP_PX = 4;
 let _slateTemplateImage = null;
 
 function loadSlateTemplate() {
@@ -2074,20 +2081,32 @@ function loadSlateTemplate() {
 
 async function generateSlatePngBlob({ iscii, advertiser, title, length }) {
   const img = await loadSlateTemplate();
-  // Make sure the slate-value font is loaded before canvas renders, otherwise
-  // the browser substitutes an unrelated font and metrics shift.
-  try { if (document.fonts) await document.fonts.load("bold 72px 'Share Tech Mono'"); } catch (e) {}
+  try { if (document.fonts) await document.fonts.load(`bold ${SLATE_FONT_DEFAULT_PX}px 'Share Tech Mono'`); } catch (e) {}
   const canvas = document.createElement('canvas');
   canvas.width = 1920; canvas.height = 1080;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#ffffff';
-  ctx.font = SLATE_FONT;
   ctx.textBaseline = 'top';
-  ctx.fillText(String(iscii || ''),      SLATE_VALUE_X, SLATE_TOPS.iscii);
-  ctx.fillText(String(advertiser || ''), SLATE_VALUE_X, SLATE_TOPS.advertiser);
-  ctx.fillText(String(title || ''),      SLATE_VALUE_X, SLATE_TOPS.title);
-  ctx.fillText(String(length || ''),     SLATE_VALUE_X, SLATE_TOPS.length);
+
+  const drawValue = (text, key) => {
+    const value = String(text || '');
+    if (!value) return;
+    const maxW = SLATE_MAX_W[key];
+    let size = SLATE_FONT_DEFAULT_PX;
+    ctx.font = `bold ${size}px ${SLATE_FONT_FAMILY}`;
+    while (ctx.measureText(value).width > maxW && size > SLATE_FONT_MIN_PX) {
+      size -= SLATE_FONT_STEP_PX;
+      ctx.font = `bold ${size}px ${SLATE_FONT_FAMILY}`;
+    }
+    ctx.fillText(value, SLATE_VALUE_X, SLATE_TOPS[key]);
+  };
+
+  drawValue(iscii,      'iscii');
+  drawValue(advertiser, 'advertiser');
+  drawValue(title,      'title');
+  drawValue(length,     'length');
+
   return await new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/png'));
 }
 

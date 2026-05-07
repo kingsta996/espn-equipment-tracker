@@ -629,6 +629,36 @@
     display: flex; align-items: center; justify-content: center; gap: 8px;
   }
   .login-upload-btn:hover { filter: brightness(0.95); }
+  /* Slate panel — toggle + 4 editable fields shown when "Add slate" is on */
+  .slate-panel {
+    grid-column: 1 / -1;
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+  .slate-panel-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--navy); font-weight: 600; cursor: pointer; }
+  .slate-panel-toggle input { width: 16px; height: 16px; cursor: pointer; }
+  .slate-panel-toggle .hint { color: #64748b; font-weight: 400; }
+  .slate-fields { display: none; margin-top: 10px; }
+  .slate-fields.open { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .slate-fields .full { grid-column: 1 / -1; }
+  .slate-fields label {
+    display: block; font-size: 10px; color: var(--navy);
+    text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;
+    margin-bottom: 3px;
+  }
+  .slate-fields input {
+    width: 100%; padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 4px;
+    font-size: 12px; background: var(--white);
+  }
+  .slate-fields input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+  .slate-preview-strip {
+    grid-column: 1 / -1; margin-top: 8px;
+    font-size: 11px; color: #475569; font-style: italic;
+  }
+
   .psa-filename-preview {
     background: var(--navy); color: var(--white);
     padding: 10px 14px; border-radius: 6px;
@@ -1031,6 +1061,32 @@
           <div id="cusaPsaFilenamePreview" class="psa-filename-preview">—</div>
           <div id="cusaPsaFilenameHint" class="psa-filename-hint">Enter a name to preview the filename.</div>
         </div>
+
+        <div class="slate-panel">
+          <label class="slate-panel-toggle">
+            <input type="checkbox" id="cusaPsaSlateToggle" onchange="cusaPsaSlateToggleChanged()">
+            Add CUSA slate to upload <span class="hint">(downloads a PNG; drop it + your video into your AME watch folder)</span>
+          </label>
+          <div class="slate-fields" id="cusaPsaSlateFields">
+            <div class="full">
+              <label>ISCI <span style="color:#888;font-weight:400">(matches filename)</span></label>
+              <input type="text" id="cusaPsaSlateIscii" readonly style="background:#f1f5f9">
+            </div>
+            <div>
+              <label>Advertiser</label>
+              <input type="text" id="cusaPsaSlateAdvertiser">
+            </div>
+            <div>
+              <label>Title</label>
+              <input type="text" id="cusaPsaSlateTitle">
+            </div>
+            <div class="full">
+              <label>Length</label>
+              <input type="text" id="cusaPsaSlateLength" placeholder=":30">
+            </div>
+            <div class="slate-preview-strip">When you click Continue, we'll render the slate as a PNG and save it to your Downloads — then open the Box File Request as usual.</div>
+          </div>
+        </div>
       </div>
       <div class="form-actions">
         <button class="btn btn-cancel" onclick="closeCusaPsaModal()">Cancel</button>
@@ -1071,10 +1127,132 @@
           <div id="psaFilenamePreview" class="psa-filename-preview">—</div>
           <div id="psaFilenameHint" class="psa-filename-hint">Pick a year and a school to preview the filename.</div>
         </div>
+
+        <div class="slate-panel">
+          <label class="slate-panel-toggle">
+            <input type="checkbox" id="psaSlateToggle" onchange="psaSlateToggleChanged()">
+            Add CUSA slate to upload <span class="hint">(downloads a PNG; drop it + your video into your AME watch folder)</span>
+          </label>
+          <div class="slate-fields" id="psaSlateFields">
+            <div class="full">
+              <label>ISCI <span style="color:#888;font-weight:400">(matches filename)</span></label>
+              <input type="text" id="psaSlateIscii" readonly style="background:#f1f5f9">
+            </div>
+            <div>
+              <label>Advertiser</label>
+              <input type="text" id="psaSlateAdvertiser" placeholder="School name">
+            </div>
+            <div>
+              <label>Title</label>
+              <input type="text" id="psaSlateTitle" placeholder="e.g. Spring 2026 PSA">
+            </div>
+            <div class="full">
+              <label>Length</label>
+              <input type="text" id="psaSlateLength" placeholder=":30">
+            </div>
+            <div class="slate-preview-strip">When you click Continue, we'll render the slate as a PNG and save it to your Downloads — then open the Box File Request as usual.</div>
+          </div>
+        </div>
       </div>
       <div class="form-actions">
         <button class="btn btn-cancel" onclick="closeSchoolPsaModal()">Cancel</button>
         <button class="btn btn-save" id="psaContinueBtn" onclick="submitSchoolPsa()" disabled>Continue to Upload</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sponsorship Spot upload modal (admin only — opens from Upload tab) -->
+<div class="modal-overlay" id="sponsorshipModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Upload a Sponsorship Spot</h2>
+      <button class="modal-close" onclick="closeSponsorshipModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:#475569;margin:0 0 14px">
+        Enter the agency-supplied <b>ISCI</b> code (≤ 14 characters, letters/numbers).
+        We append <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">H</code>
+        to make the broadcast filename, log the upload, then open the Box File Request.
+      </p>
+      <div class="form-grid">
+        <div class="full">
+          <label>ISCI <span style="color:#b91c1c">*</span> <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(provided by the agency — uppercase, no spaces)</span></label>
+          <input type="text" id="sponsorshipIscii" placeholder="e.g. ABCD1234" maxlength="14" oninput="sponsorshipUpdatePreview()" style="text-transform:uppercase">
+        </div>
+        <div>
+          <label>Advertiser <span style="color:#b91c1c">*</span></label>
+          <input type="text" id="sponsorshipAdvertiser" placeholder="e.g. Acme Inc." oninput="sponsorshipUpdatePreview()">
+        </div>
+        <div>
+          <label>Title <span style="color:#b91c1c">*</span></label>
+          <input type="text" id="sponsorshipTitle" placeholder="e.g. Spring Tour 2026" oninput="sponsorshipUpdatePreview()">
+        </div>
+        <div>
+          <label>Length <span style="color:#b91c1c">*</span></label>
+          <input type="text" id="sponsorshipLength" placeholder=":30" oninput="sponsorshipUpdatePreview()">
+        </div>
+        <div>
+          <label>Sport <span style="color:#b91c1c">*</span></label>
+          <select id="sponsorshipSport" onchange="sponsorshipUpdatePreview()">
+            <option value="">— Select sport —</option>
+            <option value="all">All Sports</option>
+            <option value="football">Football</option>
+            <option value="mens_basketball">Men's Basketball</option>
+            <option value="womens_basketball">Women's Basketball</option>
+            <option value="baseball">Baseball</option>
+            <option value="softball">Softball</option>
+            <option value="soccer">Soccer</option>
+            <option value="volleyball">Volleyball</option>
+          </select>
+        </div>
+        <div>
+          <label>Uploader Name <span style="color:#b91c1c">*</span></label>
+          <input type="text" id="sponsorshipUploader" placeholder="Your name" oninput="sponsorshipUpdatePreview()">
+        </div>
+        <div>
+          <label>Uploader Email <span style="color:#b91c1c">*</span></label>
+          <input type="email" id="sponsorshipEmail" placeholder="you@conferenceusa.com" oninput="sponsorshipUpdatePreview()">
+        </div>
+        <div class="full">
+          <label>Rotation Period <span style="color:#888;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input type="text" id="sponsorshipRotation" placeholder="Optional rotation window" oninput="sponsorshipUpdatePreview()">
+        </div>
+        <div class="full">
+          <label>Filename Preview</label>
+          <div id="sponsorshipFilenamePreview" class="psa-filename-preview">—</div>
+          <div id="sponsorshipFilenameHint" class="psa-filename-hint">Enter an ISCI to preview the filename.</div>
+        </div>
+
+        <div class="slate-panel">
+          <label class="slate-panel-toggle">
+            <input type="checkbox" id="sponsorshipSlateToggle" onchange="sponsorshipSlateToggleChanged()">
+            Add CUSA slate to upload <span class="hint">(downloads a PNG; drop it + your video into your AME watch folder)</span>
+          </label>
+          <div class="slate-fields" id="sponsorshipSlateFields">
+            <div class="full">
+              <label>ISCI <span style="color:#888;font-weight:400">(matches filename)</span></label>
+              <input type="text" id="sponsorshipSlateIscii" readonly style="background:#f1f5f9">
+            </div>
+            <div>
+              <label>Advertiser</label>
+              <input type="text" id="sponsorshipSlateAdvertiser">
+            </div>
+            <div>
+              <label>Title</label>
+              <input type="text" id="sponsorshipSlateTitle">
+            </div>
+            <div class="full">
+              <label>Length</label>
+              <input type="text" id="sponsorshipSlateLength" placeholder=":30">
+            </div>
+            <div class="slate-preview-strip">When you click Continue, we'll render the slate as a PNG and save it to your Downloads — then open the Box File Request as usual.</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-cancel" onclick="closeSponsorshipModal()">Cancel</button>
+        <button class="btn btn-save" id="sponsorshipContinueBtn" onclick="submitSponsorship()" disabled>Continue to Upload</button>
       </div>
     </div>
   </div>
@@ -1146,6 +1324,11 @@
           <label>CUSA Produced PSA</label>
           <input type="url" id="adminCusaPsaUrl" placeholder="https://app.box.com/f/…">
           <button class="btn btn-add" onclick="savePsaConfig('cusa_psa')">Save</button>
+        </div>
+        <div class="psa-url-row">
+          <label>Sponsorship Spot</label>
+          <input type="url" id="adminSponsorUrl" placeholder="https://app.box.com/f/…">
+          <button class="btn btn-add" onclick="savePsaConfig('sponsor')">Save</button>
         </div>
         <div id="psaConfigStatus" class="psa-config-status"></div>
       </div>
@@ -1776,6 +1959,71 @@ function psaBuildFilename(year, code) {
   return `${y}${c}${PSA_SUFFIX}`;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Slate generator — renders the PSA slate template (1920×1080) with the
+   admin-supplied ISCI / Advertiser / Title / Length, then triggers a PNG
+   download. Used by all three upload modals when "Add CUSA slate" is on.
+   ─────────────────────────────────────────────────────────────────────── */
+const SLATE_TEMPLATE_URL = 'Logos/Slates/PSA_Slate_Template.png';
+const SLATE_VALUE_X = 460;
+const SLATE_BASELINES = { iscii: 245, advertiser: 460, title: 670, length: 880 };
+const SLATE_FONT = 'bold 60px "Roboto Mono", "Courier New", ui-monospace, monospace';
+let _slateTemplateImage = null;
+
+function loadSlateTemplate() {
+  if (_slateTemplateImage) return Promise.resolve(_slateTemplateImage);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => { _slateTemplateImage = img; resolve(img); };
+    img.onerror = () => reject(new Error('Slate template not found at ' + SLATE_TEMPLATE_URL));
+    img.src = SLATE_TEMPLATE_URL;
+  });
+}
+
+async function generateSlatePngBlob({ iscii, advertiser, title, length }) {
+  const img = await loadSlateTemplate();
+  const canvas = document.createElement('canvas');
+  canvas.width = 1920; canvas.height = 1080;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = SLATE_FONT;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(String(iscii || ''),      SLATE_VALUE_X, SLATE_BASELINES.iscii);
+  ctx.fillText(String(advertiser || ''), SLATE_VALUE_X, SLATE_BASELINES.advertiser);
+  ctx.fillText(String(title || ''),      SLATE_VALUE_X, SLATE_BASELINES.title);
+  ctx.fillText(String(length || ''),     SLATE_VALUE_X, SLATE_BASELINES.length);
+  return await new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/png'));
+}
+
+function triggerSlateDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) {} }, 200);
+}
+
+async function maybeDownloadSlate({ enabled, filename, iscii, advertiser, title, length }) {
+  if (!enabled) return;
+  try {
+    const blob = await generateSlatePngBlob({ iscii, advertiser, title, length });
+    if (!blob) return;
+    triggerSlateDownload(blob, `${filename}_slate.png`);
+  } catch (e) {
+    console.warn('Slate generation failed:', e);
+    showToast('Slate generation failed: ' + e.message, true);
+  }
+}
+
+function showSlateFields(toggleId, fieldsId, on) {
+  const el = document.getElementById(fieldsId);
+  if (!el) return;
+  el.classList.toggle('open', !!on);
+}
+
 async function openSchoolPsaModal(opts) {
   // opts.asAdmin = true when an admin is uploading on a school's behalf.
   state._psaAsAdmin = !!(opts && opts.asAdmin);
@@ -1794,6 +2042,15 @@ async function openSchoolPsaModal(opts) {
   if (titleEl) titleEl.textContent = state._psaAsAdmin
     ? 'Upload a School PSA (admin)'
     : 'Upload a School PSA';
+  // Reset slate panel each open so previous values don't bleed across uploads.
+  ['psaSlateIscii','psaSlateAdvertiser','psaSlateTitle','psaSlateLength'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; delete el.dataset.userEdited; }
+  });
+  const tog = document.getElementById('psaSlateToggle');
+  if (tog) { tog.checked = false; showSlateFields('psaSlateToggle', 'psaSlateFields', false); }
+  // Track manual edits to the Advertiser field so school-name autofill doesn't clobber them.
+  document.getElementById('psaSlateAdvertiser')?.addEventListener('input', function() { this.dataset.userEdited = '1'; }, { once: true });
   psaUpdatePreview();
   document.getElementById('schoolPsaModal').classList.add('open');
   setTimeout(() => sel.focus(), 50);
@@ -1848,6 +2105,19 @@ function psaUpdatePreview() {
     hintEl.classList.remove('error');
     btn.disabled = !year || !schoolId || !code;
   }
+  // Keep the slate ISCI/Advertiser fields in sync with the form.
+  const slateOn = document.getElementById('psaSlateToggle')?.checked;
+  if (slateOn) {
+    document.getElementById('psaSlateIscii').value = filename || '';
+    const advEl = document.getElementById('psaSlateAdvertiser');
+    if (advEl && !advEl.dataset.userEdited) advEl.value = school?.name || '';
+  }
+}
+
+function psaSlateToggleChanged() {
+  const on = document.getElementById('psaSlateToggle').checked;
+  showSlateFields('psaSlateToggle', 'psaSlateFields', on);
+  if (on) psaUpdatePreview();
 }
 
 async function submitSchoolPsa() {
@@ -1887,6 +2157,16 @@ async function submitSchoolPsa() {
     }
   }
 
+  // If the admin opted in, render and download the slate PNG before opening Box.
+  await maybeDownloadSlate({
+    enabled: !!document.getElementById('psaSlateToggle')?.checked,
+    filename,
+    iscii: document.getElementById('psaSlateIscii')?.value || filename,
+    advertiser: document.getElementById('psaSlateAdvertiser')?.value || school.name,
+    title: document.getElementById('psaSlateTitle')?.value || '',
+    length: document.getElementById('psaSlateLength')?.value || ''
+  });
+
   // Copy the filename for the user, then send them to Box.
   try { await navigator.clipboard?.writeText(filename); } catch (e) {}
   showToast(`Filename ${filename} copied — opening Box File Request…`);
@@ -1908,9 +2188,25 @@ function openCusaPsaModal() {
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const sport = document.getElementById('cusaPsaSport');
   if (sport) sport.value = '';
+  // Reset slate state.
+  ['cusaPsaSlateIscii','cusaPsaSlateAdvertiser','cusaPsaSlateTitle','cusaPsaSlateLength'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; delete el.dataset.userEdited; }
+  });
+  const tog = document.getElementById('cusaPsaSlateToggle');
+  if (tog) { tog.checked = false; showSlateFields('cusaPsaSlateToggle', 'cusaPsaSlateFields', false); }
+  ['cusaPsaSlateAdvertiser','cusaPsaSlateTitle','cusaPsaSlateLength'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', function() { this.dataset.userEdited = '1'; }, { once: true });
+  });
   cusaPsaUpdatePreview();
   document.getElementById('cusaPsaModal').classList.add('open');
   setTimeout(() => document.getElementById('cusaPsaName')?.focus(), 50);
+}
+
+function cusaPsaSlateToggleChanged() {
+  const on = document.getElementById('cusaPsaSlateToggle').checked;
+  showSlateFields('cusaPsaSlateToggle', 'cusaPsaSlateFields', on);
+  if (on) cusaPsaUpdatePreview();
 }
 
 function closeCusaPsaModal() {
@@ -1957,6 +2253,15 @@ function cusaPsaUpdatePreview() {
     hintEl.classList.remove('error');
     btn.disabled = !requiredOk;
   }
+  // Auto-fill slate fields from the form when slate is enabled.
+  const slateOn = document.getElementById('cusaPsaSlateToggle')?.checked;
+  if (slateOn) {
+    document.getElementById('cusaPsaSlateIscii').value = filename || '';
+    const adv = document.getElementById('cusaPsaSlateAdvertiser');
+    if (adv && !adv.dataset.userEdited) adv.value = sponsor || '';
+    const titleEl = document.getElementById('cusaPsaSlateTitle');
+    if (titleEl && !titleEl.dataset.userEdited) titleEl.value = name || '';
+  }
 }
 
 async function submitCusaPsa() {
@@ -1998,10 +2303,169 @@ async function submitCusaPsa() {
     }
   }
 
+  await maybeDownloadSlate({
+    enabled: !!document.getElementById('cusaPsaSlateToggle')?.checked,
+    filename,
+    iscii: document.getElementById('cusaPsaSlateIscii')?.value || filename,
+    advertiser: document.getElementById('cusaPsaSlateAdvertiser')?.value || sponsor,
+    title: document.getElementById('cusaPsaSlateTitle')?.value || name,
+    length: document.getElementById('cusaPsaSlateLength')?.value || ''
+  });
+
   try { await navigator.clipboard?.writeText(filename); } catch (e) {}
   showToast(`Filename ${filename} copied — opening Box File Request…`);
   window.open(fileRequestUrl, '_blank', 'noopener');
   closeCusaPsaModal();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Sponsorship Spot upload (admin only — opens from the Upload tab).
+   Filename pattern: <ISCI>H, where <ISCI> is supplied by the agency.
+   ─────────────────────────────────────────────────────────────────────── */
+const SPONSORSHIP_SUFFIX = 'H';
+const SPONSORSHIP_MAX_LEN = 15;
+
+function sponsorshipBuildFilename(iscii) {
+  const c = String(iscii || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (!c) return '';
+  return `${c}${SPONSORSHIP_SUFFIX}`;
+}
+
+function openSponsorshipModal() {
+  if (!isAdmin()) return;
+  ['sponsorshipIscii','sponsorshipAdvertiser','sponsorshipTitle','sponsorshipLength','sponsorshipUploader','sponsorshipEmail','sponsorshipRotation']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const sport = document.getElementById('sponsorshipSport');
+  if (sport) sport.value = '';
+  ['sponsorshipSlateIscii','sponsorshipSlateAdvertiser','sponsorshipSlateTitle','sponsorshipSlateLength'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; delete el.dataset.userEdited; }
+  });
+  const tog = document.getElementById('sponsorshipSlateToggle');
+  if (tog) { tog.checked = false; showSlateFields('sponsorshipSlateToggle', 'sponsorshipSlateFields', false); }
+  ['sponsorshipSlateAdvertiser','sponsorshipSlateTitle','sponsorshipSlateLength'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', function() { this.dataset.userEdited = '1'; }, { once: true });
+  });
+  sponsorshipUpdatePreview();
+  document.getElementById('sponsorshipModal').classList.add('open');
+  setTimeout(() => document.getElementById('sponsorshipIscii')?.focus(), 50);
+}
+
+function closeSponsorshipModal() {
+  document.getElementById('sponsorshipModal').classList.remove('open');
+}
+
+function sponsorshipSlateToggleChanged() {
+  const on = document.getElementById('sponsorshipSlateToggle').checked;
+  showSlateFields('sponsorshipSlateToggle', 'sponsorshipSlateFields', on);
+  if (on) sponsorshipUpdatePreview();
+}
+
+function sponsorshipUpdatePreview() {
+  const iscii = document.getElementById('sponsorshipIscii')?.value || '';
+  const advertiser = document.getElementById('sponsorshipAdvertiser')?.value.trim() || '';
+  const titleVal = document.getElementById('sponsorshipTitle')?.value.trim() || '';
+  const lengthVal = document.getElementById('sponsorshipLength')?.value.trim() || '';
+  const uploader = document.getElementById('sponsorshipUploader')?.value.trim() || '';
+  const email = document.getElementById('sponsorshipEmail')?.value.trim() || '';
+  const sport = document.getElementById('sponsorshipSport')?.value || '';
+  const filename = sponsorshipBuildFilename(iscii);
+  const previewEl = document.getElementById('sponsorshipFilenamePreview');
+  const hintEl = document.getElementById('sponsorshipFilenameHint');
+  const btn = document.getElementById('sponsorshipContinueBtn');
+  if (!previewEl || !hintEl || !btn) return;
+
+  const requiredOk = !!(iscii && advertiser && titleVal && lengthVal && sport && uploader && email);
+
+  if (!filename) {
+    previewEl.textContent = '—';
+    previewEl.classList.remove('too-long');
+    hintEl.textContent = 'Enter an ISCI to preview the filename.';
+    hintEl.classList.remove('error');
+    btn.disabled = true;
+    return;
+  }
+  previewEl.textContent = filename;
+  const tooLong = filename.length > SPONSORSHIP_MAX_LEN;
+  previewEl.classList.toggle('too-long', tooLong);
+  if (tooLong) {
+    hintEl.textContent = `Filename is ${filename.length} characters — must be ${SPONSORSHIP_MAX_LEN} or fewer (ISCI ≤ 14).`;
+    hintEl.classList.add('error');
+    btn.disabled = true;
+  } else {
+    hintEl.textContent = `${filename.length}/${SPONSORSHIP_MAX_LEN} characters. Required: ISCI, advertiser, title, length, sport, uploader, email.`;
+    hintEl.classList.remove('error');
+    btn.disabled = !requiredOk;
+  }
+
+  const slateOn = document.getElementById('sponsorshipSlateToggle')?.checked;
+  if (slateOn) {
+    document.getElementById('sponsorshipSlateIscii').value = filename || '';
+    const adv = document.getElementById('sponsorshipSlateAdvertiser');
+    if (adv && !adv.dataset.userEdited) adv.value = advertiser;
+    const titleEl = document.getElementById('sponsorshipSlateTitle');
+    if (titleEl && !titleEl.dataset.userEdited) titleEl.value = titleVal;
+    const lenEl = document.getElementById('sponsorshipSlateLength');
+    if (lenEl && !lenEl.dataset.userEdited) lenEl.value = lengthVal;
+  }
+}
+
+async function submitSponsorship() {
+  if (!isAdmin()) return;
+  const iscii = document.getElementById('sponsorshipIscii').value.trim().toUpperCase();
+  const advertiser = document.getElementById('sponsorshipAdvertiser').value.trim();
+  const titleVal = document.getElementById('sponsorshipTitle').value.trim();
+  const lengthVal = document.getElementById('sponsorshipLength').value.trim();
+  const sport = document.getElementById('sponsorshipSport').value;
+  const uploader = document.getElementById('sponsorshipUploader').value.trim();
+  const email = document.getElementById('sponsorshipEmail').value.trim();
+  const rotation = document.getElementById('sponsorshipRotation').value.trim();
+  const filename = sponsorshipBuildFilename(iscii);
+  if (!iscii || !advertiser || !titleVal || !lengthVal || !sport || !uploader || !email || !filename) return;
+  if (filename.length > SPONSORSHIP_MAX_LEN) return;
+
+  let fileRequestUrl = '';
+  if (_db) {
+    const { data, error } = await _db.from('psa_config').select('file_request_url').eq('category', 'sponsor').maybeSingle();
+    if (!error) fileRequestUrl = (data?.file_request_url || '').trim();
+  }
+  if (!fileRequestUrl) {
+    showToast('Sponsorship Spot upload link not configured — set it in the Admin Portal.', true);
+    return;
+  }
+
+  if (_db) {
+    try {
+      await _db.from('psa_uploads').insert({
+        category: 'sponsor',
+        filename,
+        sponsor_name: advertiser,
+        title: titleVal,
+        length_label: lengthVal,
+        uploader_name: uploader,
+        uploader_email: email,
+        sport,
+        rotation_period: rotation || null,
+        uploaded_by_admin: true
+      });
+    } catch (e) {
+      console.warn('psa_uploads insert failed:', e);
+    }
+  }
+
+  await maybeDownloadSlate({
+    enabled: !!document.getElementById('sponsorshipSlateToggle')?.checked,
+    filename,
+    iscii: document.getElementById('sponsorshipSlateIscii')?.value || filename,
+    advertiser: document.getElementById('sponsorshipSlateAdvertiser')?.value || advertiser,
+    title: document.getElementById('sponsorshipSlateTitle')?.value || titleVal,
+    length: document.getElementById('sponsorshipSlateLength')?.value || lengthVal
+  });
+
+  try { await navigator.clipboard?.writeText(filename); } catch (e) {}
+  showToast(`Filename ${filename} copied — opening Box File Request…`);
+  window.open(fileRequestUrl, '_blank', 'noopener');
+  closeSponsorshipModal();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -2506,8 +2970,9 @@ function renderPsaTrackerTable() {
 }
 
 function renderUploadAdminSections() {
-  const schoolUrl = (state.psaConfig?.school_psa?.file_request_url || '').trim();
-  const cusaUrl   = (state.psaConfig?.cusa_psa?.file_request_url || '').trim();
+  const schoolUrl  = (state.psaConfig?.school_psa?.file_request_url || '').trim();
+  const cusaUrl    = (state.psaConfig?.cusa_psa?.file_request_url || '').trim();
+  const sponsorUrl = (state.psaConfig?.sponsor?.file_request_url || '').trim();
   return `
     <div class="upload-section">
       <div class="upload-section-header">
@@ -2537,12 +3002,67 @@ function renderUploadAdminSections() {
 
     <div class="upload-section">
       <div class="upload-section-header">
+        <span>💼 Upload a Sponsorship Spot</span>
+      </div>
+      <div class="upload-section-body" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px;font-size:12px;color:#475569">
+          For agency-supplied spots: enter the <b>ISCI</b> (we append <code>H</code>), capture advertiser/title/length, then open the Sponsorship File Request.
+          ${sponsorUrl ? '' : '<div style="color:#b91c1c;font-weight:600;margin-top:6px">⚠ Sponsorship Spot File Request URL is not set in the Admin Portal.</div>'}
+        </div>
+        <button class="btn btn-add" onclick="openSponsorshipModal()" ${sponsorUrl ? '' : 'disabled'}>Open Sponsorship Spot form</button>
+      </div>
+    </div>
+
+    <div class="upload-section">
+      <div class="upload-section-header">
         <span>Recent CUSA Produced PSAs</span>
       </div>
       <div class="upload-section-body">
         ${renderCusaPsaList()}
       </div>
     </div>
+
+    <div class="upload-section">
+      <div class="upload-section-header">
+        <span>Recent Sponsorship Spots</span>
+      </div>
+      <div class="upload-section-body">
+        ${renderSponsorshipList()}
+      </div>
+    </div>
+  `;
+}
+
+function renderSponsorshipList() {
+  const rows = (state.psaUploads || []).filter(u => u.category === 'sponsor').slice(0, 25);
+  if (!rows.length) return '<div class="upload-empty">No Sponsorship Spots uploaded yet.</div>';
+  return `
+    <table class="psa-tracker-table">
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Advertiser</th>
+          <th>Title</th>
+          <th>Length</th>
+          <th>Sport</th>
+          <th>Uploader</th>
+          <th>Uploaded</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(u => `
+          <tr>
+            <td><code style="font-size:11px">${esc(u.filename)}</code></td>
+            <td>${esc(u.sponsor_name || '—')}</td>
+            <td>${esc(u.title || '—')}</td>
+            <td>${esc(u.length_label || '—')}</td>
+            <td>${esc(u.sport === 'all' ? 'All Sports' : (prettySport(u.sport) || u.sport || '—'))}</td>
+            <td>${esc(u.uploader_name || '—')}<br><span style="color:#64748b;font-size:10px">${esc(u.uploader_email || '')}</span></td>
+            <td>${esc(fmtDateTime(u.uploaded_at))}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
   `;
 }
 
@@ -3368,17 +3888,31 @@ function openAdminModal() {
   // see the current value when the panel opens.
   const sEl = document.getElementById('adminSchoolPsaUrl');
   const cEl = document.getElementById('adminCusaPsaUrl');
+  const spEl = document.getElementById('adminSponsorUrl');
   if (sEl) sEl.value = (state.psaConfig?.school_psa?.file_request_url || '').trim();
   if (cEl) cEl.value = (state.psaConfig?.cusa_psa?.file_request_url || '').trim();
+  if (spEl) spEl.value = (state.psaConfig?.sponsor?.file_request_url || '').trim();
   const stat = document.getElementById('psaConfigStatus');
   if (stat) { stat.textContent = ''; stat.className = 'psa-config-status'; }
   document.getElementById('adminModal').classList.add('open');
 }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('open'); }
 
+const PSA_CONFIG_INPUT_IDS = {
+  school_psa: 'adminSchoolPsaUrl',
+  cusa_psa:   'adminCusaPsaUrl',
+  sponsor:    'adminSponsorUrl'
+};
+const PSA_CONFIG_LABELS = {
+  school_psa: 'School PSA',
+  cusa_psa:   'CUSA Produced PSA',
+  sponsor:    'Sponsorship Spot'
+};
+
 async function savePsaConfig(category) {
   if (!isAdmin() || !_db) return;
-  const inputId = category === 'school_psa' ? 'adminSchoolPsaUrl' : 'adminCusaPsaUrl';
+  const inputId = PSA_CONFIG_INPUT_IDS[category];
+  if (!inputId) return;
   const url = (document.getElementById(inputId)?.value || '').trim();
   const stat = document.getElementById('psaConfigStatus');
   if (url && !/^https?:\/\//i.test(url)) {
@@ -3400,7 +3934,7 @@ async function savePsaConfig(category) {
   state.psaConfig = state.psaConfig || {};
   state.psaConfig[category] = { ...(state.psaConfig[category] || {}), category, file_request_url: url };
   if (stat) {
-    const label = category === 'school_psa' ? 'School PSA' : 'CUSA Produced PSA';
+    const label = PSA_CONFIG_LABELS[category] || category;
     stat.textContent = `${label} URL saved.`;
     stat.className = 'psa-config-status ok';
   }

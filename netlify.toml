@@ -9,8 +9,14 @@
 # Cross-origin isolation just for commercials.html so FFmpeg.wasm can use
 # SharedArrayBuffer for the slate-prepend pipeline. Other Hub pages don't
 # need (and shouldn't pay for) this isolation.
+#
+# - COEP=credentialless is more lenient than require-corp: cross-origin
+#   resources don't need to advertise CORP, they just lose credentials
+#   on no-cors fetches. Still enables crossOriginIsolated.
+# - COOP=same-origin-allow-popups keeps SAB available while letting us
+#   pop the Box File Request URL into a new tab via window.open().
 [[headers]]
   for = "/commercials.html"
   [headers.values]
-    Cross-Origin-Embedder-Policy = "require-corp"
-    Cross-Origin-Opener-Policy   = "same-origin"
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy   = "same-origin-allow-popups"

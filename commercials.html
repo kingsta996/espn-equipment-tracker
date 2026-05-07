@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CUSA ESPN – Commercials Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
@@ -1979,9 +1982,12 @@ function psaBuildFilename(year, code) {
    download. Used by all three upload modals when "Add CUSA slate" is on.
    ─────────────────────────────────────────────────────────────────────── */
 const SLATE_TEMPLATE_URL = 'Logos/Slates/PSA_Slate_Template.png';
-const SLATE_VALUE_X = 460;
-const SLATE_BASELINES = { iscii: 245, advertiser: 460, title: 670, length: 880 };
-const SLATE_FONT = 'bold 60px "Roboto Mono", "Courier New", ui-monospace, monospace';
+const SLATE_VALUE_X = 510;
+// Top-edge Y of each label's visual band in the 1920×1080 template. Used
+// with textBaseline = 'top' so positioning is independent of font metrics
+// (Share Tech Mono and similar fonts have unusual "alphabetic" offsets).
+const SLATE_TOPS = { iscii: 170, advertiser: 390, title: 610, length: 830 };
+const SLATE_FONT = 'bold 72px "Share Tech Mono", "Roboto Mono", "Courier New", ui-monospace, monospace';
 let _slateTemplateImage = null;
 
 function loadSlateTemplate() {
@@ -1996,17 +2002,20 @@ function loadSlateTemplate() {
 
 async function generateSlatePngBlob({ iscii, advertiser, title, length }) {
   const img = await loadSlateTemplate();
+  // Make sure the slate-value font is loaded before canvas renders, otherwise
+  // the browser substitutes an unrelated font and metrics shift.
+  try { if (document.fonts) await document.fonts.load("bold 72px 'Share Tech Mono'"); } catch (e) {}
   const canvas = document.createElement('canvas');
   canvas.width = 1920; canvas.height = 1080;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#ffffff';
   ctx.font = SLATE_FONT;
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText(String(iscii || ''),      SLATE_VALUE_X, SLATE_BASELINES.iscii);
-  ctx.fillText(String(advertiser || ''), SLATE_VALUE_X, SLATE_BASELINES.advertiser);
-  ctx.fillText(String(title || ''),      SLATE_VALUE_X, SLATE_BASELINES.title);
-  ctx.fillText(String(length || ''),     SLATE_VALUE_X, SLATE_BASELINES.length);
+  ctx.textBaseline = 'top';
+  ctx.fillText(String(iscii || ''),      SLATE_VALUE_X, SLATE_TOPS.iscii);
+  ctx.fillText(String(advertiser || ''), SLATE_VALUE_X, SLATE_TOPS.advertiser);
+  ctx.fillText(String(title || ''),      SLATE_VALUE_X, SLATE_TOPS.title);
+  ctx.fillText(String(length || ''),     SLATE_VALUE_X, SLATE_TOPS.length);
   return await new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/png'));
 }
 
@@ -2131,7 +2140,11 @@ function psaUpdatePreview() {
 function psaSlateToggleChanged() {
   const on = document.getElementById('psaSlateToggle').checked;
   showSlateFields('psaSlateToggle', 'psaSlateFields', on);
-  if (on) psaUpdatePreview();
+  if (on) {
+    const lenEl = document.getElementById('psaSlateLength');
+    if (lenEl && !lenEl.dataset.userEdited && !lenEl.value) lenEl.value = ':30';
+    psaUpdatePreview();
+  }
 }
 
 async function submitSchoolPsa() {
@@ -2220,7 +2233,11 @@ function openCusaPsaModal() {
 function cusaPsaSlateToggleChanged() {
   const on = document.getElementById('cusaPsaSlateToggle').checked;
   showSlateFields('cusaPsaSlateToggle', 'cusaPsaSlateFields', on);
-  if (on) cusaPsaUpdatePreview();
+  if (on) {
+    const lenEl = document.getElementById('cusaPsaSlateLength');
+    if (lenEl && !lenEl.dataset.userEdited && !lenEl.value) lenEl.value = ':30';
+    cusaPsaUpdatePreview();
+  }
 }
 
 function closeCusaPsaModal() {

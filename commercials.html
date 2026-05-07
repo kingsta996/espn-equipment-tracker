@@ -2126,7 +2126,9 @@ function showSlateFields(toggleId, fieldsId, on) {
    page stays light if no one uses the slate.
    ─────────────────────────────────────────────────────────────────────── */
 const FFMPEG_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
-const FFMPEG_CORE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js';
+// @ffmpeg/core 0.10.0 is the last single-threaded build — works without
+// SharedArrayBuffer / COOP+COEP headers. 0.11.x is multi-threaded only.
+const FFMPEG_CORE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js';
 const SLATE_DURATION  = 5.005;             // exactly 150 frames @ 30000/1001
 const SLATE_BEEP_DUR  = 1 / (30000 / 1001); // last 1 frame of the slate
 const SLATE_OUTPUT_SPECS = {
@@ -2268,9 +2270,10 @@ async function processSlateUpload({ enabled, filename, iscii, advertiser, title,
     showSlateProgress(prefix, 'Done — finished MP4 saved to Downloads', 1);
     setTimeout(() => hideSlateProgress(prefix), 4000);
   } catch (e) {
-    console.warn('Slate FFmpeg pipeline failed:', e);
+    console.error('[slate-ffmpeg] pipeline failed:', e);
+    showToast(`Slate FFmpeg failed — fell back to PNG. See console for "[slate-ffmpeg]" line.`, true);
     showSlateProgress(prefix, `Failed: ${e.message} — falling back to PNG-only`, 1, true);
-    setTimeout(() => hideSlateProgress(prefix), 6000);
+    setTimeout(() => hideSlateProgress(prefix), 8000);
     // Best-effort PNG fallback so the user still gets *something*.
     try { await maybeDownloadSlate({ enabled, filename, iscii, advertiser, title, length }); } catch (e2) {}
   }

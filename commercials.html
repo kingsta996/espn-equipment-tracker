@@ -6,11 +6,11 @@
 <title>CUSA ESPN – Commercials Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js" crossorigin="anonymous"></script>
 <script src="config.js" onerror="console.warn('config.js not found — running offline')"></script>
 <style>
   :root {
@@ -2074,6 +2074,7 @@ function loadSlateTemplate() {
   if (_slateTemplateImage) return Promise.resolve(_slateTemplateImage);
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => { _slateTemplateImage = img; resolve(img); };
     img.onerror = () => reject(new Error('Slate template not found at ' + SLATE_TEMPLATE_URL));
     img.src = SLATE_TEMPLATE_URL;
@@ -2146,9 +2147,9 @@ function showSlateFields(toggleId, fieldsId, on) {
    page stays light if no one uses the slate.
    ─────────────────────────────────────────────────────────────────────── */
 const FFMPEG_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
-// @ffmpeg/core 0.10.0 is the last single-threaded build — works without
-// SharedArrayBuffer / COOP+COEP headers. 0.11.x is multi-threaded only.
-const FFMPEG_CORE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js';
+// @ffmpeg/core requires SharedArrayBuffer; commercials.html is served with
+// COOP/COEP headers via netlify.toml so SAB is available.
+const FFMPEG_CORE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js';
 const SLATE_DURATION  = 5.005;             // exactly 150 frames @ 30000/1001
 const SLATE_BEEP_DUR  = 1 / (30000 / 1001); // last 1 frame of the slate
 const SLATE_OUTPUT_SPECS = {
@@ -2165,6 +2166,8 @@ function _loadScriptOnce(src) {
     if (document.querySelector(`script[data-src="${src}"]`)) { resolve(); return; }
     const s = document.createElement('script');
     s.src = src; s.dataset.src = src;
+    // Required when commercials.html runs under COEP=require-corp.
+    s.crossOrigin = 'anonymous';
     s.onload = () => resolve();
     s.onerror = () => reject(new Error('Failed to load ' + src));
     document.head.appendChild(s);

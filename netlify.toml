@@ -5,3 +5,12 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# Cross-origin isolation just for commercials.html so FFmpeg.wasm can use
+# SharedArrayBuffer for the slate-prepend pipeline. Other Hub pages don't
+# need (and shouldn't pay for) this isolation.
+[[headers]]
+  for = "/commercials.html"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "require-corp"
+    Cross-Origin-Opener-Policy   = "same-origin"

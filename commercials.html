@@ -2178,6 +2178,15 @@ async function ensureFFmpeg(onProgress) {
   if (_ffmpegInstance) return _ffmpegInstance;
   if (_ffmpegLoadPromise) return _ffmpegLoadPromise;
   _ffmpegLoadPromise = (async () => {
+    // Cross-origin isolation gate. Without it, SharedArrayBuffer is
+    // undefined and any FFmpeg.wasm core load fails with a confusing
+    // "SharedArrayBuffer is not defined" error.
+    if (typeof window.crossOriginIsolated !== 'undefined' && !window.crossOriginIsolated) {
+      throw new Error('page is NOT cross-origin-isolated — close every tab of commercials.html and reopen so the new COOP/COEP headers take effect. If this persists after a fresh open, a cross-origin resource is being blocked (check DevTools → Network for "blocked:CoEP").');
+    }
+    if (typeof SharedArrayBuffer === 'undefined') {
+      throw new Error('SharedArrayBuffer unavailable — the page loaded before the COOP/COEP headers were active. Close every tab of commercials.html and reopen.');
+    }
     if (onProgress) onProgress('Loading FFmpeg lib script', 0);
     if (!window.FFmpeg) {
       try { await _loadScriptOnce(FFMPEG_LIB_URL); }

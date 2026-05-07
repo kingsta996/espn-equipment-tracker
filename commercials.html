@@ -667,6 +667,24 @@
     grid-column: 1 / -1; margin-top: 8px;
     font-size: 11px; color: #475569; font-style: italic;
   }
+  .slate-fields .slate-progress {
+    grid-column: 1 / -1; margin-top: 8px;
+    padding: 10px 12px; background: #fff;
+    border: 1px solid #cbd5e1; border-radius: 6px;
+  }
+  .slate-progress-label {
+    font-size: 11px; color: var(--navy); font-weight: 600;
+    margin-bottom: 6px; display: flex; justify-content: space-between;
+  }
+  .slate-progress-bar {
+    background: #e2e8f0; height: 6px; border-radius: 3px;
+    overflow: hidden;
+  }
+  .slate-progress-fill {
+    background: var(--blue); height: 100%; width: 0%;
+    transition: width 0.2s ease;
+  }
+  .slate-progress.err .slate-progress-fill { background: var(--red); }
 
   .psa-filename-preview {
     background: var(--navy); color: var(--white);
@@ -1089,11 +1107,27 @@
               <label>Title</label>
               <input type="text" id="cusaPsaSlateTitle">
             </div>
-            <div class="full">
+            <div>
               <label>Length</label>
               <input type="text" id="cusaPsaSlateLength" placeholder=":30">
             </div>
-            <div class="slate-preview-strip">When you click Continue, we'll render the slate as a PNG and save it to your Downloads — then open the Box File Request as usual.</div>
+            <div>
+              <label>Output spec</label>
+              <select id="cusaPsaSlateSpec">
+                <option value="1080p2997" selected>1080p 29.97</option>
+                <option value="1080p5994">1080p 59.94</option>
+                <option value="1080i2997">1080i 29.97</option>
+              </select>
+            </div>
+            <div class="full">
+              <label>Source video <span style="color:#888;font-weight:400">(MP4 / MOV — optional; leave blank for PNG-only download)</span></label>
+              <input type="file" id="cusaPsaSlateSource" accept="video/mp4,video/quicktime,.mp4,.mov">
+            </div>
+            <div class="slate-preview-strip">With a source file: we prepend the slate (5 s + beep) and download a finished MP4. Without one: we download just the slate PNG.</div>
+            <div class="slate-progress" id="cusaPsaSlateProgress" style="display:none">
+              <div class="slate-progress-label"><span id="cusaPsaSlateProgressLabel">—</span><span id="cusaPsaSlateProgressPct">0%</span></div>
+              <div class="slate-progress-bar"><div class="slate-progress-fill" id="cusaPsaSlateProgressFill"></div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1155,11 +1189,27 @@
               <label>Title</label>
               <input type="text" id="psaSlateTitle" placeholder="e.g. Spring 2026 PSA">
             </div>
-            <div class="full">
+            <div>
               <label>Length</label>
               <input type="text" id="psaSlateLength" placeholder=":30">
             </div>
-            <div class="slate-preview-strip">When you click Continue, we'll render the slate as a PNG and save it to your Downloads — then open the Box File Request as usual.</div>
+            <div>
+              <label>Output spec</label>
+              <select id="psaSlateSpec">
+                <option value="1080p2997" selected>1080p 29.97</option>
+                <option value="1080p5994">1080p 59.94</option>
+                <option value="1080i2997">1080i 29.97</option>
+              </select>
+            </div>
+            <div class="full">
+              <label>Source video <span style="color:#888;font-weight:400">(MP4 / MOV — optional; leave blank for PNG-only download)</span></label>
+              <input type="file" id="psaSlateSource" accept="video/mp4,video/quicktime,.mp4,.mov">
+            </div>
+            <div class="slate-preview-strip">With a source file: we prepend the slate (5 s + beep) and download a finished MP4. Without one: we download just the slate PNG (Phase 1 behavior).</div>
+            <div class="slate-progress" id="psaSlateProgress" style="display:none">
+              <div class="slate-progress-label"><span id="psaSlateProgressLabel">—</span><span id="psaSlateProgressPct">0%</span></div>
+              <div class="slate-progress-bar"><div class="slate-progress-fill" id="psaSlateProgressFill"></div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1251,11 +1301,27 @@
               <label>Title</label>
               <input type="text" id="sponsorshipSlateTitle">
             </div>
-            <div class="full">
+            <div>
               <label>Length</label>
               <input type="text" id="sponsorshipSlateLength" placeholder=":30">
             </div>
-            <div class="slate-preview-strip">When you click Continue, we'll render the slate as a PNG and save it to your Downloads — then open the Box File Request as usual.</div>
+            <div>
+              <label>Output spec</label>
+              <select id="sponsorshipSlateSpec">
+                <option value="1080p2997" selected>1080p 29.97</option>
+                <option value="1080p5994">1080p 59.94</option>
+                <option value="1080i2997">1080i 29.97</option>
+              </select>
+            </div>
+            <div class="full">
+              <label>Source video <span style="color:#888;font-weight:400">(MP4 / MOV — optional; leave blank for PNG-only download)</span></label>
+              <input type="file" id="sponsorshipSlateSource" accept="video/mp4,video/quicktime,.mp4,.mov">
+            </div>
+            <div class="slate-preview-strip">With a source file: we prepend the slate (5 s + beep) and download a finished MP4. Without one: we download just the slate PNG.</div>
+            <div class="slate-progress" id="sponsorshipSlateProgress" style="display:none">
+              <div class="slate-progress-label"><span id="sponsorshipSlateProgressLabel">—</span><span id="sponsorshipSlateProgressPct">0%</span></div>
+              <div class="slate-progress-bar"><div class="slate-progress-fill" id="sponsorshipSlateProgressFill"></div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -2053,6 +2119,163 @@ function showSlateFields(toggleId, fieldsId, on) {
   el.classList.toggle('open', !!on);
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   FFmpeg.wasm slate prepend — pre-roll the rendered slate (5.005 s with a
+   1-frame 1 kHz beep at the last frame) onto the admin-supplied source
+   video, output a finished MP4 at the chosen spec. Lazy-loaded so the
+   page stays light if no one uses the slate.
+   ─────────────────────────────────────────────────────────────────────── */
+const FFMPEG_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
+const FFMPEG_CORE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js';
+const SLATE_DURATION  = 5.005;             // exactly 150 frames @ 30000/1001
+const SLATE_BEEP_DUR  = 1 / (30000 / 1001); // last 1 frame of the slate
+const SLATE_OUTPUT_SPECS = {
+  '1080p2997': { fps: '30000/1001', interlace: false, label: '1080p 29.97' },
+  '1080p5994': { fps: '60000/1001', interlace: false, label: '1080p 59.94' },
+  '1080i2997': { fps: '30000/1001', interlace: true,  label: '1080i 29.97' }
+};
+
+let _ffmpegInstance = null;
+let _ffmpegLoadPromise = null;
+
+function _loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[data-src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.dataset.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureFFmpeg(onProgress) {
+  if (_ffmpegInstance) return _ffmpegInstance;
+  if (_ffmpegLoadPromise) return _ffmpegLoadPromise;
+  _ffmpegLoadPromise = (async () => {
+    if (onProgress) onProgress('Loading FFmpeg', 0);
+    if (!window.FFmpeg) await _loadScriptOnce(FFMPEG_LIB_URL);
+    if (!window.FFmpeg) throw new Error('FFmpeg library failed to load');
+    const { createFFmpeg } = window.FFmpeg;
+    const ff = createFFmpeg({ log: false, corePath: FFMPEG_CORE_URL });
+    await ff.load();
+    _ffmpegInstance = ff;
+    return ff;
+  })();
+  return _ffmpegLoadPromise;
+}
+
+async function processSlateAndSource({ slatePngBlob, sourceFile, spec, onProgress }) {
+  const ff = await ensureFFmpeg(onProgress);
+  const { fetchFile } = window.FFmpeg;
+  const cfg = SLATE_OUTPUT_SPECS[spec] || SLATE_OUTPUT_SPECS['1080p2997'];
+
+  if (onProgress) onProgress('Preparing inputs', 0);
+  ff.FS('writeFile', 'slate.png', new Uint8Array(await slatePngBlob.arrayBuffer()));
+  ff.FS('writeFile', 'source.mp4', await fetchFile(sourceFile));
+
+  if (onProgress) onProgress('Encoding slate', 0);
+  ff.setProgress(({ ratio }) => { if (onProgress) onProgress('Encoding slate', ratio || 0); });
+  await ff.run(
+    '-loop', '1', '-framerate', cfg.fps, '-t', String(SLATE_DURATION), '-i', 'slate.png',
+    '-f', 'lavfi', '-t', String(SLATE_DURATION - SLATE_BEEP_DUR), '-i', 'anullsrc=cl=stereo:r=48000',
+    '-f', 'lavfi', '-t', String(SLATE_BEEP_DUR), '-i', `sine=f=1000:r=48000`,
+    '-filter_complex', '[1:a][2:a]concat=n=2:v=0:a=1[a]',
+    '-map', '0:v', '-map', '[a]',
+    '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '192k',
+    'slate.mp4'
+  );
+
+  if (onProgress) onProgress('Concatenating with source', 0);
+  ff.setProgress(({ ratio }) => { if (onProgress) onProgress('Concatenating with source', ratio || 0); });
+  const interlaceFlags = cfg.interlace ? ['-flags', '+ildct+ilme', '-top', '1'] : [];
+  await ff.run(
+    '-i', 'slate.mp4', '-i', 'source.mp4',
+    '-filter_complex',
+      `[1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${cfg.fps}[srv];` +
+      `[1:a]aformat=channel_layouts=stereo:sample_rates=48000[sra];` +
+      `[0:v][0:a][srv][sra]concat=n=2:v=1:a=1[v][a]`,
+    '-map', '[v]', '-map', '[a]',
+    '-c:v', 'libx264', '-preset', 'fast', '-crf', '20', '-pix_fmt', 'yuv420p',
+    ...interlaceFlags,
+    '-c:a', 'aac', '-b:a', '192k',
+    '-movflags', '+faststart',
+    'output.mp4'
+  );
+
+  if (onProgress) onProgress('Done', 1);
+  const data = ff.FS('readFile', 'output.mp4');
+  const blob = new Blob([data.buffer], { type: 'video/mp4' });
+  // Cleanup virtual fs.
+  ['slate.png','source.mp4','slate.mp4','output.mp4'].forEach(p => {
+    try { ff.FS('unlink', p); } catch (e) {}
+  });
+  return blob;
+}
+
+function _slateProgressIds(prefix) {
+  return {
+    container: `${prefix}SlateProgress`,
+    label:     `${prefix}SlateProgressLabel`,
+    pct:       `${prefix}SlateProgressPct`,
+    fill:      `${prefix}SlateProgressFill`
+  };
+}
+
+function showSlateProgress(prefix, label, ratio, isErr) {
+  const ids = _slateProgressIds(prefix);
+  const c = document.getElementById(ids.container);
+  if (!c) return;
+  c.style.display = '';
+  c.classList.toggle('err', !!isErr);
+  const lEl = document.getElementById(ids.label);   if (lEl) lEl.textContent = label || '—';
+  const pct = Math.max(0, Math.min(1, ratio || 0));
+  const fEl = document.getElementById(ids.fill);    if (fEl) fEl.style.width = `${(pct * 100).toFixed(0)}%`;
+  const pEl = document.getElementById(ids.pct);     if (pEl) pEl.textContent = `${(pct * 100).toFixed(0)}%`;
+}
+
+function hideSlateProgress(prefix) {
+  const c = document.getElementById(_slateProgressIds(prefix).container);
+  if (c) c.style.display = 'none';
+}
+
+async function processSlateUpload({ enabled, filename, iscii, advertiser, title, length, prefix }) {
+  if (!enabled) return;
+  const sourceEl = document.getElementById(`${prefix}SlateSource`);
+  const specEl   = document.getElementById(`${prefix}SlateSpec`);
+  const sourceFile = sourceEl?.files?.[0] || null;
+  const spec = specEl?.value || '1080p2997';
+
+  // No source picked → fall back to PNG-only (Phase 1 behavior).
+  if (!sourceFile) {
+    return maybeDownloadSlate({ enabled, filename, iscii, advertiser, title, length });
+  }
+
+  try {
+    showSlateProgress(prefix, 'Rendering slate', 0);
+    const slatePng = await generateSlatePngBlob({ iscii, advertiser, title, length });
+    if (!slatePng) throw new Error('Slate render returned no data');
+
+    const outBlob = await processSlateAndSource({
+      slatePngBlob: slatePng,
+      sourceFile,
+      spec,
+      onProgress: (label, ratio) => showSlateProgress(prefix, label, ratio)
+    });
+
+    triggerSlateDownload(outBlob, `${filename}.mp4`);
+    showSlateProgress(prefix, 'Done — finished MP4 saved to Downloads', 1);
+    setTimeout(() => hideSlateProgress(prefix), 4000);
+  } catch (e) {
+    console.warn('Slate FFmpeg pipeline failed:', e);
+    showSlateProgress(prefix, `Failed: ${e.message} — falling back to PNG-only`, 1, true);
+    setTimeout(() => hideSlateProgress(prefix), 6000);
+    // Best-effort PNG fallback so the user still gets *something*.
+    try { await maybeDownloadSlate({ enabled, filename, iscii, advertiser, title, length }); } catch (e2) {}
+  }
+}
+
 async function openSchoolPsaModal(opts) {
   // opts.asAdmin = true when an admin is uploading on a school's behalf.
   state._psaAsAdmin = !!(opts && opts.asAdmin);
@@ -2076,6 +2299,11 @@ async function openSchoolPsaModal(opts) {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.userEdited; }
   });
+  const psaSrc = document.getElementById('psaSlateSource');
+  if (psaSrc) psaSrc.value = '';
+  const psaSpec = document.getElementById('psaSlateSpec');
+  if (psaSpec) psaSpec.value = '1080p2997';
+  hideSlateProgress('psa');
   const tog = document.getElementById('psaSlateToggle');
   if (tog) { tog.checked = false; showSlateFields('psaSlateToggle', 'psaSlateFields', false); }
   // Track manual edits to the Advertiser field so school-name autofill doesn't clobber them.
@@ -2190,14 +2418,16 @@ async function submitSchoolPsa() {
     }
   }
 
-  // If the admin opted in, render and download the slate PNG before opening Box.
-  await maybeDownloadSlate({
+  // Slate path: prepend slate to source via FFmpeg if a source file is picked,
+  // else fall back to PNG-only download (Phase 1 behavior).
+  await processSlateUpload({
     enabled: !!document.getElementById('psaSlateToggle')?.checked,
     filename,
     iscii: document.getElementById('psaSlateIscii')?.value || filename,
     advertiser: document.getElementById('psaSlateAdvertiser')?.value || school.name,
     title: document.getElementById('psaSlateTitle')?.value || '',
-    length: document.getElementById('psaSlateLength')?.value || ''
+    length: document.getElementById('psaSlateLength')?.value || '',
+    prefix: 'psa'
   });
 
   // Copy the filename for the user, then send them to Box.
@@ -2226,6 +2456,11 @@ function openCusaPsaModal() {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.userEdited; }
   });
+  const cusaSrc = document.getElementById('cusaPsaSlateSource');
+  if (cusaSrc) cusaSrc.value = '';
+  const cusaSpec = document.getElementById('cusaPsaSlateSpec');
+  if (cusaSpec) cusaSpec.value = '1080p2997';
+  hideSlateProgress('cusaPsa');
   const tog = document.getElementById('cusaPsaSlateToggle');
   if (tog) { tog.checked = false; showSlateFields('cusaPsaSlateToggle', 'cusaPsaSlateFields', false); }
   ['cusaPsaSlateAdvertiser','cusaPsaSlateTitle','cusaPsaSlateLength'].forEach(id => {
@@ -2340,13 +2575,14 @@ async function submitCusaPsa() {
     }
   }
 
-  await maybeDownloadSlate({
+  await processSlateUpload({
     enabled: !!document.getElementById('cusaPsaSlateToggle')?.checked,
     filename,
     iscii: document.getElementById('cusaPsaSlateIscii')?.value || filename,
     advertiser: document.getElementById('cusaPsaSlateAdvertiser')?.value || sponsor,
     title: document.getElementById('cusaPsaSlateTitle')?.value || name,
-    length: document.getElementById('cusaPsaSlateLength')?.value || ''
+    length: document.getElementById('cusaPsaSlateLength')?.value || '',
+    prefix: 'cusaPsa'
   });
 
   try { await navigator.clipboard?.writeText(filename); } catch (e) {}
@@ -2378,6 +2614,11 @@ function openSponsorshipModal() {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.userEdited; }
   });
+  const spSrc = document.getElementById('sponsorshipSlateSource');
+  if (spSrc) spSrc.value = '';
+  const spSpec = document.getElementById('sponsorshipSlateSpec');
+  if (spSpec) spSpec.value = '1080p2997';
+  hideSlateProgress('sponsorship');
   const tog = document.getElementById('sponsorshipSlateToggle');
   if (tog) { tog.checked = false; showSlateFields('sponsorshipSlateToggle', 'sponsorshipSlateFields', false); }
   ['sponsorshipSlateAdvertiser','sponsorshipSlateTitle','sponsorshipSlateLength'].forEach(id => {
@@ -2490,13 +2731,14 @@ async function submitSponsorship() {
     }
   }
 
-  await maybeDownloadSlate({
+  await processSlateUpload({
     enabled: !!document.getElementById('sponsorshipSlateToggle')?.checked,
     filename,
     iscii: document.getElementById('sponsorshipSlateIscii')?.value || filename,
     advertiser: document.getElementById('sponsorshipSlateAdvertiser')?.value || advertiser,
     title: document.getElementById('sponsorshipSlateTitle')?.value || titleVal,
-    length: document.getElementById('sponsorshipSlateLength')?.value || lengthVal
+    length: document.getElementById('sponsorshipSlateLength')?.value || lengthVal,
+    prefix: 'sponsorship'
   });
 
   try { await navigator.clipboard?.writeText(filename); } catch (e) {}

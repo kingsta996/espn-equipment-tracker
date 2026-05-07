@@ -1333,6 +1333,20 @@
         <div id="psaConfigStatus" class="psa-config-status"></div>
       </div>
 
+      <!-- School Codes — used to build School PSA filenames -->
+      <div class="modal-section">
+        <h3>School Codes</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:10px;">
+          Used to build the School PSA filename
+          (<code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">&lt;YEAR&gt;&lt;CODE&gt;_PSAH</code>
+          ≤ 15 characters). Keep it short — 3–5 uppercase alphanumeric.
+          Auto-uppercased and stripped of non-alphanumerics. Saves on tab-out or Enter.
+        </p>
+        <div class="adv-wrap">
+          <div id="schoolCodesTable"></div>
+        </div>
+      </div>
+
       <!-- School PSA Advertisers — free-text Advertiser per row -->
       <div class="modal-section">
         <h3>School PSA Advertisers</h3>
@@ -2466,6 +2480,88 @@ async function submitSponsorship() {
   showToast(`Filename ${filename} copied — opening Box File Request…`);
   window.open(fileRequestUrl, '_blank', 'noopener');
   closeSponsorshipModal();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   School Codes — Admin Panel section. Inline-editable code per school.
+   Used by the School PSA filename builder (<YEAR><CODE>_PSAH).
+   ─────────────────────────────────────────────────────────────────────── */
+function renderSchoolCodesTable() {
+  const host = document.getElementById('schoolCodesTable');
+  if (!host) return;
+  const rows = (state.schools || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!rows.length) {
+    host.innerHTML = '<div class="adv-empty">No schools loaded.</div>';
+    return;
+  }
+  const tbody = rows.map(s => `
+    <tr data-school-id="${esc(s.id)}">
+      <td><b>${esc(s.name)}</b></td>
+      <td>
+        <input type="text" class="adv-input" maxlength="5"
+          value="${esc((s.code || '').toUpperCase())}"
+          placeholder="—"
+          style="text-transform:uppercase;max-width:120px;font-family:ui-monospace,Menlo,monospace;font-weight:700;letter-spacing:0.5px"
+          onblur="saveSchoolCode('${esc(s.id)}', this.value, this)"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+      </td>
+      <td class="adv-status" data-status></td>
+    </tr>
+  `).join('');
+  host.innerHTML = `
+    <table class="adv-table">
+      <thead>
+        <tr>
+          <th style="min-width:240px">School</th>
+          <th style="min-width:140px">Code</th>
+          <th style="width:80px"></th>
+        </tr>
+      </thead>
+      <tbody>${tbody}</tbody>
+    </table>
+  `;
+}
+
+async function saveSchoolCode(schoolId, value, inputEl) {
+  if (!isAdmin() || !_db) return;
+  const school = (state.schools || []).find(s => s.id === schoolId);
+  if (!school) return;
+  // Normalize: uppercase, alphanumeric only, max 5 chars.
+  const normalized = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+  inputEl.value = normalized;
+  const newVal = normalized || null;
+  const oldVal = school.code || null;
+  if (newVal === oldVal) return;
+
+  const tr = inputEl.closest('tr');
+  const statusCell = tr?.querySelector('[data-status]');
+  const setStatus = (text, cls) => {
+    if (!statusCell) return;
+    statusCell.textContent = text;
+    statusCell.className = `adv-status ${cls || ''}`.trim();
+  };
+
+  // Uniqueness check (client-side; uniqueness is also enforced by uppercase normalization).
+  if (newVal) {
+    const conflict = (state.schools || []).find(s => s.id !== schoolId && (s.code || '').toUpperCase() === newVal);
+    if (conflict) {
+      setStatus('Duplicate', 'err');
+      showToast(`Code "${newVal}" already used by ${conflict.name}`, true);
+      inputEl.value = oldVal || '';
+      return;
+    }
+  }
+
+  setStatus('Saving…', 'saving');
+  const { error } = await _db.from('schools').update({ code: newVal }).eq('id', schoolId);
+  if (error) {
+    setStatus('Error', 'err');
+    showToast('Save failed: ' + error.message, true);
+    return;
+  }
+  school.code = newVal;
+  setStatus('Saved', 'ok');
+  setTimeout(() => setStatus('', ''), 1500);
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -3883,6 +3979,7 @@ function openAdminModal() {
   renderUploadList();
   renderChampUploadList();
   loadActivityLog();
+  renderSchoolCodesTable();
   renderAdvertiserTable();
   // Populate the PSA URL inputs from the cached psa_config so admins always
   // see the current value when the panel opens.

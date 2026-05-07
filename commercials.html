@@ -2175,12 +2175,19 @@ async function ensureFFmpeg(onProgress) {
   if (_ffmpegInstance) return _ffmpegInstance;
   if (_ffmpegLoadPromise) return _ffmpegLoadPromise;
   _ffmpegLoadPromise = (async () => {
-    if (onProgress) onProgress('Loading FFmpeg', 0);
-    if (!window.FFmpeg) await _loadScriptOnce(FFMPEG_LIB_URL);
-    if (!window.FFmpeg) throw new Error('FFmpeg library failed to load');
+    if (onProgress) onProgress('Loading FFmpeg lib script', 0);
+    if (!window.FFmpeg) {
+      try { await _loadScriptOnce(FFMPEG_LIB_URL); }
+      catch (e) { throw new Error(`script load failed (${FFMPEG_LIB_URL}): ${e.message || e}`); }
+    }
+    if (!window.FFmpeg || typeof window.FFmpeg.createFFmpeg !== 'function') {
+      throw new Error('window.FFmpeg.createFFmpeg missing after script load');
+    }
+    if (onProgress) onProgress('Loading FFmpeg core (wasm)', 0);
     const { createFFmpeg } = window.FFmpeg;
     const ff = createFFmpeg({ log: false, corePath: FFMPEG_CORE_URL });
-    await ff.load();
+    try { await ff.load(); }
+    catch (e) { throw new Error(`core load failed (${FFMPEG_CORE_URL}): ${e.message || e}`); }
     _ffmpegInstance = ff;
     return ff;
   })();
@@ -2263,7 +2270,7 @@ function hideSlateProgress(prefix) {
 }
 
 async function processSlateUpload({ enabled, filename, iscii, advertiser, title, length, prefix }) {
-  if (!enabled) return;
+  if (!enabled) return { ok: true, mode: 'skipped' };
   const sourceEl = document.getElementById(`${prefix}SlateSource`);
   const specEl   = document.getElementById(`${prefix}SlateSpec`);
   const sourceFile = sourceEl?.files?.[0] || null;
@@ -2271,7 +2278,8 @@ async function processSlateUpload({ enabled, filename, iscii, advertiser, title,
 
   // No source picked → fall back to PNG-only (Phase 1 behavior).
   if (!sourceFile) {
-    return maybeDownloadSlate({ enabled, filename, iscii, advertiser, title, length });
+    await maybeDownloadSlate({ enabled, filename, iscii, advertiser, title, length });
+    return { ok: true, mode: 'png-only' };
   }
 
   try {
@@ -2289,13 +2297,15 @@ async function processSlateUpload({ enabled, filename, iscii, advertiser, title,
     triggerSlateDownload(outBlob, `${filename}.mp4`);
     showSlateProgress(prefix, 'Done — finished MP4 saved to Downloads', 1);
     setTimeout(() => hideSlateProgress(prefix), 4000);
+    return { ok: true, mode: 'mp4' };
   } catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
     console.error('[slate-ffmpeg] pipeline failed:', e);
-    showToast(`Slate FFmpeg failed — fell back to PNG. See console for "[slate-ffmpeg]" line.`, true);
-    showSlateProgress(prefix, `Failed: ${e.message} — falling back to PNG-only`, 1, true);
-    setTimeout(() => hideSlateProgress(prefix), 8000);
-    // Best-effort PNG fallback so the user still gets *something*.
+    // Persist the error inline (no auto-hide) so the admin can read/copy it.
+    showSlateProgress(prefix, `FFmpeg error: ${msg}`, 1, true);
+    // Best-effort PNG fallback so the user still gets *something* downloaded.
     try { await maybeDownloadSlate({ enabled, filename, iscii, advertiser, title, length }); } catch (e2) {}
+    return { ok: false, mode: 'failed', error: msg };
   }
 }
 
@@ -2443,7 +2453,7 @@ async function submitSchoolPsa() {
 
   // Slate path: prepend slate to source via FFmpeg if a source file is picked,
   // else fall back to PNG-only download (Phase 1 behavior).
-  await processSlateUpload({
+  const slateRes = await processSlateUpload({
     enabled: !!document.getElementById('psaSlateToggle')?.checked,
     filename,
     iscii: document.getElementById('psaSlateIscii')?.value || filename,
@@ -2452,6 +2462,10 @@ async function submitSchoolPsa() {
     length: document.getElementById('psaSlateLength')?.value || '',
     prefix: 'psa'
   });
+  if (slateRes && !slateRes.ok) {
+    showToast(`Slate FFmpeg failed: ${slateRes.error}`, true);
+    return; // leave modal open so admin can read the inline error message
+  }
 
   // Copy the filename for the user, then send them to Box.
   try { await navigator.clipboard?.writeText(filename); } catch (e) {}
@@ -2598,7 +2612,7 @@ async function submitCusaPsa() {
     }
   }
 
-  await processSlateUpload({
+  const slateResC = await processSlateUpload({
     enabled: !!document.getElementById('cusaPsaSlateToggle')?.checked,
     filename,
     iscii: document.getElementById('cusaPsaSlateIscii')?.value || filename,
@@ -2607,6 +2621,10 @@ async function submitCusaPsa() {
     length: document.getElementById('cusaPsaSlateLength')?.value || '',
     prefix: 'cusaPsa'
   });
+  if (slateResC && !slateResC.ok) {
+    showToast(`Slate FFmpeg failed: ${slateResC.error}`, true);
+    return;
+  }
 
   try { await navigator.clipboard?.writeText(filename); } catch (e) {}
   showToast(`Filename ${filename} copied — opening Box File Request…`);
@@ -2754,7 +2772,7 @@ async function submitSponsorship() {
     }
   }
 
-  await processSlateUpload({
+  const slateResS = await processSlateUpload({
     enabled: !!document.getElementById('sponsorshipSlateToggle')?.checked,
     filename,
     iscii: document.getElementById('sponsorshipSlateIscii')?.value || filename,
@@ -2763,6 +2781,10 @@ async function submitSponsorship() {
     length: document.getElementById('sponsorshipSlateLength')?.value || lengthVal,
     prefix: 'sponsorship'
   });
+  if (slateResS && !slateResS.ok) {
+    showToast(`Slate FFmpeg failed: ${slateResS.error}`, true);
+    return;
+  }
 
   try { await navigator.clipboard?.writeText(filename); } catch (e) {}
   showToast(`Filename ${filename} copied — opening Box File Request…`);

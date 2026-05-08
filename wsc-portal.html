@@ -1043,19 +1043,42 @@ function renderMvFromCache() {
   for (const t of tiles) attachHls(t);
 }
 
+// Custom loader that rewrites every Wowza absolute URL to our same-origin
+// proxy. The master playlist embeds an absolute chunklist URL that HLS.js
+// would otherwise hit directly (and fail CORS); same for segment .ts files
+// referenced from the chunklist. This intercepts each load and rewrites
+// before the XHR is created.
+function makeProxiedLoader(BaseLoader) {
+  return class extends BaseLoader {
+    load(context, config, callbacks) {
+      if (context && typeof context.url === 'string') {
+        context.url = proxyBlobUrl(context.url);
+      }
+      return super.load(context, config, callbacks);
+    }
+  };
+}
+
 function attachHls(t) {
   const url = `${WSC_BLOB}/playlists/hls/cusa/${t.slug}.stream/playlist.m3u8`;
   const video = document.getElementById('mv-' + cssId(t.slug));
   const status = document.getElementById('mvst-' + cssId(t.slug));
   if (!video) return;
   if (window.Hls && Hls.isSupported()) {
-    const hls = new Hls({ lowLatencyMode: false, liveSyncDuration: 6, manifestLoadingTimeOut: 10000 });
+    const ProxiedLoader = makeProxiedLoader(Hls.DefaultConfig.loader);
+    const hls = new Hls({
+      loader: ProxiedLoader,
+      lowLatencyMode: false,
+      liveSyncDuration: 6,
+      manifestLoadingTimeOut: 10000
+    });
     _hlsInstances.set(t.slug, hls);
     hls.loadSource(url);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); });
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (data.fatal && status) status.className = 'mv-status err';
+      if (data.fatal) console.warn('HLS fatal', t.slug, data.type, data.details, data.url);
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = url;

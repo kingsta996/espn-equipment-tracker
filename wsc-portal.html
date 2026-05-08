@@ -321,18 +321,22 @@
 <!-- Multiviewer -->
 <section class="tab-content" id="tab-multi">
   <div class="toolbar">
-    <span class="pill">LIVE HLS</span>
-    <button class="toggle active" id="mvScopeAll"   type="button" onclick="setMvScope('all')">All Schools</button>
+    <span class="pill" id="mvDiscoveryStatus">DISCOVERING…</span>
+    <button class="toggle active" id="mvScopeAll"   type="button" onclick="setMvScope('all')">All Encoder Slots</button>
     <button class="toggle"        id="mvScopeToday" type="button" onclick="setMvScope('today')">Today's Events</button>
+    <button class="toggle"        id="mvOnlyLive"   type="button" onclick="toggleOnlyLive()">Only Live</button>
     <select id="mvSport">
-      <option value="">All Sports</option>
-      <option value="Football">Football</option>
-      <option value="Men's Basketball">Men's Basketball</option>
-      <option value="Women's Basketball">Women's Basketball</option>
+      <option value="">All Slots</option>
+      <option value="FB">FB Encoder</option>
+      <option value="MBB">MBB Encoder</option>
+      <option value="WBB">WBB Encoder</option>
     </select>
     <span class="grow"></span>
     <button class="toggle" type="button" onclick="rebuildMv()">↻ Refresh</button>
     <button class="toggle" type="button" onclick="stopAllMv()">⏸ Stop All</button>
+  </div>
+  <div style="font-size:11px;color:var(--wsc-mute);margin:-6px 0 12px;line-height:1.5">
+    Tiles are <strong>encoder slots</strong>, not sports — a school's <code>FB</code> slot may be carrying soccer or softball today depending on which input the school's encoder is patched to. <strong>● LIVE</strong> = chunklist updated &lt;35s ago.
   </div>
   <div class="mv-grid" id="mvGrid"></div>
 </section>
@@ -353,6 +357,34 @@ const SAM_HOUSTON_MANUAL_SPORTS = new Set([
 const FOOTBALL = 'Football';
 const BASKETBALL = new Set(["Men's Basketball", "Women's Basketball", "Women’s Basketball"]);
 
+// Wowza blob storage doesn't send Access-Control-Allow-Origin, so HLS.js
+// can't fetch playlists directly. netlify.toml rewrites /wsc-blob/* and
+// /wsc-blob-list/* to the same upstream — same-origin in the browser, no CORS.
+const WSC_BLOB = '/wsc-blob';            // proxy for /playlists and /media
+const WSC_BLOB_LIST = '/wsc-blob-list';  // proxy for the container listing
+const LIVE_THRESHOLD_MS = 35000;          // chunklist newer than this → "live"
+const MV_REFRESH_MS = 15000;              // re-poll discovery every 15s
+
+function proxyBlobUrl(u) {
+  if (!u) return u;
+  return u.replace(/^https?:\/\/wowzaprodeus2\.blob\.core\.windows\.net/i, WSC_BLOB);
+}
+
+// Encoder slot suffix detection — schools' WSC streams are named
+// `<schoolslug><slot>.stream` where slot ∈ {football, mbb, wbb}.
+const SLOT_SUFFIXES = ['football', 'mbb', 'wbb'];
+const SLOT_LABEL = { football: 'FB', mbb: 'MBB', wbb: 'WBB' };
+function parseSlotSlug(slug) {
+  for (const suf of SLOT_SUFFIXES) {
+    if (slug.endsWith(suf)) {
+      const schoolKey = slug.slice(0, slug.length - suf.length);
+      const sc = (_config?.schools || []).find(s => s.canonical.toLowerCase().replace(/[^a-z]/g, '') === schoolKey);
+      return { school: sc?.canonical || schoolKey, slot: SLOT_LABEL[suf], slug };
+    }
+  }
+  return { school: slug, slot: '?', slug };
+}
+
 /* ════════════════════════════════════════════════════════════════════
  *  STATE
  * ══════════════════════════════════════════════════════════════════ */
@@ -370,6 +402,9 @@ let _filters = {
 };
 let _mvScope = 'all';
 let _mvSportFilter = '';
+let _mvOnlyLive = false;
+let _mvDiscovered = new Map();   // slug → { school, slot, slug, lastModified, isLive }
+let _mvRefreshTimer = null;
 const _hlsInstances = new Map(); // tile key → Hls instance
 
 /* ════════════════════════════════════════════════════════════════════
@@ -873,82 +908,161 @@ function setMvScope(scope) {
   document.getElementById('mvScopeToday').classList.toggle('active', scope === 'today');
   rebuildMv();
 }
+function toggleOnlyLive() {
+  _mvOnlyLive = !_mvOnlyLive;
+  document.getElementById('mvOnlyLive').classList.toggle('active', _mvOnlyLive);
+  renderMvFromCache();
+}
 
-function buildMvTiles() {
-  // For 'all': one tile per (school × sport) covered by HLS data.
-  // For 'today': only schools/sports that actually have an event today (from _events).
-  const tiles = [];
+/**
+ * Auto-discover encoder slots from the Wowza container listing.
+ * Returns Map<slug, { school, slot, slug, lastModified, isLive }>.
+ */
+async function discoverLiveStreams() {
+  const url = `${WSC_BLOB_LIST}/media?restype=container&comp=list&prefix=hls/cusa/&maxresults=5000`;
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('blob list HTTP ' + res.status);
+    const xml = await res.text();
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const now = Date.now();
+    const out = new Map();
+    for (const blob of doc.getElementsByTagName('Blob')) {
+      const name = blob.getElementsByTagName('Name')[0]?.textContent || '';
+      const m = name.match(/^hls\/cusa\/([^/]+)\.stream\/chunklist\.m3u8$/);
+      if (!m) continue;
+      const lastMod = blob.querySelector('Properties Last-Modified')?.textContent || '';
+      const ts = lastMod ? Date.parse(lastMod) : 0;
+      const meta = parseSlotSlug(m[1]);
+      out.set(m[1], Object.assign(meta, { lastModified: ts, isLive: ts > 0 && (now - ts) < LIVE_THRESHOLD_MS }));
+    }
+    return out;
+  } catch (e) {
+    console.warn('Discovery failed:', e);
+    return new Map();
+  }
+}
+
+async function rebuildMv() {
+  document.getElementById('mvDiscoveryStatus').textContent = 'DISCOVERING…';
+  _mvDiscovered = await discoverLiveStreams();
+  const liveCount = Array.from(_mvDiscovered.values()).filter(s => s.isLive).length;
+  document.getElementById('mvDiscoveryStatus').textContent =
+    `${_mvDiscovered.size} SLOTS · ${liveCount} LIVE`;
+  renderMvFromCache();
+  if (_mvRefreshTimer) clearInterval(_mvRefreshTimer);
+  _mvRefreshTimer = setInterval(refreshMvLiveness, MV_REFRESH_MS);
+}
+
+async function refreshMvLiveness() {
+  const fresh = await discoverLiveStreams();
+  const liveCount = Array.from(fresh.values()).filter(s => s.isLive).length;
+  document.getElementById('mvDiscoveryStatus').textContent =
+    `${fresh.size} SLOTS · ${liveCount} LIVE`;
+  // Update only the liveness indicator on existing tiles; don't tear down players.
+  for (const [, meta] of fresh) {
+    const st = document.getElementById('mvst-' + cssId(meta.slug));
+    if (st) {
+      st.className = 'mv-status ' + (meta.isLive ? 'live' : 'idle');
+      const ago = meta.lastModified ? Math.round((Date.now() - meta.lastModified) / 1000) + 's ago' : '—';
+      st.querySelector('.ago').textContent = ago;
+    }
+  }
+  // Add tiles that just came online (would be filtered out before).
+  // If the count of live tiles changed AND we're filtering to "Only Live", re-render.
+  if (_mvOnlyLive && liveCount !== Array.from(_mvDiscovered.values()).filter(s => s.isLive).length) {
+    _mvDiscovered = fresh;
+    renderMvFromCache();
+  } else {
+    _mvDiscovered = fresh;
+  }
+}
+
+function tilesForCurrentView() {
+  const slots = Array.from(_mvDiscovered.values());
+  // Filter by scope
+  let filtered = slots;
   if (_mvScope === 'today') {
+    // Limit to schools that have at least one event today.
     const today = new Date().toISOString().slice(0,10);
-    const seen = new Set();
+    const todaysSchools = new Set();
     for (const ev of _events) {
       if (ev.event_date !== today) continue;
       const cat = categorize(ev);
       if (!cat) continue;
       const host = hostSchoolFor(ev, cat);
-      const sportKey = primarySportKey(ev.sport);
-      if (!host || !sportKey) continue;
-      const key = host + '|' + sportKey;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const sc = schoolByName(host);
-      const url = sc?.hls?.[sportKey];
-      if (!url) continue;
-      tiles.push({ key, school: host, sport: sportKey, url, sub: `${ev.away} @ ${ev.home} · ${ev.event_time || ''}`.trim() });
+      if (host) todaysSchools.add(host);
     }
-  } else {
-    for (const sc of (_config?.schools || [])) {
-      for (const sport of ['Football', "Men's Basketball"]) {
-        const url = sc.hls?.[sport];
-        if (!url) continue;
-        if (_mvSportFilter && _mvSportFilter !== sport && !(sport === "Men's Basketball" && _mvSportFilter === "Women's Basketball")) continue;
-        tiles.push({ key: sc.canonical + '|' + sport, school: sc.canonical, sport, url, sub: '' });
-      }
-    }
+    filtered = slots.filter(s => todaysSchools.has(s.school));
   }
-  return tiles;
+  if (_mvSportFilter) filtered = filtered.filter(s => s.slot === _mvSportFilter);
+  if (_mvOnlyLive)    filtered = filtered.filter(s => s.isLive);
+  filtered.sort((a, b) => {
+    if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+    return (a.school + a.slot).localeCompare(b.school + b.slot);
+  });
+  return filtered;
 }
 
-function rebuildMv() {
+function todaysEventForSchool(school) {
+  const today = new Date().toISOString().slice(0,10);
+  return _events.find(ev => {
+    if (ev.event_date !== today) return false;
+    const cat = categorize(ev);
+    if (!cat) return false;
+    return hostSchoolFor(ev, cat) === school;
+  });
+}
+
+function renderMvFromCache() {
   stopAllMv();
   const grid = document.getElementById('mvGrid');
-  const tiles = buildMvTiles();
+  const tiles = tilesForCurrentView();
   if (tiles.length === 0) {
-    grid.innerHTML = `<div class="empty"><h3>No live tiles</h3>${_mvScope === 'today' ? 'No events scheduled today, or HLS feeds unavailable.' : 'No HLS feeds match the current filter.'}</div>`;
+    grid.innerHTML = `<div class="empty"><h3>No tiles to show</h3>Try adjusting the filter, or wait — auto-refresh every ${MV_REFRESH_MS/1000}s.</div>`;
     return;
   }
-  grid.innerHTML = tiles.map(t => `
-    <div class="mv-tile" data-key="${escapeAttr(t.key)}">
-      <div class="mv-tile-head">
-        <div class="ttl">${escapeHtml(t.school)} <small>${escapeHtml(shortSport(t.sport))}${t.sub ? ' · ' + escapeHtml(t.sub) : ''}</small></div>
-        <a class="open-ext" href="${escapeAttr(t.url)}" target="_blank" rel="noopener" title="Open in new tab">↗</a>
-      </div>
-      <video id="mv-${cssId(t.key)}" muted playsinline></video>
-      <div class="mv-status idle" id="mvst-${cssId(t.key)}"><span></span><span style="opacity:0.6">${escapeHtml(t.url.replace(/^https?:\/\//, '').slice(0, 48))}…</span></div>
-    </div>
-  `).join('');
-  // Attach players
+  grid.innerHTML = tiles.map(t => {
+    const url = `${WSC_BLOB}/playlists/hls/cusa/${t.slug}.stream/playlist.m3u8`;
+    const externalUrl = `https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/${t.slug}.stream/playlist.m3u8`;
+    const ev = todaysEventForSchool(t.school);
+    const sub = ev ? `${ev.sport} · ${ev.away} @ ${ev.home}` : t.slot + ' encoder slot';
+    const ago = t.lastModified ? Math.round((Date.now() - t.lastModified) / 1000) + 's ago' : '—';
+    return `
+      <div class="mv-tile" data-key="${escapeAttr(t.slug)}">
+        <div class="mv-tile-head">
+          <div class="ttl">${escapeHtml(t.school)} · ${escapeHtml(t.slot)} <small>${escapeHtml(sub)}</small></div>
+          <a class="open-ext" href="${escapeAttr(externalUrl)}" target="_blank" rel="noopener" title="Open .m3u8 in a new tab (VLC, etc.)">↗</a>
+        </div>
+        <video id="mv-${cssId(t.slug)}" muted playsinline controls></video>
+        <div class="mv-status ${t.isLive ? 'live' : 'idle'}" id="mvst-${cssId(t.slug)}">
+          <span class="ago" style="margin-left:auto;opacity:0.6">${ago}</span>
+        </div>
+      </div>`;
+  }).join('');
   for (const t of tiles) attachHls(t);
 }
 
 function attachHls(t) {
-  const video = document.getElementById('mv-' + cssId(t.key));
-  const status = document.getElementById('mvst-' + cssId(t.key));
+  const url = `${WSC_BLOB}/playlists/hls/cusa/${t.slug}.stream/playlist.m3u8`;
+  const video = document.getElementById('mv-' + cssId(t.slug));
+  const status = document.getElementById('mvst-' + cssId(t.slug));
   if (!video) return;
-  const setStatus = (cls) => { status.className = 'mv-status ' + cls; };
   if (window.Hls && Hls.isSupported()) {
-    const hls = new Hls({ lowLatencyMode: true, liveSyncDuration: 4 });
-    _hlsInstances.set(t.key, hls);
-    hls.loadSource(t.url);
+    const hls = new Hls({ lowLatencyMode: false, liveSyncDuration: 6, manifestLoadingTimeOut: 10000 });
+    _hlsInstances.set(t.slug, hls);
+    hls.loadSource(url);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); setStatus('live'); });
-    hls.on(Hls.Events.ERROR, (_, data) => { if (data.fatal) setStatus('err'); });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); });
+    hls.on(Hls.Events.ERROR, (_, data) => {
+      if (data.fatal && status) status.className = 'mv-status err';
+    });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = t.url;
-    video.addEventListener('loadedmetadata', () => { video.play().catch(()=>{}); setStatus('live'); });
-    video.addEventListener('error', () => setStatus('err'));
+    video.src = url;
+    video.addEventListener('loadedmetadata', () => video.play().catch(()=>{}));
+    video.addEventListener('error', () => { if (status) status.className = 'mv-status err'; });
   } else {
-    setStatus('err');
+    if (status) status.className = 'mv-status err';
   }
 }
 
@@ -956,6 +1070,7 @@ function stopAllMv() {
   for (const [, hls] of _hlsInstances) { try { hls.destroy(); } catch {} }
   _hlsInstances.clear();
   document.querySelectorAll('#mvGrid video').forEach(v => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch {} });
+  if (_mvRefreshTimer) { clearInterval(_mvRefreshTimer); _mvRefreshTimer = null; }
 }
 
 /* ════════════════════════════════════════════════════════════════════

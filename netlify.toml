@@ -20,3 +20,22 @@
   [headers.values]
     Cross-Origin-Embedder-Policy = "credentialless"
     Cross-Origin-Opener-Policy   = "same-origin-allow-popups"
+
+# Proxy the WSC / Wowza blob storage so HLS.js can play it from the browser.
+# Wowza's blob endpoints return no Access-Control-Allow-Origin header, so a
+# direct fetch from the WSC Capture Portal fails CORS. Rewrites are
+# same-origin from the browser's perspective so no CORS preflight is needed.
+[[redirects]]
+  from = "/wsc-blob/*"
+  to = "https://wowzaprodeus2.blob.core.windows.net/:splat"
+  status = 200
+  force = true
+
+# Container listing endpoint (for auto-discovering which encoder slots are
+# currently flowing). Same-origin via this rewrite; the upstream blob list
+# is publicly readable.
+[[redirects]]
+  from = "/wsc-blob-list/*"
+  to = "https://wowzaprodeus2.blob.core.windows.net/:splat"
+  status = 200
+  force = true

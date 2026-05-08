@@ -456,6 +456,7 @@
   <button data-tab="rawdata">Raw Data</button>
   <button data-tab="activity">📋 Activity Log</button>
   <button data-tab="schools">🏫 Schools</button>
+  <button data-tab="creative-hub">🎨 Creative Hub Override</button>
 </div>
 
 <!-- Tab content -->
@@ -479,6 +480,7 @@
   <div id="rawdata"       class="tab-content" style="display:none"></div>
   <div id="activity"      class="tab-content" style="display:none"></div>
   <div id="schools"       class="tab-content" style="display:none"></div>
+  <div id="creative-hub"  class="tab-content" style="display:none"></div>
 
 </div>
 
@@ -629,14 +631,16 @@
     }
   }
 
-  /* Append an activity-log row. Fire-and-forget — never blocks the UI. */
-  function logActivity(action, target, details) {
+  /* Append an activity-log row. Fire-and-forget — never blocks the UI.
+     Optional 4th arg overrides the default app='viewership' tag (used by
+     the Creative Hub override tool to mark its entries). */
+  function logActivity(action, target, details, app) {
     if (!_db) return;
     const u = _currentUser;
     const row = {
       email: u?.email || 'unknown',
       display_name: u?.display_name || null,
-      app: 'viewership',
+      app: app || 'viewership',
       action,
       target: target || null,
       details: details || null
@@ -1910,6 +1914,7 @@
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = c.id === name ? 'block' : 'none');
     if (name === 'activity') renderActivityLog();
     if (name === 'schools') renderSchoolsTab();
+    if (name === 'creative-hub') renderCreativeHubOverride();
   }
 
   function renderAllTabs() {
@@ -3025,6 +3030,187 @@
       const dd = String(d.getDate()).padStart(2, '0');
       return `${yy}-${mm}-${dd}`;
     } catch { return ''; }
+  }
+
+  // ── Creative Hub state override ──────────────────────────────────────────
+  // Reads/edits creative_hub_state rows for cusa-creative-hub editor pages.
+  // Keith uses this to fix a user's broken state, push his version of a page
+  // to another editor, or wipe a row so the user gets defaults again.
+  let _chSelected = null; // { email, page_key }
+
+  function _chEsc(s)     { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function _chAttr(s)    { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  function _chFmtAgo(iso){ try { return new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); } catch { return iso || ''; } }
+  function _chMsg(text, ok) {
+    const el = document.getElementById('ch-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = ok ? '#080' : '#c00';
+  }
+
+  async function renderCreativeHubOverride() {
+    const container = document.getElementById('creative-hub');
+    if (!container.querySelector('#ch-users-list')) {
+      container.innerHTML =
+        '<div style="padding:14px">' +
+          '<h3 style="margin-bottom:6px;color:var(--navy);font-size:15px">Creative Hub State Override</h3>' +
+          '<div style="font-size:12px;color:#555;margin-bottom:14px">View and replace per-user editor state for cusa-creative-hub editor pages. Changes take effect when the user next opens the page (or reloads).</div>' +
+          '<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">' +
+            '<div style="flex:0 0 320px">' +
+              '<h4 style="margin-bottom:8px;font-size:12px;color:#444">Users · pages</h4>' +
+              '<div id="ch-users-list" style="max-height:560px;overflow:auto;border:1px solid #ddd;border-radius:6px;padding:8px;background:#fff;font-size:12px"></div>' +
+            '</div>' +
+            '<div style="flex:1;min-width:360px">' +
+              '<h4 style="margin-bottom:8px;font-size:12px;color:#444">Selected: <span id="ch-selected-label" style="color:#888;font-weight:400">none</span></h4>' +
+              '<textarea id="ch-state-edit" rows="22" style="width:100%;font-family:Menlo,Monaco,monospace;font-size:11px;padding:8px;border:1px solid #ccc;border-radius:6px" placeholder="Pick a user/page on the left to load state."></textarea>' +
+              '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+                '<button class="btn btn-save"   id="ch-save"      disabled>💾 Save edited JSON</button>' +
+                '<button class="btn"            id="ch-push-mine" disabled style="background:#0077B5;color:#fff">⬆ Push my state to this user</button>' +
+                '<button class="btn btn-clear"  id="ch-clear"     disabled>🗑 Delete row</button>' +
+                '<span id="ch-msg" style="font-size:11px;align-self:center"></span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      container.querySelector('#ch-save').addEventListener('click', chSaveCurrent);
+      container.querySelector('#ch-push-mine').addEventListener('click', chPushMine);
+      container.querySelector('#ch-clear').addEventListener('click', chClearCurrent);
+    }
+    await chReloadList();
+  }
+
+  async function chReloadList() {
+    const list = document.getElementById('ch-users-list');
+    if (!list) return;
+    if (!_db) { list.innerHTML = '<em style="color:#888">DB not connected.</em>'; return; }
+    list.innerHTML = '<em style="color:#888">Loading…</em>';
+    try {
+      const [{ data: users }, { data: states }] = await Promise.all([
+        _db.from('creative_hub_users').select('email, display_name, is_active').order('email'),
+        _db.from('creative_hub_state').select('email, page_key, updated_at').order('email').order('page_key'),
+      ]);
+      const grouped = new Map();
+      (users || []).forEach(u => grouped.set(u.email, { user: u, rows: [] }));
+      (states || []).forEach(s => {
+        if (!grouped.has(s.email)) grouped.set(s.email, { user: { email: s.email, display_name: s.email, is_active: false }, rows: [] });
+        grouped.get(s.email).rows.push(s);
+      });
+      if (!grouped.size) { list.innerHTML = '<em style="color:#888">No editors yet. Run the creative_hub_state migration.</em>'; return; }
+      let html = '';
+      for (const [email, { user, rows }] of grouped) {
+        const inactive = user.is_active === false;
+        html += '<div style="margin-bottom:10px">' +
+                  '<div><strong>' + _chEsc(user.display_name || email) + '</strong>' +
+                  (inactive ? ' <span style="font-size:10px;color:#c00">(inactive)</span>' : '') +
+                  ' <span style="color:#888;font-size:11px">' + _chEsc(email) + '</span></div>';
+        if (!rows.length) {
+          html += '<div style="font-size:11px;color:#bbb;margin-left:10px;margin-top:2px">no saved state</div>';
+        } else {
+          html += '<div style="margin-left:10px;margin-top:4px;display:flex;flex-direction:column;gap:2px">';
+          for (const r of rows) {
+            html += '<a href="#" class="ch-row" data-email="' + _chAttr(r.email) + '" data-page="' + _chAttr(r.page_key) + '" style="font-size:12px;color:#0077B5;text-decoration:none;padding:3px 6px;border-radius:4px">' +
+                      _chEsc(r.page_key) + ' <span style="color:#888;font-size:10px">(' + _chEsc(_chFmtAgo(r.updated_at)) + ')</span>' +
+                    '</a>';
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      list.innerHTML = html;
+      list.querySelectorAll('.ch-row').forEach(a => a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        list.querySelectorAll('.ch-row').forEach(x => x.style.background = '');
+        a.style.background = '#dbe7f0';
+        await chSelect(a.dataset.email, a.dataset.page);
+      }));
+    } catch (e) {
+      list.innerHTML = '<em style="color:#c00">Failed: ' + _chEsc(e.message || String(e)) + '</em>';
+    }
+  }
+
+  async function chSelect(email, pageKey) {
+    _chSelected = { email: email, page_key: pageKey };
+    document.getElementById('ch-selected-label').textContent = email + ' → ' + pageKey;
+    const ta = document.getElementById('ch-state-edit');
+    ta.value = 'Loading…';
+    document.getElementById('ch-save').disabled      = true;
+    document.getElementById('ch-push-mine').disabled = true;
+    document.getElementById('ch-clear').disabled     = true;
+    _chMsg('');
+    try {
+      const { data, error } = await _db.from('creative_hub_state')
+        .select('state, updated_at').eq('email', email).eq('page_key', pageKey).maybeSingle();
+      if (error) throw error;
+      ta.value = JSON.stringify(data ? data.state : null, null, 2);
+      document.getElementById('ch-save').disabled      = false;
+      document.getElementById('ch-push-mine').disabled = false;
+      document.getElementById('ch-clear').disabled     = !data;
+    } catch (e) {
+      ta.value = 'Failed to load: ' + (e.message || e);
+    }
+  }
+
+  async function chSaveCurrent() {
+    if (!_chSelected) return;
+    const ta = document.getElementById('ch-state-edit');
+    let parsed;
+    try { parsed = JSON.parse(ta.value); }
+    catch (e) { _chMsg('Invalid JSON: ' + e.message); return; }
+    _chMsg('Saving…', true);
+    try {
+      const { error } = await _db.from('creative_hub_state').upsert({
+        email: _chSelected.email, page_key: _chSelected.page_key,
+        state: parsed, updated_at: new Date().toISOString(),
+      }, { onConflict: 'email,page_key' });
+      if (error) throw error;
+      logActivity('edit', 'creative-hub:' + _chSelected.email + '/' + _chSelected.page_key, 'Saved override JSON', 'creative-hub');
+      _chMsg('Saved.', true);
+      chReloadList();
+    } catch (e) { _chMsg('Save failed: ' + (e.message || e)); }
+  }
+
+  async function chPushMine() {
+    if (!_chSelected) return;
+    const myEmail = (_currentUser && _currentUser.email) || '';
+    if (!myEmail)                                                    { _chMsg('Sign in first.'); return; }
+    if (myEmail.toLowerCase() === _chSelected.email.toLowerCase())   { _chMsg('Target is yourself.'); return; }
+    if (!confirm('Overwrite ' + _chSelected.email + "'s " + _chSelected.page_key + ' state with your saved state for that page?')) return;
+    _chMsg('Pushing…', true);
+    try {
+      const { data: mine, error: e1 } = await _db.from('creative_hub_state')
+        .select('state').eq('email', myEmail).eq('page_key', _chSelected.page_key).maybeSingle();
+      if (e1) throw e1;
+      if (!mine) { _chMsg('You have no saved state for ' + _chSelected.page_key + '.'); return; }
+      const { error } = await _db.from('creative_hub_state').upsert({
+        email: _chSelected.email, page_key: _chSelected.page_key,
+        state: mine.state, updated_at: new Date().toISOString(),
+      }, { onConflict: 'email,page_key' });
+      if (error) throw error;
+      logActivity('edit', 'creative-hub:' + _chSelected.email + '/' + _chSelected.page_key, 'Pushed ' + myEmail + " state to " + _chSelected.email, 'creative-hub');
+      _chMsg('Pushed.', true);
+      await chSelect(_chSelected.email, _chSelected.page_key);
+      chReloadList();
+    } catch (e) { _chMsg('Push failed: ' + (e.message || e)); }
+  }
+
+  async function chClearCurrent() {
+    if (!_chSelected) return;
+    if (!confirm('Delete ' + _chSelected.email + "'s " + _chSelected.page_key + ' state? They will see defaults next page load.')) return;
+    _chMsg('Deleting…', true);
+    try {
+      const { error } = await _db.from('creative_hub_state').delete()
+        .eq('email', _chSelected.email).eq('page_key', _chSelected.page_key);
+      if (error) throw error;
+      logActivity('delete', 'creative-hub:' + _chSelected.email + '/' + _chSelected.page_key, 'Deleted state row', 'creative-hub');
+      _chMsg('Deleted.', true);
+      document.getElementById('ch-state-edit').value = '';
+      document.getElementById('ch-selected-label').textContent = 'none';
+      document.getElementById('ch-save').disabled      = true;
+      document.getElementById('ch-push-mine').disabled = true;
+      document.getElementById('ch-clear').disabled     = true;
+      _chSelected = null;
+      chReloadList();
+    } catch (e) { _chMsg('Delete failed: ' + (e.message || e)); }
   }
 </script>
 </body>

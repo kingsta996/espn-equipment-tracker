@@ -478,7 +478,7 @@
     <div style="flex:1;min-width:240px">
       <div style="font-size:13px;font-weight:700;color:var(--wsc-text);margin-bottom:4px">External Schedule Refresh</div>
       <div style="font-size:11.5px;color:var(--wsc-mute);line-height:1.5">
-        Pulls schedules from <strong>conferenceusa.com/calendar.aspx</strong> (Sidearm ICS — every CUSA event across all sports) and the Sam Houston Nuxt API (supplements SHSU's non-football/basketball events). Rows are upserted into <code>wsc_external_events</code> and merged with the ESPN broadcast schedule on Master + Manual tabs. Filtered to football, basketball, and (Sam Houston only) soccer/volleyball/baseball/softball.
+        Pulls the conference <strong>Master Schedule</strong> Google Sheet (the same one the Xpression Hub reads) and upserts rows into <code>wsc_external_events</code>. Filtered to football, basketball, and (Sam Houston only) soccer/volleyball/baseball/softball, then merged with the ESPN broadcast schedule on Master + Manual tabs.
       </div>
       <div id="extRefreshStatus" style="font-size:11px;color:var(--wsc-mute);margin-top:6px;font-family:'SF Mono',monospace"></div>
     </div>

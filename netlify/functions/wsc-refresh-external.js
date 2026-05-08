@@ -1,24 +1,21 @@
 /**
- * wsc-refresh-external — pulls athletics-site schedules from public sources
- * and upserts them into wsc_external_events for the WSC Capture Portal.
+ * wsc-refresh-external — pulls the conference Master Schedule (Google Sheet
+ * shared with the Xpression Hub) and upserts events into wsc_external_events
+ * for the WSC Capture Portal.
  *
- * Sources:
- *   • Conference USA master calendar (Sidearm ICS feed at
- *     /calendar.ashx/calendar.ics). Single endpoint that lists every CUSA
- *     event across every sport — football, basketball, soccer, volleyball,
- *     baseball, softball, etc. Each game appears twice (once per school's
- *     POV) in the feed; we dedupe on date+home+away+sport.
- *   • Sam Houston Nuxt API (gobearkats.com /api/v2/schedule/<id>) for
- *     Soccer / Volleyball / Baseball / Softball — kept as a fallback /
- *     supplement to the conference calendar in case it lags.
+ * Source:
+ *   • Google Sheet "Master Schedule" tab — same sheet
+ *     (id 1FyknP3xzkfHNAfzXo7gsqgQ5D84K7iUNl5sq-ecYs04) the Xpression Hub
+ *     reads for its broadcast tooling. Exported as CSV via the gviz/tq
+ *     endpoint. Sheet must be set to "Anyone with the link → Viewer".
+ *
+ * The sheet has an explicit "At" column (Home / Away), school "Code", and
+ * Sport + Gender, so we don't have to parse summary strings the way an
+ * ICS feed forces. School Code → canonical name lookup is hard-coded
+ * below to match the canonical names in wsc_data.json.
  *
  * Invoked from the WSC portal's Settings tab (super-admin only) via
  *   POST /.netlify/functions/wsc-refresh-external
- *
- * The function accepts the Supabase service-role key over env so it can
- * write through RLS. With the public RLS policy on wsc_external_events
- * the anon key would also work; the service-role variant is here in case
- * we ever lock the policy down.
  */
 
 const cors = {
@@ -27,62 +24,6 @@ const cors = {
   'Access-Control-Allow-Headers': 'content-type'
 };
 
-// Map SHSU's globalSportShortName → our canonical sport label.
-const SHSU_SPORT_MAP = {
-  wsoc:    "Soccer",
-  wvball:  "Volleyball",
-  baseball: "Baseball",
-  softball: "Softball"
-};
-
-// CUSA membership + the aliases we observe in the conference calendar feed.
-// Used to canonicalise team names and decide which side of a matchup is CUSA.
-const CUSA_SCHOOLS = {
-  'Delaware':         ['Delaware'],
-  'FIU':              ['FIU', 'Florida International'],
-  'Jacksonville State':['Jacksonville State', 'Jax State', 'Jacksonville St.'],
-  'Kennesaw State':   ['Kennesaw State', 'Kennesaw St.'],
-  'Liberty':          ['Liberty'],
-  'Louisiana Tech':   ['Louisiana Tech', 'LA Tech', 'LaTech'],
-  'Middle Tennessee': ['Middle Tennessee', 'MTSU', 'Middle Tenn.'],
-  'Missouri State':   ['Missouri State', 'Missouri St.'],
-  'New Mexico State': ['New Mexico State', 'NM State', 'NMSU', 'New Mexico St.'],
-  'Sam Houston':      ['Sam Houston', 'Sam Houston State', 'SHSU'],
-  'UTEP':             ['UTEP', 'Texas El Paso'],
-  'Western Kentucky': ['Western Kentucky', 'WKU', 'Western Ky.']
-};
-const ALIAS_MAP = (() => {
-  const m = new Map();
-  for (const [canon, aliases] of Object.entries(CUSA_SCHOOLS)) {
-    m.set(canon.toLowerCase().trim(), canon);
-    for (const a of aliases) m.set(a.toLowerCase().trim(), canon);
-  }
-  return m;
-})();
-function canonicalSchool(name) {
-  if (!name) return null;
-  const k = String(name).toLowerCase().trim();
-  if (ALIAS_MAP.has(k)) return ALIAS_MAP.get(k);
-  return null;
-}
-
-// Sports we route to Master / Manual. Sport detection runs longest-prefix-first.
-const SPORT_PATTERNS = [
-  { re: /^Football\b/,            sport: 'Football' },
-  { re: /^Men's Basketball\b/,    sport: "Men's Basketball" },
-  { re: /^Women's Basketball\b/,  sport: "Women's Basketball" },
-  { re: /^Men's Soccer\b/,        sport: "Men's Soccer" },
-  { re: /^Women's Soccer\b/,      sport: "Women's Soccer" },
-  { re: /^Soccer\b/,              sport: 'Soccer' },
-  { re: /^Men's Volleyball\b/,    sport: "Men's Volleyball" },
-  { re: /^Women's Volleyball\b/,  sport: "Women's Volleyball" },
-  { re: /^Volleyball\b/,          sport: 'Volleyball' },
-  { re: /^Baseball\b/,            sport: 'Baseball' },
-  { re: /^Softball\b/,            sport: 'Softball' }
-];
-
-const SHSU_NON_BB_SPORTS = new Set(['Soccer', "Men's Soccer", "Women's Soccer", 'Volleyball', "Men's Volleyball", "Women's Volleyball", 'Baseball', 'Softball']);
-
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -90,183 +31,173 @@ const FETCH_OPTS = {
   headers: { 'User-Agent': 'CUSA-WSC-Portal/1.0 (Netlify Function)' }
 };
 
-async function getJson(url) {
-  const res = await fetch(url, FETCH_OPTS);
-  if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
-  return res.json();
+// Conference USA Master Schedule — same Google Sheet the Xpression Hub
+// pulls from (schedule-master.html). Set to "Anyone with the link → Viewer".
+const MASTER_SHEET_ID  = '1FyknP3xzkfHNAfzXo7gsqgQ5D84K7iUNl5sq-ecYs04';
+const MASTER_SHEET_TAB = 'Master Schedule';
+
+// First year of the athletic year the sheet's Fall season belongs to.
+// 2026 → 2026-27 athletic year (Fall 2026, Winter 2026-27, Spring 2027).
+// When the season rolls, bump this. Read from env if present.
+const SCHEDULE_BASE_YEAR = Number(process.env.WSC_SCHEDULE_BASE_YEAR) || 2026;
+
+// Code → canonical school name (matches wsc_data.json "canonical").
+const CODE_TO_SCHOOL = {
+  DEL:    'Delaware',
+  FIU:    'FIU',
+  JSU:    'Jacksonville State',
+  KSU:    'Kennesaw State',
+  LIB:    'Liberty',
+  LTECH:  'Louisiana Tech',
+  MOST:   'Missouri State',
+  MTSU:   'Middle Tennessee',
+  NMSU:   'New Mexico State',
+  SHSU:   'Sam Houston',
+  UTEP:   'UTEP',
+  WKU:    'Western Kentucky'
+};
+
+// Sport + Gender → canonical sport label routed by the WSC portal.
+function sportLabel(sport, gender) {
+  const s = (sport || '').trim();
+  const g = (gender || '').trim();
+  if (s === 'Football')   return 'Football';
+  if (s === 'Basketball') return g === "Women's" ? "Women's Basketball" : "Men's Basketball";
+  if (s === 'Soccer')     return g === "Men's"   ? "Men's Soccer"       : "Women's Soccer";
+  if (s === 'Volleyball') return g === "Men's"   ? "Men's Volleyball"   : 'Volleyball';
+  if (s === 'Baseball')   return 'Baseball';
+  if (s === 'Softball')   return 'Softball';
+  return null;
+}
+
+// SHSU-only sports for Manual Capture (per WSC routing spec).
+const SHSU_SPORTS = new Set(['Soccer', "Men's Soccer", "Women's Soccer", 'Volleyball', "Men's Volleyball", 'Baseball', 'Softball']);
+
+const MONTHS = {
+  Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7,
+  Aug:8, Sep:9, Sept:9, Oct:10, Nov:11, Dec:12
+};
+
+/** "Sep 3" + season "Fall" → "2026-09-03". Returns null on parse failure. */
+function deriveDate(dateStr, season, baseYear) {
+  if (!dateStr) return null;
+  const m = dateStr.match(/^([A-Za-z]+)\.?\s+(\d{1,2})/);
+  if (!m) return null;
+  const month = MONTHS[m[1].slice(0,3)] || MONTHS[m[1]];
+  if (!month) return null;
+  const day = Number(m[2]);
+  let year;
+  switch ((season || '').trim()) {
+    case 'Fall':   year = baseYear; break;
+    case 'Spring': year = baseYear + 1; break;
+    case 'Winter': year = month >= 8 ? baseYear : baseYear + 1; break;
+    default:       year = month >= 8 ? baseYear : baseYear + 1; break;
+  }
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 }
 
 function slugify(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-/** Pull one SHSU sport schedule. Returns an array of event rows. */
-async function shsuScrape(scheduleId, sportLabel) {
-  const data = await getJson(`https://gobearkats.com/api/v2/schedule/${scheduleId}`);
-  const games = data.games || [];
-  return games.map(ev => {
-    const opp   = (ev.opponent && ev.opponent.title) || '';
-    const atVs  = String(ev.atVs || '').toLowerCase();
-    const date  = (ev.date || '').slice(0, 10);
-    const time  = ev.time || '';
-    if (!date || !opp) return null;
-    const home = atVs === 'at' ? opp : 'Sam Houston';
-    const away = atVs === 'at' ? 'Sam Houston' : opp;
-    const id = `shsu-${slugify(sportLabel)}-${date}-${slugify(opp)}`;
-    return {
-      id, source: 'shsu-api', school: 'Sam Houston',
-      sport: sportLabel, event_date: date, event_time: time,
-      home, away,
-      conference: ev.conference ? 'Conference USA' : 'Non-Conference',
-      network: '', notes: ev.location || ''
-    };
-  }).filter(Boolean);
-}
-
-/* ─────────────────────────────────────────────────────────────────────
- *  Conference USA master calendar (Sidearm ICS).
- * ─────────────────────────────────────────────────────────────────── */
-
-function utcToEt(isoDate, hhmm) {
-  // hhmm = 'HHMM' UTC. Returns 'h:mm AM/PM ET' in observed Eastern time.
-  if (!isoDate || !hhmm) return '';
-  const utc = new Date(`${isoDate}T${hhmm.slice(0,2)}:${hhmm.slice(2,4)}:00Z`);
-  if (Number.isNaN(utc.getTime())) return '';
-  // DST window roughly Mar 14 → Nov 7 (good enough for game schedules; ICAL also
-  // emits floating UTC so this approximation is appropriate).
-  const m = utc.getUTCMonth() + 1, d = utc.getUTCDate();
-  const inDst = (m > 3 && m < 11) || (m === 3 && d >= 14) || (m === 11 && d < 7);
-  const offset = inDst ? -4 : -5;
-  const et = new Date(utc.getTime() + offset * 3_600_000);
-  const h = et.getUTCHours();
-  const mm = et.getUTCMinutes();
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(mm).padStart(2,'0')} ${ampm} ET`;
-}
-
-function parseSummary(summary) {
-  // Strip outcome and cancellation prefixes.
-  let s = summary.replace(/^\[[WL]\]\s*/, '').trim();
-  if (/^(CANCELLED|Postponed)/i.test(s)) return null;
-  // Identify the sport prefix.
-  let sport = null, rest = s;
-  for (const p of SPORT_PATTERNS) {
-    const m = s.match(p.re);
-    if (m) { sport = p.sport; rest = s.slice(m[0].length).trim(); break; }
-  }
-  if (!sport) return null;
-  // Parse "TeamA at TeamB" or "TeamA vs TeamB". Strip trailing whitespace
-  // (the feed often has double-spaces like "Liberty vs  Duke").
-  const m = rest.match(/^(.+?)\s+(at|vs\.?)\s+(.+?)\s*$/i);
-  if (!m) return null;
-  const [, a, sep, b] = m;
-  const isAt = /^at$/i.test(sep);
-  const home = (isAt ? b : a).replace(/\s+/g, ' ').trim();
-  const away = (isAt ? a : b).replace(/\s+/g, ' ').trim();
-  return { sport, home, away };
-}
-
-function parseIcs(text) {
-  const out = [];
-  // Split by VEVENT then peel each block.
-  const blocks = text.split('BEGIN:VEVENT').slice(1);
-  for (const blk of blocks) {
-    // ICS folds long lines with CRLF + space — unfold.
-    const unfolded = blk.replace(/\r?\n[ \t]/g, '');
-    const get = (key) => {
-      const re = new RegExp(`^${key}(?:;[^:]*)?:(.+)$`, 'm');
-      const mm = unfolded.match(re);
-      return mm ? mm[1].trim() : '';
-    };
-    const dt  = get('DTSTART');
-    const sum = get('SUMMARY');
-    const loc = get('LOCATION').replace(/\\,/g, ',').replace(/\\n/g, ' ');
-    if (!dt || !sum) continue;
-    const date = `${dt.slice(0,4)}-${dt.slice(4,6)}-${dt.slice(6,8)}`;
-    const time = dt.slice(9, 13);
-    const parsed = parseSummary(sum);
-    if (!parsed) continue;
-    out.push({ date, time, summary: sum, location: loc, ...parsed });
-  }
-  return out;
-}
-
-async function cusaCalendarRefresh() {
-  const res = await fetch('https://conferenceusa.com/calendar.ashx/calendar.ics', FETCH_OPTS);
-  if (!res.ok) throw new Error(`CUSA calendar fetch failed: HTTP ${res.status}`);
-  const text = await res.text();
-  const events = parseIcs(text);
-
-  // Convert to wsc_external_events rows. Filter rules:
-  //   • At least one team must be a CUSA school.
-  //   • Football + Men's/Women's Basketball: include any matchup involving a CUSA school.
-  //   • Soccer / Volleyball / Baseball / Softball: include only if Sam Houston is involved
-  //     (per spec — those non-football/basketball sports are SHSU-only for WSC).
-  const rows = [];
-  const seen = new Set();
-  for (const ev of events) {
-    const homeC = canonicalSchool(ev.home);
-    const awayC = canonicalSchool(ev.away);
-    if (!homeC && !awayC) continue;
-    const isFootball   = ev.sport === 'Football';
-    const isBasketball = ev.sport === "Men's Basketball" || ev.sport === "Women's Basketball";
-    const isShsuSport  = SHSU_NON_BB_SPORTS.has(ev.sport);
-    const cusa = homeC || awayC; // primary CUSA school for this row
-    let school = cusa;
-    if (isShsuSport) {
-      const hasShsu = homeC === 'Sam Houston' || awayC === 'Sam Houston';
-      if (!hasShsu) continue;
-      school = 'Sam Houston';
-    } else if (!isFootball && !isBasketball) {
-      // Drop sports we don't route (Tennis, Bowling, Track, etc.).
-      continue;
+// Parser handles quoted fields, escaped quotes, and embedded commas/newlines.
+function parseCsv(text) {
+  const rows = []; let row = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i+1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += c;
     } else {
-      // Prefer the home CUSA school as the row owner; otherwise use the away CUSA team.
-      school = homeC || awayC;
+      if (c === '"') inQ = true;
+      else if (c === ',')  { row.push(cur); cur = ''; }
+      else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+      else if (c === '\r') { /* skip */ }
+      else cur += c;
     }
-    const home = homeC || ev.home;
-    const away = awayC || ev.away;
-    const key = `${ev.date}|${home.toLowerCase()}|${away.toLowerCase()}|${ev.sport}`;
+  }
+  if (cur.length || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+
+async function masterSheetRefresh() {
+  const url = `https://docs.google.com/spreadsheets/d/${MASTER_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(MASTER_SHEET_TAB)}`;
+  const res = await fetch(url, FETCH_OPTS);
+  if (!res.ok) throw new Error(`Sheet fetch failed: HTTP ${res.status}`);
+  const csv  = await res.text();
+  const rows = parseCsv(csv);
+  if (rows.length < 2) throw new Error('Sheet returned no rows');
+  const hdr = rows[0];
+  const idx = (name) => hdr.indexOf(name);
+  const c = {
+    date:    idx('Date'),
+    time:    idx('Time'),
+    at:      idx('At'),
+    oppo:    idx('Opponent'),
+    loc:     idx('Location'),
+    sport:   idx('Sport'),
+    gender:  idx('Gender'),
+    season:  idx('Season'),
+    code:    idx('Code'),
+    school:  idx('School')
+  };
+  for (const k of Object.keys(c)) {
+    if (c[k] < 0) throw new Error(`Sheet missing required column: ${k}`);
+  }
+
+  const out = [];
+  const seen = new Set();
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.length < 2) continue;
+    const code = (r[c.code] || '').trim().toUpperCase();
+    const school = CODE_TO_SCHOOL[code];
+    if (!school) continue; // unknown / non-CUSA row
+    const sport = sportLabel(r[c.sport], r[c.gender]);
+    if (!sport) continue;
+    // Routing-scope filter: keep football, basketball, and (Sam Houston only)
+    // soccer/volleyball/baseball/softball.
+    const isFB  = sport === 'Football';
+    const isBB  = sport === "Men's Basketball" || sport === "Women's Basketball";
+    const isOther = SHSU_SPORTS.has(sport);
+    if (!isFB && !isBB && !(isOther && school === 'Sam Houston')) continue;
+
+    const isoDate = deriveDate(r[c.date], r[c.season], SCHEDULE_BASE_YEAR);
+    if (!isoDate) continue;
+    const at = (r[c.at] || '').trim().toLowerCase();
+    const oppo = (r[c.oppo] || '').trim();
+    if (!oppo) continue;
+    const home = at === 'home' ? school : oppo;
+    const away = at === 'home' ? oppo   : school;
+
+    // Each game appears twice in the sheet (once per CUSA participant when both
+    // are conference teams). Dedup on date+home+away+sport.
+    const key = `${isoDate}|${home.toLowerCase()}|${away.toLowerCase()}|${sport}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const conference = (homeC && awayC) ? 'Conference USA' : 'Non-Conference';
-    const id = `cusa-${ev.sport.replace(/[^a-z0-9]+/gi, '').toLowerCase()}-${ev.date}-${slugify(away)}-at-${slugify(home)}`;
-    rows.push({
-      id, source: 'cusa-calendar',
-      school, sport: ev.sport,
-      event_date: ev.date,
-      event_time: utcToEt(ev.date, ev.time),
+
+    const otherIsCusa = Object.values(CODE_TO_SCHOOL).some(n =>
+      n.toLowerCase() === oppo.toLowerCase() ||
+      // Also try matching the full sheet-name (e.g. "University of Delaware")
+      // via simple substring — rare for opponent column, but defensive.
+      oppo.toLowerCase().includes(n.toLowerCase())
+    );
+    out.push({
+      id: `master-${slugify(sport)}-${isoDate}-${slugify(away)}-at-${slugify(home)}`,
+      source:     'master-sheet',
+      school,
+      sport,
+      event_date: isoDate,
+      event_time: (r[c.time] || '').trim(),
       home, away,
-      conference,
-      network: '',
-      notes: ev.location || ''
+      conference: otherIsCusa ? 'Conference USA' : 'Non-Conference',
+      network:    '',
+      notes:      (r[c.loc] || '').trim()
     });
   }
-  return { rows, errors: [] };
-}
-
-/* ─────────────────────────────────────────────────────────────────────
- *  Sam Houston Nuxt API (supplement to the conference calendar for SHSU).
- * ─────────────────────────────────────────────────────────────────── */
-
-/** Look up SHSU schedule IDs from /api/v2/sports/. */
-async function shsuRefresh() {
-  const sports = await getJson('https://gobearkats.com/api/v2/sports/');
-  const out = [];
-  const errors = [];
-  for (const s of sports) {
-    const short = (s.globalSportShortName || '').toLowerCase();
-    const label = SHSU_SPORT_MAP[short];
-    if (!label || !s.scheduleId) continue;
-    try {
-      const rows = await shsuScrape(s.scheduleId, label);
-      out.push(...rows);
-    } catch (e) {
-      errors.push({ source: 'shsu', sport: label, error: e.message || String(e) });
-    }
-  }
-  return { rows: out, errors };
+  return { rows: out, errors: [] };
 }
 
 async function upsertRows(rows) {
@@ -274,7 +205,6 @@ async function upsertRows(rows) {
     throw new Error('Supabase env not configured (need SUPABASE_URL + SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY)');
   }
   if (!rows.length) return { inserted: 0 };
-  // Direct REST upsert — keeps the function dependency-free.
   const res = await fetch(`${SUPABASE_URL}/rest/v1/wsc_external_events?on_conflict=id`, {
     method: 'POST',
     headers: {
@@ -300,34 +230,16 @@ exports.handler = async (event) => {
   const summary = { sources: [], totalRows: 0, errors: [], elapsed_ms: 0 };
 
   try {
-    // 1) Conference USA master calendar (primary source, all sports).
-    try {
-      const cusa = await cusaCalendarRefresh();
-      const up = await upsertRows(cusa.rows);
-      summary.sources.push({ source: 'cusa-calendar', rows: cusa.rows.length, upserted: up.inserted });
-      summary.totalRows += up.inserted;
-      summary.errors.push(...cusa.errors);
-    } catch (e) {
-      summary.errors.push({ source: 'cusa-calendar', error: e.message || String(e) });
-    }
-
-    // 2) Sam Houston Nuxt API (supplement; conference calendar typically covers
-    //    these but SHSU's own site can have the full schedule earlier).
-    try {
-      const shsu = await shsuRefresh();
-      const up = await upsertRows(shsu.rows);
-      summary.sources.push({ source: 'shsu-api', rows: shsu.rows.length, upserted: up.inserted });
-      summary.totalRows += up.inserted;
-      summary.errors.push(...shsu.errors);
-    } catch (e) {
-      summary.errors.push({ source: 'shsu-api', error: e.message || String(e) });
-    }
-
-    summary.elapsed_ms = Date.now() - t0;
-    return { statusCode: 200, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify(summary) };
+    const sheet = await masterSheetRefresh();
+    const up = await upsertRows(sheet.rows);
+    summary.sources.push({ source: 'master-sheet', rows: sheet.rows.length, upserted: up.inserted });
+    summary.totalRows += up.inserted;
+    summary.errors.push(...sheet.errors);
   } catch (e) {
-    summary.errors.push({ stage: 'top-level', error: e.message || String(e) });
-    summary.elapsed_ms = Date.now() - t0;
-    return { statusCode: 500, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify(summary) };
+    summary.errors.push({ source: 'master-sheet', error: e.message || String(e) });
   }
+
+  summary.elapsed_ms = Date.now() - t0;
+  const code = summary.errors.length && summary.totalRows === 0 ? 500 : 200;
+  return { statusCode: code, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify(summary) };
 };

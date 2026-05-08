@@ -199,6 +199,18 @@
   .mv-tile .mv-status.idle::before { content: '○ IDLE'; color: var(--wsc-mute); font-weight: 800; letter-spacing: 0.5px; }
   .mv-tile .mv-status.err::before  { content: '! OFFLINE'; color: var(--warn); font-weight: 800; letter-spacing: 0.5px; }
 
+  /* Offline tile placeholder */
+  .mv-tile.mv-tile-offline { opacity: 0.65; }
+  .mv-tile-offline:hover { opacity: 1; }
+  .mv-offline {
+    aspect-ratio: 16/9; background: #0a0a0a; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px; color: var(--wsc-mute);
+    border-top: 1px dashed var(--wsc-line); border-bottom: 1px dashed var(--wsc-line);
+  }
+  .mv-offline-icon { font-size: 28px; opacity: 0.4; }
+  .mv-offline-msg  { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--warn); }
+  .mv-offline-sub  { font-size: 10.5px; opacity: 0.7; font-family: 'SF Mono', 'Menlo', monospace; }
+
   /* Per-tile Primary/Backup switcher (basketball only) */
   .slot-switch { display: inline-flex; gap: 0; border: 1px solid var(--wsc-line); border-radius: 6px; overflow: hidden; margin-left: 8px; }
   .slot-switch button {
@@ -974,8 +986,9 @@ async function rebuildMv() {
 async function refreshMvLiveness() {
   const fresh = await discoverLiveStreams();
   const liveCount = Array.from(fresh.values()).filter(s => s.isLive).length;
+  const expectedSlots = (_config?.schools || []).length * 3; // FB + WBB + MBB per school
   document.getElementById('mvDiscoveryStatus').textContent =
-    `${fresh.size} SLOTS · ${liveCount} LIVE`;
+    `${liveCount} / ${expectedSlots} LIVE`;
   // Update only the liveness indicator on existing tiles; don't tear down players.
   for (const [, meta] of fresh) {
     const st = document.getElementById('mvst-' + cssId(meta.slug));
@@ -995,45 +1008,46 @@ async function refreshMvLiveness() {
   }
 }
 
+function slugForSchool(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+function offlineMeta(school, slot, slug) {
+  return { school, slot, slug, lastModified: 0, isLive: false, offline: true };
+}
+
 /**
  * Return tile descriptors for the active section.
  *
- * Football section: one tile per school whose FB slot exists in discovery.
- * Basketball section: one tile per school whose WBB *or* MBB slot exists,
- *   with both options surfaced so the user can flip between them per tile.
- *   The "active" slot defaults to WBB (primary) but can be overridden via
- *   _mvBasketballChoice.
+ * Football section: one tile per CUSA school. If the school's FB chunklist
+ *   isn't in discovery, the tile renders an "Encoder not connected" state.
+ * Basketball section: one tile per CUSA school. WBB is primary, MBB is the
+ *   per-school backup. Each surfaces both options as long as the school has
+ *   *either* discovered. A school with neither still renders a placeholder
+ *   so the operator can confirm at a glance which encoders are dark.
  */
 function tilesForCurrentView() {
-  const slots = Array.from(_mvDiscovered.values());
-  // Index slots by school for quick lookup.
-  const bySchool = new Map();
-  for (const s of slots) {
-    if (!bySchool.has(s.school)) bySchool.set(s.school, {});
-    bySchool.get(s.school)[s.slot] = s; // {FB, WBB, MBB}
-  }
-
+  const schools = (_config?.schools || []).map(s => s.canonical);
   let tiles = [];
-  if (_mvSection === 'football') {
-    for (const [school, slotMap] of bySchool) {
-      if (!slotMap.FB) continue;
-      tiles.push({
-        school,
-        activeSlot: 'FB',
-        active: slotMap.FB,
-        alts: null
-      });
-    }
-  } else {
-    for (const [school, slotMap] of bySchool) {
-      if (!slotMap.WBB && !slotMap.MBB) continue;
-      const choice = _mvBasketballChoice.get(school) || (slotMap.WBB ? 'WBB' : 'MBB');
-      const active = slotMap[choice] || slotMap.WBB || slotMap.MBB;
+
+  for (const school of schools) {
+    const sk = slugForSchool(school);
+    if (_mvSection === 'football') {
+      const slug = sk + 'football';
+      const meta = _mvDiscovered.get(slug) || offlineMeta(school, 'FB', slug);
+      tiles.push({ school, activeSlot: 'FB', active: meta, alts: null });
+    } else {
+      const wbbSlug = sk + 'wbb';
+      const mbbSlug = sk + 'mbb';
+      const wbbMeta = _mvDiscovered.get(wbbSlug) || null;
+      const mbbMeta = _mvDiscovered.get(mbbSlug) || null;
+      const choice = _mvBasketballChoice.get(school) || 'WBB';
+      const active = (choice === 'MBB' ? mbbMeta : wbbMeta) ||
+                     offlineMeta(school, choice, choice === 'MBB' ? mbbSlug : wbbSlug);
       tiles.push({
         school,
         activeSlot: active.slot,
         active,
-        alts: { primary: slotMap.WBB || null, backup: slotMap.MBB || null }
+        alts: { primary: wbbMeta, backup: mbbMeta }
       });
     }
   }
@@ -1056,6 +1070,7 @@ function tilesForCurrentView() {
 
   tiles.sort((a, b) => {
     if (a.active.isLive !== b.active.isLive) return a.active.isLive ? -1 : 1;
+    if (!!a.active.offline !== !!b.active.offline) return a.active.offline ? 1 : -1;
     return a.school.localeCompare(b.school);
   });
   return tiles;
@@ -1088,34 +1103,56 @@ function renderMvFromCache() {
 
     let switchHtml = '';
     if (t.alts) {
-      const primaryDisabled = !t.alts.primary ? 'disabled style="opacity:0.4;cursor:not-allowed"' : '';
-      const backupDisabled  = !t.alts.backup  ? 'disabled style="opacity:0.4;cursor:not-allowed"' : '';
+      const primaryAttrs = !t.alts.primary
+        ? 'disabled title="No WBB chunklist — encoder not connected" style="opacity:0.4;cursor:not-allowed"'
+        : '';
+      const backupAttrs  = !t.alts.backup
+        ? 'disabled title="No MBB chunklist — encoder not connected" style="opacity:0.4;cursor:not-allowed"'
+        : '';
       const escSchool = escapeAttr(t.school);
       switchHtml = `
         <div class="slot-switch" title="WBB primary · MBB backup">
-          <button class="${t.activeSlot === 'WBB' ? 'active' : ''}" ${primaryDisabled} onclick="setBasketballSlot('${escSchool}','WBB')">Primary</button>
-          <button class="${t.activeSlot === 'MBB' ? 'active' : ''}" ${backupDisabled}  onclick="setBasketballSlot('${escSchool}','MBB')">Backup</button>
+          <button class="${t.activeSlot === 'WBB' ? 'active' : ''}" ${primaryAttrs} onclick="setBasketballSlot('${escSchool}','WBB')">Primary</button>
+          <button class="${t.activeSlot === 'MBB' ? 'active' : ''}" ${backupAttrs}  onclick="setBasketballSlot('${escSchool}','MBB')">Backup</button>
+        </div>`;
+    }
+
+    const head = `
+      <div class="mv-tile-head">
+        <div class="ttl">
+          ${escapeHtml(t.school)} <small>${escapeHtml(t.activeSlot)} · ${escapeHtml(sub)}</small>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${switchHtml}
+          <a class="open-ext" href="${escapeAttr(externalUrl)}" target="_blank" rel="noopener" title="Open .m3u8 in a new tab (VLC, etc.)">↗</a>
+        </div>
+      </div>`;
+
+    if (t.active.offline) {
+      return `
+        <div class="mv-tile mv-tile-offline" data-key="${escapeAttr(slug)}">
+          ${head}
+          <div class="mv-offline">
+            <div class="mv-offline-icon">⏻</div>
+            <div class="mv-offline-msg">Encoder not connected</div>
+            <div class="mv-offline-sub">No chunklist for <code>${escapeHtml(slug)}</code></div>
+          </div>
+          <div class="mv-status err" id="mvst-${cssId(slug)}">
+            <span class="ago" style="margin-left:auto;opacity:0.6">—</span>
+          </div>
         </div>`;
     }
 
     return `
       <div class="mv-tile" data-key="${escapeAttr(slug)}">
-        <div class="mv-tile-head">
-          <div class="ttl">
-            ${escapeHtml(t.school)} <small>${escapeHtml(t.activeSlot)} · ${escapeHtml(sub)}</small>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px">
-            ${switchHtml}
-            <a class="open-ext" href="${escapeAttr(externalUrl)}" target="_blank" rel="noopener" title="Open .m3u8 in a new tab (VLC, etc.)">↗</a>
-          </div>
-        </div>
+        ${head}
         <video id="mv-${cssId(slug)}" muted playsinline controls></video>
         <div class="mv-status ${t.active.isLive ? 'live' : 'idle'}" id="mvst-${cssId(slug)}">
           <span class="ago" style="margin-left:auto;opacity:0.6">${ago}</span>
         </div>
       </div>`;
   }).join('');
-  for (const t of tiles) attachHls(t.active);
+  for (const t of tiles) if (!t.active.offline) attachHls(t.active);
 }
 
 // Custom loader that rewrites every Wowza absolute URL to our same-origin

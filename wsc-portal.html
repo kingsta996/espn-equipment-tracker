@@ -67,9 +67,9 @@
     padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   }
   .header .logos { display: flex; align-items: center; gap: 14px; }
-  .header img.wsc-logo { height: 28px; }
-  .header img.cusa-logo { height: 22px; filter: brightness(0) invert(1); }
-  .header .divider { width: 1px; height: 22px; background: var(--wsc-line); }
+  .header img.wsc-logo { height: 44px; }
+  .header img.cusa-logo { height: 32px; }
+  .header .divider { width: 1px; height: 36px; background: var(--wsc-line); }
   .header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; flex: 1; min-width: 200px; }
   .header h1 small { color: var(--wsc-green); font-weight: 600; letter-spacing: 1px; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 2px; }
   .header .who { color: var(--wsc-mute); font-size: 11px; }
@@ -176,13 +176,25 @@
   .encoder-cell select:focus { border-color: var(--wsc-green); outline: 0; }
   .encoder-cell select.set { border-color: var(--wsc-green); color: var(--wsc-green); }
 
-  /* Inline HLS preview cell (Manual Capture) */
-  .hls-preview-empty { font-size: 11px; color: var(--wsc-mute); padding: 16px; border: 1px dashed var(--wsc-line); border-radius: 6px; text-align: center; min-width: 240px; }
+  /* Inline HLS preview cell (Manual Capture + Master Schedule) */
+  .hls-preview-empty {
+    font-size: 11px; color: var(--wsc-mute); padding: 12px; border: 1px dashed var(--wsc-line);
+    border-radius: 6px; text-align: center; min-width: 240px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
   .hls-preview-empty.err { color: var(--warn); border-color: var(--warn); }
+  .hls-preview-hint { font-size: 9.5px; color: var(--wsc-mute); opacity: 0.7; letter-spacing: 0.3px; }
   .hls-preview-wrap { display: flex; flex-direction: column; gap: 4px; }
   .hls-preview-wrap video { width: 240px; aspect-ratio: 16/9; background: #000; border-radius: 6px; border: 1px solid var(--wsc-line); }
-  .hls-preview-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--wsc-mute); font-family: 'SF Mono', 'Menlo', monospace; }
+  .hls-preview-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--wsc-mute); font-family: 'SF Mono', 'Menlo', monospace; }
   .hls-preview-id { color: var(--wsc-green); font-weight: 700; }
+  .hls-preview-countdown { color: var(--wsc-green); font-weight: 700; }
+  .preview-btn {
+    background: rgba(200,255,0,0.12); color: var(--wsc-green); border: 1px solid rgba(200,255,0,0.4);
+    padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 800; cursor: pointer;
+    font-family: inherit; letter-spacing: 0.4px;
+  }
+  .preview-btn:hover { background: var(--wsc-green); color: #000; }
 
   /* Splashtop remote button (Manual Capture, SHSU rows) */
   .splashtop-btn {
@@ -241,6 +253,64 @@
   .mv-offline-icon { font-size: 28px; opacity: 0.4; }
   .mv-offline-msg  { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--warn); }
   .mv-offline-sub  { font-size: 10.5px; opacity: 0.7; font-family: 'SF Mono', 'Menlo', monospace; }
+
+  /* Settings cards (super admin) */
+  .settings-card {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 10px; padding: 0;
+  }
+  .settings-card[open] { border-color: var(--wsc-green); }
+  .settings-card summary {
+    padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 700; color: var(--wsc-text); list-style: none;
+  }
+  .settings-card summary::-webkit-details-marker { display: none; }
+  .settings-card summary::before {
+    content: '▸'; color: var(--wsc-green); transition: transform 0.15s; font-size: 11px;
+  }
+  .settings-card[open] summary::before { transform: rotate(90deg); }
+  .settings-card .set-school { flex: 1; }
+  .set-override-chip {
+    background: rgba(200,255,0,0.2); color: var(--wsc-green); font-size: 9.5px; font-weight: 800;
+    padding: 2px 7px; border-radius: 3px; letter-spacing: 0.5px;
+  }
+  .settings-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--wsc-line); padding-top: 14px; }
+  .settings-body h4 {
+    font-size: 11px; color: var(--wsc-mute); text-transform: uppercase; letter-spacing: 0.7px;
+    font-weight: 700; margin: 4px 0 0;
+  }
+  .settings-row { display: flex; align-items: center; gap: 10px; }
+  .settings-row label { font-size: 11px; color: var(--wsc-text); width: 130px; flex-shrink: 0; font-weight: 600; }
+  .settings-row label small { display: block; color: var(--wsc-mute); font-weight: 400; font-size: 9.5px; letter-spacing: 0.4px; }
+  .settings-row input, .settings-row select {
+    flex: 1; background: #0e1012; color: var(--wsc-text); border: 1px solid var(--wsc-line);
+    border-radius: 6px; padding: 7px 10px; font-size: 12px; font-family: 'SF Mono','Menlo','Consolas',monospace;
+  }
+  .settings-row input:focus, .settings-row select:focus { border-color: var(--wsc-green); outline: 0; }
+  .contacts-editor { display: flex; flex-direction: column; gap: 8px; }
+  .contact-row { display: grid; grid-template-columns: 1fr 1.6fr 1fr 1fr auto; gap: 6px; }
+  .contact-row input { background: #0e1012; color: var(--wsc-text); border: 1px solid var(--wsc-line); border-radius: 6px; padding: 6px 8px; font-size: 11.5px; font-family: inherit; }
+  .contact-row input:focus { border-color: var(--wsc-green); outline: 0; }
+  .contact-remove {
+    background: transparent; color: var(--wsc-mute); border: 1px solid var(--wsc-line); border-radius: 6px;
+    padding: 0 10px; cursor: pointer; font-size: 14px; font-family: inherit;
+  }
+  .contact-remove:hover { color: var(--err); border-color: var(--err); }
+  .btn-add-contact {
+    background: transparent; color: var(--wsc-green); border: 1px dashed rgba(200,255,0,0.4);
+    padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;
+    font-family: inherit; align-self: flex-start;
+  }
+  .btn-add-contact:hover { background: rgba(200,255,0,0.08); }
+  .settings-actions { display: flex; gap: 8px; padding-top: 6px; border-top: 1px dashed var(--wsc-line); margin-top: 6px; }
+  .btn-save {
+    background: var(--wsc-green); color: #000; border: 0; padding: 8px 18px; border-radius: 6px;
+    font-size: 11.5px; font-weight: 800; cursor: pointer; font-family: inherit; letter-spacing: 0.4px;
+  }
+  .btn-reset {
+    background: transparent; color: var(--wsc-mute); border: 1px solid var(--wsc-line);
+    padding: 8px 14px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .btn-reset:hover { color: var(--err); border-color: var(--err); }
 
   /* Per-tile Primary/Backup switcher (basketball only) */
   .slot-switch { display: inline-flex; gap: 0; border: 1px solid var(--wsc-line); border-radius: 6px; overflow: hidden; margin-left: 8px; }
@@ -309,7 +379,7 @@
   <div class="logos">
     <img class="wsc-logo" src="Logos/WSC/wsc-sports-white-on-black.png" alt="WSC Sports">
     <span class="divider"></span>
-    <img class="cusa-logo" src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
+    <img class="cusa-logo" src="Logos/Hub/cusa-primary-white.png" alt="Conference USA"
          onerror="this.style.display='none'">
   </div>
   <h1>
@@ -325,7 +395,8 @@
 <div class="tab-bar">
   <button class="active" data-tab="master">📡 Master Schedule <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Tata SRT)</span></button>
   <button data-tab="manual">🎯 Manual Capture</button>
-  <button data-tab="multi">📺 Multiviewer</button>
+  <button data-tab="multi"    data-super-admin-only>📺 Multiviewer <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
+  <button data-tab="settings" data-super-admin-only>🔧 Settings <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
 </div>
 
 <!-- Test mode banner -->
@@ -383,6 +454,14 @@
   <div id="manualTable"></div>
 </section>
 
+<!-- Settings (super admin only) -->
+<section class="tab-content" id="tab-settings">
+  <div class="support-note">
+    <span>Edit per-school HLS URLs, SRT endpoints (WSC + SportRadar), video format, and contacts. Saves merge on top of the static <code>wsc_data.json</code> shipped with the build, so a Reset reverts a single school back to the file defaults.</span>
+  </div>
+  <div id="settingsList" style="display:flex;flex-direction:column;gap:10px"></div>
+</section>
+
 <!-- Multiviewer -->
 <section class="tab-content" id="tab-multi">
   <div class="toolbar">
@@ -415,6 +494,17 @@ const CURRENT_USER_KEY = 'cusa_wsc_user';
 const TEST_MODE_KEY = 'cusa_wsc_test_mode';
 const TEST_DATA_URL = 'wsc_test_data.json';
 
+// Super admins see the Multiviewer + Settings tabs and can edit reference data.
+// Plain admins (e.g., the Tata NOC) only see Master + Manual.
+const SUPER_ADMINS = new Set(['keithmkingjr@gmail.com']);
+function isSuperAdmin() {
+  return _currentUser && SUPER_ADMINS.has(String(_currentUser.email || '').toLowerCase());
+}
+
+// HLS preview gating: rows with an event date other than today render a
+// timed-preview button; auto-mount is reserved for game-day rows.
+const PREVIEW_TIMEOUT_MS = 60_000; // 60s manual preview window
+
 const SAM_HOUSTON_MANUAL_SPORTS = new Set([
   'Soccer', "Men's Soccer", "Women's Soccer", 'Volleyball', "Men's Volleyball", 'Baseball', 'Softball'
 ]);
@@ -445,12 +535,29 @@ function openSplashtop() {
 
 const _rowHlsInstances = new Map(); // schedule_event_id → Hls instance for the inline encoder preview
 
-/** Generic helper: mount an HLS.js player into the row preview cell. */
-function attachInlineHls(eventId, url, label) {
-  // Tear down any previous preview for this row.
+const _previewTimeouts = new Map(); // eventId → setTimeout handle
+
+function isToday(iso) {
+  if (!iso) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(iso + 'T12:00:00');
+  d.setHours(0,0,0,0);
+  return d.getTime() === today.getTime();
+}
+
+function destroyRowHls(eventId) {
   const prev = _rowHlsInstances.get(eventId);
   if (prev) { try { prev.destroy(); } catch {} }
   _rowHlsInstances.delete(eventId);
+  const t = _previewTimeouts.get(eventId);
+  if (t) { clearTimeout(t); _previewTimeouts.delete(eventId); }
+}
+
+/** Generic helper: mount an HLS.js player into the row preview cell.
+ *  When `timeoutMs` is set, the player auto-tears-down after that interval
+ *  and the cell reverts to a Preview button (provided via `restoreHtml`). */
+function attachInlineHls(eventId, url, label, opts) {
+  destroyRowHls(eventId);
 
   const cell = document.getElementById('enc-cell-' + cssId(eventId));
   if (!cell) return;
@@ -459,10 +566,17 @@ function attachInlineHls(eventId, url, label) {
     return;
   }
   const proxiedUrl = proxyBlobUrl(url);
+  const remainingHtml = opts?.timeoutMs
+    ? `<span class="hls-preview-countdown" id="enchls-cd-${cssId(eventId)}"></span>`
+    : '';
   cell.innerHTML = `
     <div class="hls-preview-wrap">
       <video id="enchls-${cssId(eventId)}" muted playsinline controls></video>
-      <div class="hls-preview-meta"><span class="hls-preview-id">${escapeHtml(label || '')}</span><span class="hls-preview-status" id="enchls-st-${cssId(eventId)}">connecting…</span></div>
+      <div class="hls-preview-meta">
+        <span class="hls-preview-id">${escapeHtml(label || '')}</span>
+        ${remainingHtml}
+        <span class="hls-preview-status" id="enchls-st-${cssId(eventId)}">connecting…</span>
+      </div>
     </div>`;
   const video = document.getElementById('enchls-' + cssId(eventId));
   const stEl  = document.getElementById('enchls-st-' + cssId(eventId));
@@ -483,13 +597,30 @@ function attachInlineHls(eventId, url, label) {
   } else {
     if (stEl) stEl.textContent = 'unsupported';
   }
+
+  if (opts?.timeoutMs) {
+    const cdEl = document.getElementById('enchls-cd-' + cssId(eventId));
+    const endsAt = Date.now() + opts.timeoutMs;
+    const tick = () => {
+      const remain = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
+      if (cdEl) cdEl.textContent = remain + 's';
+      if (remain <= 0) return;
+    };
+    tick();
+    const cdTimer = setInterval(tick, 1000);
+    const endTimer = setTimeout(() => {
+      clearInterval(cdTimer);
+      destroyRowHls(eventId);
+      // Restore the Preview button.
+      if (opts.restoreHtml && cell) cell.innerHTML = opts.restoreHtml;
+    }, opts.timeoutMs);
+    _previewTimeouts.set(eventId, endTimer);
+  }
 }
 
-function attachEncoderPreview(eventId, encoderId) {
+function attachEncoderPreview(eventId, encoderId, opts) {
   if (!encoderId) {
-    const prev = _rowHlsInstances.get(eventId);
-    if (prev) { try { prev.destroy(); } catch {} }
-    _rowHlsInstances.delete(eventId);
+    destroyRowHls(eventId);
     const cell = document.getElementById('enc-cell-' + cssId(eventId));
     if (cell) cell.innerHTML = '<div class="hls-preview-empty">Pick an encoder →</div>';
     return;
@@ -500,16 +631,48 @@ function attachEncoderPreview(eventId, encoderId) {
     if (cell) cell.innerHTML = `<div class="hls-preview-empty err">No HLS for ${escapeHtml(encoderId)}</div>`;
     return;
   }
-  attachInlineHls(eventId, enc.hls, encoderId);
+  attachInlineHls(eventId, enc.hls, encoderId, opts);
 }
 
 /** Master rows: school-direct HLS (Wowza blob) keyed by host school + sport. */
-function attachSchoolHlsPreview(eventId, ev) {
+function attachSchoolHlsPreview(eventId, ev, opts) {
+  const { url, slug } = getSchoolHlsForEvent(ev);
+  attachInlineHls(eventId, url, slug, opts);
+}
+
+function getSchoolHlsForEvent(ev) {
   const school = schoolByName(ev._host);
   const sportKey = primarySportKey(ev.sport);
   const url = school?.hls?.[ev.sport] || school?.hls?.[sportKey] || null;
   const slug = url ? (url.match(/cusa\/([^/]+)\.stream/)?.[1] || '') : '';
-  attachInlineHls(eventId, url, slug);
+  return { url, slug };
+}
+
+/** "▶ Preview (60s)" button HTML for non-game-day rows. */
+function previewButtonHtml(eventId, kind) {
+  return `<button class="preview-btn" onclick="manualPreview('${eventId}','${kind}')">▶ Preview (${PREVIEW_TIMEOUT_MS / 1000}s)</button>`;
+}
+
+/** Triggered by the per-row Preview button. Mounts the HLS player with a
+ *  timeout, then automatically reverts the cell back to a button. */
+function manualPreview(eventId, kind) {
+  const ev = allEvents().find(e => e.id === eventId);
+  if (!ev) return;
+  const cat = categorize(ev);
+  if (!cat) return;
+  ev._host = hostSchoolFor(ev, cat);
+  const restoreHtml = `<div class="hls-preview-empty">${previewButtonHtml(eventId, kind)}<div class="hls-preview-hint">Game day: ${formatDate(ev.event_date)}</div></div>`;
+  if (kind === 'school') {
+    attachSchoolHlsPreview(eventId, ev, { timeoutMs: PREVIEW_TIMEOUT_MS, restoreHtml });
+  } else {
+    const status = getCaptureFor(eventId);
+    if (!status.encoder) {
+      // Allow preview without locking the dropdown — just don't do anything.
+      showToast('Pick an encoder first', 'err');
+      return;
+    }
+    attachEncoderPreview(eventId, status.encoder, { timeoutMs: PREVIEW_TIMEOUT_MS, restoreHtml });
+  }
 }
 function destroyAllRowHls() {
   for (const [, hls] of _rowHlsInstances) { try { hls.destroy(); } catch {} }
@@ -517,7 +680,19 @@ function destroyAllRowHls() {
 }
 function setEncoderAndPreview(id, encoder) {
   setEncoder(id, encoder);
-  attachEncoderPreview(id, encoder);
+  const ev = allEvents().find(e => e.id === id);
+  if (ev && isToday(ev.event_date)) {
+    attachEncoderPreview(id, encoder);
+  } else {
+    // Off-day: just rebuild the row's preview cell (button or hint).
+    const cell = document.getElementById('enc-cell-' + cssId(id));
+    if (cell) {
+      cell.innerHTML = encoder
+        ? `<div class="hls-preview-empty">${previewButtonHtml(id, 'encoder')}<div class="hls-preview-hint">Game day: ${formatDate(ev?.event_date)}</div></div>`
+        : `<div class="hls-preview-empty">Pick an encoder, then preview<div class="hls-preview-hint">Game day: ${formatDate(ev?.event_date)}</div></div>`;
+    }
+    destroyRowHls(id);
+  }
 }
 
 // Encoder slot suffix detection — schools' WSC streams are named
@@ -539,7 +714,9 @@ function parseSlotSlug(slug) {
  *  STATE
  * ══════════════════════════════════════════════════════════════════ */
 let _db = null;
-let _config = null;       // loaded from wsc_data.json
+let _baseConfig = null;   // raw wsc_data.json
+let _config = null;       // base + overrides merged
+let _overrides = new Map(); // canonical school → override data object
 let _aliasMap = new Map(); // lowercase alias → canonical
 let _events = [];         // schedule_events rows (deduped, master+manual scope)
 let _testEvents = [];     // synthetic test events when test mode is active
@@ -581,15 +758,183 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadCaptureStatus()]);
+  await Promise.all([loadEvents(), loadCaptureStatus(), loadOverrides()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
+  applyAdminVisibility();
   bindFilterControls();
   populateFilterDropdowns();
   wireTabs();
   renderMaster();
   renderManual();
   setupRealtime();
+}
+
+function applyAdminVisibility() {
+  const admin = isSuperAdmin();
+  document.querySelectorAll('[data-super-admin-only]').forEach(el => {
+    el.style.display = admin ? '' : 'none';
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  SETTINGS TAB — super-admin-only edit of HLS / SRT / contacts.
+ * ══════════════════════════════════════════════════════════════════ */
+const SPORT_KEYS = ['Football', "Men's Basketball", "Women's Basketball"];
+const FORMAT_OPTIONS = ['', '720p', '1080i', '1080p'];
+
+function renderSettings() {
+  const root = document.getElementById('settingsList');
+  if (!root) return;
+  if (!isSuperAdmin()) {
+    root.innerHTML = `<div class="empty"><h3>Restricted</h3>Only super admins can edit reference data.</div>`;
+    return;
+  }
+  root.innerHTML = (_config?.schools || []).map(renderSchoolCard).join('');
+}
+
+function renderSchoolCard(school) {
+  const sk = cssId(school.canonical);
+  const hasOverride = _overrides.has(school.canonical) && Object.keys(_overrides.get(school.canonical) || {}).length > 0;
+  const fmtOpts = FORMAT_OPTIONS.map(f =>
+    `<option value="${escapeAttr(f)}" ${school.video_format === f ? 'selected' : ''}>${escapeHtml(f || '— unset —')}</option>`
+  ).join('');
+  const hlsRows = SPORT_KEYS.map(sport => `
+    <div class="settings-row">
+      <label>${escapeHtml(sport)}</label>
+      <input data-field="hls.${escapeAttr(sport)}" type="text" value="${escapeAttr(school.hls?.[sport] || '')}" placeholder="https://wowzaprodeus2.blob…/playlist.m3u8">
+    </div>`).join('');
+  const srtRows = SPORT_KEYS.map(sport => {
+    const s = school.srt?.[sport] || {};
+    return `
+      <div class="settings-row">
+        <label>${escapeHtml(sport)} <small>WSC · SR</small></label>
+        <input data-field="srt.${escapeAttr(sport)}.wsc"        type="text" value="${escapeAttr(s.wsc || '')}"         placeholder="srt://host:port (WSC)">
+        <input data-field="srt.${escapeAttr(sport)}.sportradar" type="text" value="${escapeAttr(s.sportradar || '')}"  placeholder="srt://host:port (SportRadar)">
+      </div>`;
+  }).join('');
+  const contactsHtml = (school.contacts || []).map((c, i) => contactRowHtml(c, i)).join('');
+  return `
+    <details class="settings-card" id="set-${sk}" data-school="${escapeAttr(school.canonical)}">
+      <summary>
+        <span class="set-school">${escapeHtml(school.canonical)}</span>
+        ${hasOverride ? '<span class="set-override-chip">CUSTOM</span>' : ''}
+      </summary>
+      <div class="settings-body">
+        <div class="settings-row">
+          <label>Video Format</label>
+          <select data-field="video_format">${fmtOpts}</select>
+        </div>
+        <h4>HLS URLs (Wowza blob)</h4>
+        ${hlsRows}
+        <h4>SRT Endpoints</h4>
+        ${srtRows}
+        <h4>Contacts</h4>
+        <div class="contacts-editor" id="contacts-${sk}">${contactsHtml}</div>
+        <button class="btn-add-contact" type="button" onclick="addContactRow('${escapeAttr(school.canonical)}')">+ Add contact</button>
+        <div class="settings-actions">
+          <button class="btn-save"  type="button" onclick="saveSchoolOverride('${escapeAttr(school.canonical)}')">💾 Save</button>
+          ${hasOverride ? `<button class="btn-reset" type="button" onclick="resetSchoolOverride('${escapeAttr(school.canonical)}')">↺ Reset to default</button>` : ''}
+        </div>
+      </div>
+    </details>`;
+}
+
+function contactRowHtml(c, i) {
+  c = c || {};
+  return `
+    <div class="contact-row" data-idx="${i}">
+      <input data-c="name"  placeholder="Name"  value="${escapeAttr(c.name  || '')}">
+      <input data-c="email" placeholder="Email" value="${escapeAttr(c.email || '')}">
+      <input data-c="phone" placeholder="Phone" value="${escapeAttr(c.phone || '')}">
+      <input data-c="role"  placeholder="Role (e.g. Matrox POC)" value="${escapeAttr(c.role  || '')}">
+      <button class="contact-remove" type="button" onclick="this.parentElement.remove()">✕</button>
+    </div>`;
+}
+
+function addContactRow(school) {
+  const sk = cssId(school);
+  const list = document.getElementById('contacts-' + sk);
+  if (!list) return;
+  const div = document.createElement('div');
+  div.innerHTML = contactRowHtml({}, list.children.length);
+  list.appendChild(div.firstElementChild);
+}
+
+function readSchoolForm(school) {
+  const sk = cssId(school);
+  const card = document.getElementById('set-' + sk);
+  if (!card) return null;
+  const out = { hls: {}, srt: {}, contacts: [] };
+  out.video_format = card.querySelector('[data-field="video_format"]').value || '';
+  // Use forEach over inputs so the apostrophe in "Men's Basketball" doesn't
+  // break a CSS attribute selector — read the field path off the dataset instead.
+  card.querySelectorAll('[data-field]').forEach(inp => {
+    const path = inp.dataset.field;
+    const val = inp.value.trim();
+    if (path === 'video_format') return;
+    if (path.startsWith('hls.')) {
+      const sport = path.slice('hls.'.length);
+      if (val) out.hls[sport] = val;
+    } else if (path.startsWith('srt.')) {
+      const rest = path.slice('srt.'.length);
+      const sep = rest.lastIndexOf('.');
+      if (sep < 0) return;
+      const sport = rest.slice(0, sep);
+      const slot  = rest.slice(sep + 1); // 'wsc' | 'sportradar'
+      if (!out.srt[sport]) out.srt[sport] = {};
+      out.srt[sport][slot] = val;
+    }
+  });
+  // Drop empty SRT pairs so they don't override the base.
+  for (const sp of Object.keys(out.srt)) {
+    const e = out.srt[sp];
+    if (!e.wsc && !e.sportradar) delete out.srt[sp];
+  }
+  card.querySelectorAll('.contact-row').forEach(row => {
+    const c = {};
+    row.querySelectorAll('[data-c]').forEach(inp => { c[inp.dataset.c] = inp.value.trim(); });
+    if (c.name || c.email || c.phone) out.contacts.push(c);
+  });
+  return out;
+}
+
+async function saveSchoolOverride(school) {
+  if (!_db) return showToast('Database not connected', 'err');
+  const data = readSchoolForm(school);
+  if (!data) return;
+  try {
+    const { error } = await _db.from('wsc_school_overrides').upsert({
+      school, data, updated_at: new Date().toISOString(),
+      updated_by: _currentUser?.email || null
+    }, { onConflict: 'school' });
+    if (error) throw error;
+    _overrides.set(school, data);
+    applyOverrides();
+    populateFilterDropdowns();
+    renderMaster(); renderManual(); renderSettings();
+    showToast(`Saved override for ${school}`, 'ok');
+  } catch (e) {
+    console.error('save override:', e);
+    showToast('Save failed: ' + (e.message || e), 'err');
+  }
+}
+
+async function resetSchoolOverride(school) {
+  if (!_db) return showToast('Database not connected', 'err');
+  if (!confirm(`Reset ${school} to the file defaults? Any custom HLS/SRT/contacts changes will be lost.`)) return;
+  try {
+    const { error } = await _db.from('wsc_school_overrides').delete().eq('school', school);
+    if (error) throw error;
+    _overrides.delete(school);
+    applyOverrides();
+    populateFilterDropdowns();
+    renderMaster(); renderManual(); renderSettings();
+    showToast(`${school} reset to defaults`, 'ok');
+  } catch (e) {
+    console.error('reset override:', e);
+    showToast('Reset failed: ' + (e.message || e), 'err');
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────────
@@ -664,16 +1009,49 @@ async function loadConfig() {
   try {
     const res = await fetch('wsc_data.json', { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    _config = await res.json();
-    _aliasMap = new Map();
-    for (const s of _config.schools) {
-      for (const a of s.aliases) _aliasMap.set(a.toLowerCase().trim(), s.canonical);
-      _aliasMap.set(s.canonical.toLowerCase().trim(), s.canonical);
-    }
+    _baseConfig = await res.json();
   } catch (e) {
     console.error('wsc_data.json load failed:', e);
     showToast('Failed to load WSC reference data', 'err');
-    _config = { schools: [], encoders: [] };
+    _baseConfig = { schools: [], encoders: [] };
+  }
+  applyOverrides(); // populate _config + alias map even before overrides load
+}
+
+async function loadOverrides() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('wsc_school_overrides').select('school, data');
+    if (error) throw error;
+    _overrides = new Map((data || []).map(r => [r.school, r.data || {}]));
+  } catch (e) {
+    console.warn('overrides load:', e?.message || e);
+    _overrides = new Map();
+  }
+  applyOverrides();
+}
+
+function applyOverrides() {
+  if (!_baseConfig) { _config = { schools: [], encoders: [] }; return; }
+  const merged = (_baseConfig.schools || []).map(s => {
+    const o = _overrides.get(s.canonical);
+    if (!o || Object.keys(o).length === 0) return s;
+    return Object.assign({}, s, {
+      video_format: o.video_format ?? s.video_format,
+      hls:      Object.assign({}, s.hls || {}, o.hls || {}),
+      srt:      Object.assign({}, s.srt || {}, o.srt || {}),
+      contacts: Array.isArray(o.contacts) ? o.contacts : s.contacts
+    });
+  });
+  _config = Object.assign({}, _baseConfig, { schools: merged });
+  rebuildAliasMap();
+}
+
+function rebuildAliasMap() {
+  _aliasMap = new Map();
+  for (const s of (_config?.schools || [])) {
+    for (const a of (s.aliases || [])) _aliasMap.set(a.toLowerCase().trim(), s.canonical);
+    _aliasMap.set(s.canonical.toLowerCase().trim(), s.canonical);
   }
 }
 
@@ -854,9 +1232,10 @@ function wireTabs() {
       stopAllMv();
       destroyAllRowHls();
       // Re-render the entering tab so its previews remount.
-      if (tab === 'multi')  rebuildMv();
-      if (tab === 'master') renderMaster();
-      if (tab === 'manual') renderManual();
+      if (tab === 'multi')    rebuildMv();
+      if (tab === 'master')   renderMaster();
+      if (tab === 'manual')   renderManual();
+      if (tab === 'settings') renderSettings();
     });
   });
 }
@@ -1073,14 +1452,34 @@ function renderTable(scope) {
   tableEl.innerHTML = `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
 
   // Mount the inline HLS preview cells.
+  // Game-day rows auto-load their feed; off-day rows render a button that
+  // gives a timed manual preview when clicked.
   if (isMaster) {
-    // School-direct Wowza HLS auto-loads per host school + sport.
-    for (const ev of rows) attachSchoolHlsPreview(ev.id, ev);
+    for (const ev of rows) {
+      if (isToday(ev.event_date)) {
+        attachSchoolHlsPreview(ev.id, ev);
+      } else {
+        const cell = document.getElementById('enc-cell-' + cssId(ev.id));
+        if (cell) {
+          cell.innerHTML = `<div class="hls-preview-empty">${previewButtonHtml(ev.id, 'school')}<div class="hls-preview-hint">Game day: ${formatDate(ev.event_date)}</div></div>`;
+        }
+      }
+    }
   } else {
-    // Manual rows mount only when an encoder is selected.
     for (const ev of rows) {
       const st = getCaptureFor(ev.id);
-      if (st.encoder) attachEncoderPreview(ev.id, st.encoder);
+      const cell = document.getElementById('enc-cell-' + cssId(ev.id));
+      if (!cell) continue;
+      if (isToday(ev.event_date)) {
+        if (st.encoder) attachEncoderPreview(ev.id, st.encoder);
+        // else: leave the default "Pick an encoder →" placeholder.
+      } else {
+        if (st.encoder) {
+          cell.innerHTML = `<div class="hls-preview-empty">${previewButtonHtml(ev.id, 'encoder')}<div class="hls-preview-hint">Game day: ${formatDate(ev.event_date)}</div></div>`;
+        } else {
+          cell.innerHTML = `<div class="hls-preview-empty">Pick an encoder, then preview<div class="hls-preview-hint">Game day: ${formatDate(ev.event_date)}</div></div>`;
+        }
+      }
     }
   }
 }

@@ -473,6 +473,18 @@
   <div class="support-note">
     <span>Edit per-school HLS URLs, SRT endpoints (WSC + SportRadar), video format, and contacts. Saves merge on top of the static <code>wsc_data.json</code> shipped with the build, so a Reset reverts a single school back to the file defaults.</span>
   </div>
+
+  <div style="background:var(--wsc-panel);border:1px solid var(--wsc-line);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <div style="flex:1;min-width:240px">
+      <div style="font-size:13px;font-weight:700;color:var(--wsc-text);margin-bottom:4px">External Schedule Refresh</div>
+      <div style="font-size:11.5px;color:var(--wsc-mute);line-height:1.5">
+        Pulls per-school athletics-site schedules into <code>wsc_external_events</code> and merges them with the ESPN broadcast schedule on Master + Manual tabs. Currently scrapes <strong>Sam Houston</strong> (Soccer / Volleyball / Baseball / Softball). Per-school football and basketball scrapers are pending.
+      </div>
+      <div id="extRefreshStatus" style="font-size:11px;color:var(--wsc-mute);margin-top:6px;font-family:'SF Mono',monospace"></div>
+    </div>
+    <button class="btn-save" type="button" onclick="refreshExternalSchedules()" id="extRefreshBtn">🔄 Refresh External Schedules</button>
+  </div>
+
   <div id="settingsList" style="display:flex;flex-direction:column;gap:10px"></div>
 </section>
 
@@ -785,6 +797,7 @@ let _config = null;       // base + overrides merged
 let _overrides = new Map(); // canonical school → override data object
 let _aliasMap = new Map(); // lowercase alias → canonical
 let _events = [];         // schedule_events rows (deduped, master+manual scope)
+let _externalEvents = []; // wsc_external_events rows (school-site scrapes)
 let _testEvents = [];     // synthetic test events when test mode is active
 let _testCaptureLocal = new Map(); // schedule_event_id → { av_confirmed, encoder } (test-only, in-memory)
 let _captureStatus = new Map(); // schedule_event_id → wsc_capture_status row
@@ -824,7 +837,7 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadCaptureStatus(), loadOverrides()]);
+  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadOverrides()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
   applyAdminVisibility();
@@ -1000,6 +1013,36 @@ async function saveSchoolOverride(school) {
   }
 }
 
+async function refreshExternalSchedules() {
+  const btn = document.getElementById('extRefreshBtn');
+  const stEl = document.getElementById('extRefreshStatus');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing…'; }
+  if (stEl) { stEl.textContent = 'Calling /.netlify/functions/wsc-refresh-external …'; stEl.style.color = 'var(--wsc-mute)'; }
+  try {
+    const res = await fetch('/.netlify/functions/wsc-refresh-external', { method: 'POST' });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json?.errors?.[0]?.error || `HTTP ${res.status}`);
+    await loadExternalEvents();
+    populateFilterDropdowns();
+    renderMaster(); renderManual();
+    const summary = (json.sources || []).map(s => `${s.source}: ${s.upserted}`).join(' · ') || 'no rows';
+    const errs = (json.errors || []).length;
+    if (stEl) {
+      stEl.textContent = `✓ ${summary} · ${json.totalRows || 0} total · ${json.elapsed_ms || '?'} ms${errs ? ` · ${errs} error${errs === 1 ? '' : 's'} (see console)` : ''}`;
+      stEl.style.color = errs ? 'var(--warn)' : 'var(--ok)';
+    }
+    if (errs) console.warn('External refresh errors:', json.errors);
+    showToast(`Refreshed ${json.totalRows || 0} external events`, errs ? 'err' : 'ok');
+    logActivity('external-refresh', null, `${json.totalRows || 0} rows · ${errs} errors`);
+  } catch (e) {
+    console.error('refresh external:', e);
+    if (stEl) { stEl.textContent = '✗ ' + (e.message || e); stEl.style.color = 'var(--err)'; }
+    showToast('Refresh failed: ' + (e.message || e), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh External Schedules'; }
+  }
+}
+
 async function resetSchoolOverride(school) {
   if (!_db) return showToast('Database not connected', 'err');
   if (!confirm(`Reset ${school} to the file defaults? Any custom HLS/SRT/contacts changes will be lost.`)) return;
@@ -1077,8 +1120,29 @@ async function loadTestEvents() {
   }
 }
 
-/** All events for rendering: real Supabase events + test events (if test mode). */
-function allEvents() { return _testMode ? _events.concat(_testEvents) : _events; }
+/** All events for rendering. Out of test mode: schedule_events (ESPN
+ *  Broadcast Schedule submissions) merged with wsc_external_events
+ *  (school-site scrapes), de-duplicated on date+home+away+sport so a
+ *  game submitted to ESPN AND found on the school's site shows once. */
+function allEvents() {
+  if (_testMode) return _events.concat(_testEvents);
+  const seen = new Set();
+  const dedupKey = e => [e.event_date, normalize(e.home), normalize(e.away), e.sport].join('|');
+  const out = [];
+  for (const e of _events) {
+    const k = dedupKey(e);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(e);
+  }
+  for (const e of _externalEvents) {
+    const k = dedupKey(e);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(e);
+  }
+  return out;
+}
 function isTestId(id) { return typeof id === 'string' && id.startsWith('__test_'); }
 function getCaptureFor(id) {
   if (isTestId(id)) return _testCaptureLocal.get(id) || {};
@@ -1149,6 +1213,35 @@ async function loadEvents() {
   } catch (e) {
     console.error('schedule_events load:', e);
     showToast('Could not load schedule', 'err');
+  }
+}
+
+async function loadExternalEvents() {
+  if (!_db) return;
+  try {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const earliest = new Date(today); earliest.setDate(earliest.getDate() - 30);
+    const { data, error } = await _db.from('wsc_external_events')
+      .select('*')
+      .gte('event_date', earliest.toISOString().slice(0,10))
+      .order('event_date');
+    if (error) throw error;
+    // Shape each row to look like a schedule_events row so categorize() / hostSchoolFor() just work.
+    _externalEvents = (data || []).map(r => ({
+      id: 'ext_' + r.id, school: r.school, archived: false,
+      sport: r.sport, event_date: r.event_date, event_time: r.event_time || '',
+      duration: '', network: r.network || '',
+      away: r.away, home: r.home,
+      conference: r.conference || '', round_text: '',
+      production: '', ad_serve: '', site: '',
+      manned_cameras: null, lock_off_cameras: null,
+      graphics: '', replay: '', talent: '',
+      transmission: '', notes: r.notes || '',
+      _source: r.source, _refreshed_at: r.refreshed_at
+    }));
+  } catch (e) {
+    console.warn('wsc_external_events load:', e?.message || e);
+    _externalEvents = [];
   }
 }
 

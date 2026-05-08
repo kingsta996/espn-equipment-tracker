@@ -218,6 +218,23 @@
   }
   .splashtop-btn:hover { background: var(--wsc-green); color: #000; }
 
+  /* Remove / Restore button + dismissed-state styling */
+  .remove-btn {
+    background: transparent; color: var(--wsc-mute); border: 1px solid var(--wsc-line);
+    padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 800; cursor: pointer;
+    font-family: inherit; letter-spacing: 0.4px; margin-left: 6px; vertical-align: middle; white-space: nowrap;
+  }
+  .remove-btn:hover { color: var(--err); border-color: var(--err); }
+  .remove-btn.restored { color: var(--wsc-green); border-color: rgba(200,255,0,0.4); }
+  .remove-btn.restored:hover { background: var(--wsc-green); color: #000; }
+  .dismissed-chip {
+    display: inline-block; margin-left: 6px; vertical-align: middle; padding: 2px 6px;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.5px; border-radius: 3px;
+    background: rgba(242,95,92,0.15); color: var(--err);
+  }
+  tr.row-dismissed td { opacity: 0.5; }
+  tr.row-dismissed:hover td { opacity: 0.85; }
+
   /* Tata Support Contact column */
   .col-tata { color: var(--wsc-mute); font-size: 11px; }
   .col-tata strong { display: block; color: var(--wsc-text); font-weight: 700; font-size: 11.5px; }
@@ -462,6 +479,7 @@
     <select id="manualSchool"><option value="">All Schools</option></select>
     <input id="manualFrom" type="date" title="From">
     <input id="manualTo"   type="date" title="To">
+    <button class="toggle" id="manualShowDismissed" type="button" onclick="toggleShowDismissed()">Show Dismissed</button>
     <span class="grow"></span>
     <button class="toggle" type="button" onclick="exportManual()">⇣ CSV</button>
   </div>
@@ -764,6 +782,59 @@ function setEncoderAndPreview(id, encoder) {
   }
 }
 
+function toggleShowDismissed() {
+  _showDismissed = !_showDismissed;
+  document.getElementById('manualShowDismissed').classList.toggle('active', _showDismissed);
+  renderManual();
+}
+
+async function dismissEvent(eventId) {
+  const ev = allEvents().find(e => e.id === eventId);
+  const label = ev ? `${ev.away} @ ${ev.home} on ${formatDate(ev.event_date)}` : eventId;
+  if (!confirm(`Remove this event from your capture queue?\n\n${label}\n\nThis won't delete the schedule entry — you can restore it from the "Show Dismissed" view.`)) return;
+  const row = {
+    event_id:    eventId,
+    dismissed_by: _currentUser?.email || 'unknown',
+    dismissed_at: new Date().toISOString(),
+    reason:      null
+  };
+  // Optimistic local update so the row disappears immediately.
+  _dismissals.set(eventId, row);
+  renderManual();
+  try {
+    if (_db) {
+      const { error } = await _db.from('wsc_event_dismissals').upsert(row, { onConflict: 'event_id' });
+      if (error) throw error;
+    }
+    showToast('Event removed from capture queue', 'ok');
+    logActivity('event-remove', 'event:' + eventId, label);
+  } catch (e) {
+    console.error('dismiss event:', e);
+    _dismissals.delete(eventId);
+    renderManual();
+    showToast('Remove failed: ' + (e.message || e), 'err');
+  }
+}
+
+async function restoreEvent(eventId) {
+  const prev = _dismissals.get(eventId);
+  _dismissals.delete(eventId);
+  renderManual();
+  try {
+    if (_db) {
+      const { error } = await _db.from('wsc_event_dismissals').delete().eq('event_id', eventId);
+      if (error) throw error;
+    }
+    showToast('Event restored', 'ok');
+    logActivity('event-restore', 'event:' + eventId, null);
+  } catch (e) {
+    console.error('restore event:', e);
+    if (prev) _dismissals.set(eventId, prev);
+    renderManual();
+    showToast('Restore failed: ' + (e.message || e), 'err');
+  }
+}
+
 function copyEncoderUrlForEvent(eventId) {
   const st = getCaptureFor(eventId);
   if (!st.encoder) { showToast('Pick an encoder first', 'err'); return; }
@@ -801,6 +872,8 @@ let _externalEvents = []; // wsc_external_events rows (school-site scrapes)
 let _testEvents = [];     // synthetic test events when test mode is active
 let _testCaptureLocal = new Map(); // schedule_event_id → { av_confirmed, encoder } (test-only, in-memory)
 let _captureStatus = new Map(); // schedule_event_id → wsc_capture_status row
+let _dismissals = new Map();    // event_id → { dismissed_by, dismissed_at, reason }
+let _showDismissed = false;     // Manual Capture toolbar toggle
 let _currentUser = null;
 let _adminUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true';
 let _testMode = localStorage.getItem(TEST_MODE_KEY) === '1';
@@ -837,7 +910,7 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadOverrides()]);
+  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
   applyAdminVisibility();
@@ -1257,6 +1330,18 @@ async function loadCaptureStatus() {
   }
 }
 
+async function loadDismissals() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('wsc_event_dismissals').select('*');
+    if (error) throw error;
+    _dismissals = new Map((data || []).map(r => [r.event_id, r]));
+  } catch (e) {
+    console.warn('wsc_event_dismissals load:', e?.message || e);
+    _dismissals = new Map();
+  }
+}
+
 function dedupeEvents(rows) {
   // Each game can be submitted by both schools — collapse on date+home+away+sport.
   const map = new Map();
@@ -1538,6 +1623,10 @@ function renderTable(scope) {
   if (userRole() === 'school' && _currentUser?.school) {
     all = all.filter(e => e._host === _currentUser.school);
   }
+  // Manual Capture: hide dismissed events unless the toggle is on.
+  if (!isMaster && !_showDismissed) {
+    all = all.filter(e => !_dismissals.has(e.id));
+  }
 
   // stats
   const today = new Date(); today.setHours(0,0,0,0);
@@ -1645,27 +1734,37 @@ function renderTable(scope) {
     }
 
     // Manual Capture row
-    const isShsu = ev._host === 'Sam Houston' || canonicalOf(ev.school) === 'Sam Houston';
-    const splashtopBtn = isShsu
+    const isShsuRow = ev._host === 'Sam Houston' || canonicalOf(ev.school) === 'Sam Houston';
+    const isShsuUser = userRole() === 'school' && _currentUser?.school === 'Sam Houston';
+    const dismissed  = _dismissals.has(ev.id);
+    const splashtopBtn = isShsuRow
       ? `<button class="splashtop-btn" onclick="openSplashtop('${ev.id}')" title="Remote into the office capture computer">🖥 Splashtop</button>`
       : '';
     const encOptsRow = (_config?.encoders || []).map(e =>
       `<option value="${e.id}" ${status.encoder === e.id ? 'selected' : ''}>${e.id}</option>`
     ).join('');
-    // Sam Houston (school role) gets a Copy URL button under the dropdown
-    // so they can pull the encoder's HLS link into VLC / OBS.
-    const showCopyForShsu = userRole() === 'school' && _currentUser?.school === 'Sam Houston';
-    const copyBtnHtml = showCopyForShsu
+    const copyBtnHtml = isShsuUser
       ? `<button class="copy-encoder-url" id="copy-enc-${cssId(ev.id)}" type="button"
                   style="display:${status.encoder ? '' : 'none'}"
                   onclick="copyEncoderUrlForEvent('${ev.id}')">📋 Copy URL</button>`
       : '';
+    // Remove button: shown to SHSU users on their own rows. Admins get a
+    // restore button on already-dismissed rows so they can undo if needed.
+    let removeBtn = '';
+    if (dismissed) {
+      removeBtn = `<button class="remove-btn restored" type="button" onclick="restoreEvent('${ev.id}')" title="Re-add to capture queue">↺ Restore</button>`;
+    } else if (isShsuUser && isShsuRow) {
+      removeBtn = `<button class="remove-btn" type="button" onclick="dismissEvent('${ev.id}')" title="Remove from capture queue (no admin approval needed)">✕ Remove</button>`;
+    }
+    const dismissedChip = dismissed
+      ? `<span class="dismissed-chip" title="${escapeAttr((_dismissals.get(ev.id)?.dismissed_by || 'unknown') + ' · ' + (_dismissals.get(ev.id)?.dismissed_at || ''))}">DISMISSED</span>`
+      : '';
     return `
-      <tr>
+      <tr class="${dismissed ? 'row-dismissed' : ''}">
         ${baseLeftCells}
-        <td class="col-host">${escapeHtml(ev._host || '—')}${splashtopBtn}</td>
+        <td class="col-host">${escapeHtml(ev._host || '—')}${splashtopBtn}${dismissedChip}${removeBtn}</td>
         <td class="encoder-cell">
-          <select class="${status.encoder ? 'set' : ''}" onchange="setEncoderAndPreview('${ev.id}', this.value)">
+          <select class="${status.encoder ? 'set' : ''}" onchange="setEncoderAndPreview('${ev.id}', this.value)" ${dismissed ? 'disabled' : ''}>
             <option value="">— Select —</option>
             ${encOptsRow}
           </select>
@@ -1813,6 +1912,10 @@ function setupRealtime() {
      .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_capture_status' }, async () => {
        await loadCaptureStatus();
        renderMaster(); renderManual();
+     })
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_event_dismissals' }, async () => {
+       await loadDismissals();
+       renderManual();
      })
      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_events' }, async () => {
        await loadEvents();

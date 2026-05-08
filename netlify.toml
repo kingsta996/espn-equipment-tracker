@@ -39,3 +39,12 @@
   to = "https://wowzaprodeus2.blob.core.windows.net/:splat"
   status = 200
   force = true
+
+# WSC ingest encoder HLS (CUSA1–10/15). Server is HTTP-only on port 1935,
+# so it would be blocked as mixed content from an HTTPS Netlify page.
+# Rewrite makes it same-origin HTTPS at /wsc-encoder/<encoderId>/manifest.m3u8.
+[[redirects]]
+  from = "/wsc-encoder/*"
+  to = "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/:splat"
+  status = 200
+  force = true

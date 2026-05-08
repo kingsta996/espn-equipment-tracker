@@ -176,6 +176,37 @@
   .encoder-cell select:focus { border-color: var(--wsc-green); outline: 0; }
   .encoder-cell select.set { border-color: var(--wsc-green); color: var(--wsc-green); }
 
+  /* Inline HLS preview cell (Manual Capture) */
+  .hls-preview-empty { font-size: 11px; color: var(--wsc-mute); padding: 16px; border: 1px dashed var(--wsc-line); border-radius: 6px; text-align: center; min-width: 240px; }
+  .hls-preview-empty.err { color: var(--warn); border-color: var(--warn); }
+  .hls-preview-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .hls-preview-wrap video { width: 240px; aspect-ratio: 16/9; background: #000; border-radius: 6px; border: 1px solid var(--wsc-line); }
+  .hls-preview-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--wsc-mute); font-family: 'SF Mono', 'Menlo', monospace; }
+  .hls-preview-id { color: var(--wsc-green); font-weight: 700; }
+
+  /* Splashtop remote button (Manual Capture, SHSU rows) */
+  .splashtop-btn {
+    background: rgba(200,255,0,0.12); color: var(--wsc-green); border: 1px solid rgba(200,255,0,0.4);
+    padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 800; cursor: pointer;
+    font-family: inherit; letter-spacing: 0.4px; margin-left: 6px; vertical-align: middle; white-space: nowrap;
+  }
+  .splashtop-btn:hover { background: var(--wsc-green); color: #000; }
+
+  /* Tata Support Contact column */
+  .col-tata { color: var(--wsc-mute); font-size: 11px; }
+  .col-tata strong { display: block; color: var(--wsc-text); font-weight: 700; font-size: 11.5px; }
+  .col-tata a { color: var(--wsc-green); }
+  .col-tata small { display: block; color: var(--wsc-mute); font-size: 9.5px; letter-spacing: 0.3px; text-transform: uppercase; margin-top: 2px; }
+
+  /* Manual Capture support-note banner */
+  .support-note {
+    background: rgba(0,181,226,0.08); border: 1px solid rgba(0,181,226,0.3); border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: var(--wsc-text); display: flex;
+    align-items: center; gap: 10px;
+  }
+  .support-note::before { content: 'ⓘ'; font-size: 14px; color: var(--wsc-blue, #00B5E2); font-weight: 800; }
+  .support-note a { color: var(--wsc-green); font-weight: 700; }
+
   /* Multiviewer */
   .mv-grid {
     display: grid; gap: 12px;
@@ -332,9 +363,11 @@
 
 <!-- Manual Capture -->
 <section class="tab-content" id="tab-manual">
+  <div class="support-note">
+    <span>Manual capture support is provided by the conference office — for issues, contact <a href="mailto:kking@conferenceusa.com">kking@conferenceusa.com</a>. Sam Houston rows include a <strong>🖥 Splashtop</strong> button for remote access into the office capture computer.</span>
+  </div>
   <div class="stats-strip">
     <div class="stat"><div class="num" id="manualCount">—</div><div class="lbl">Manual Events</div></div>
-    <div class="stat"><div class="num" id="manualConfirmed">—</div><div class="lbl">A/V Confirmed</div></div>
     <div class="stat"><div class="num" id="manualUpcoming">—</div><div class="lbl">Upcoming 7 days</div></div>
   </div>
   <div class="toolbar">
@@ -344,7 +377,6 @@
     <select id="manualSchool"><option value="">All Schools</option></select>
     <input id="manualFrom" type="date" title="From">
     <input id="manualTo"   type="date" title="To">
-    <button class="toggle" id="manualUnconf" type="button">Hide Confirmed</button>
     <span class="grow"></span>
     <button class="toggle" type="button" onclick="exportManual()">⇣ CSV</button>
   </div>
@@ -399,7 +431,70 @@ const MV_REFRESH_MS = 15000;              // re-poll discovery every 15s
 
 function proxyBlobUrl(u) {
   if (!u) return u;
-  return u.replace(/^https?:\/\/wowzaprodeus2\.blob\.core\.windows\.net/i, WSC_BLOB);
+  return u
+    .replace(/^https?:\/\/wowzaprodeus2\.blob\.core\.windows\.net/i, WSC_BLOB)
+    .replace(/^https?:\/\/wsc-rtmp-sus\.southcentralus\.cloudapp\.azure\.com:1935\/CUSA/i, '/wsc-encoder');
+}
+
+const SPLASHTOP_URL = 'https://my.splashtop.com/w/web_client/75806762';
+function openSplashtop() {
+  // Splashtop sends X-Frame-Options: SAMEORIGIN, so we open a sized popup
+  // instead of embedding in an iframe.
+  window.open(SPLASHTOP_URL, 'splashtop_remote', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+}
+
+const _rowHlsInstances = new Map(); // schedule_event_id → Hls instance for the inline encoder preview
+
+function attachEncoderPreview(eventId, encoderId) {
+  // Tear down any previous preview for this row.
+  const prev = _rowHlsInstances.get(eventId);
+  if (prev) { try { prev.destroy(); } catch {} }
+  _rowHlsInstances.delete(eventId);
+
+  const cell = document.getElementById('enc-cell-' + cssId(eventId));
+  if (!cell) return;
+  if (!encoderId) {
+    cell.innerHTML = '<div class="hls-preview-empty">Pick an encoder →</div>';
+    return;
+  }
+  const enc = (_config?.encoders || []).find(e => e.id === encoderId);
+  if (!enc || !enc.hls) {
+    cell.innerHTML = `<div class="hls-preview-empty err">No HLS for ${escapeHtml(encoderId)}</div>`;
+    return;
+  }
+  const proxiedUrl = proxyBlobUrl(enc.hls);
+  cell.innerHTML = `
+    <div class="hls-preview-wrap">
+      <video id="enchls-${cssId(eventId)}" muted playsinline controls></video>
+      <div class="hls-preview-meta"><span class="hls-preview-id">${escapeHtml(encoderId)}</span><span class="hls-preview-status" id="enchls-st-${cssId(eventId)}">connecting…</span></div>
+    </div>`;
+  const video = document.getElementById('enchls-' + cssId(eventId));
+  const stEl  = document.getElementById('enchls-st-' + cssId(eventId));
+  if (window.Hls && Hls.isSupported()) {
+    const ProxiedLoader = makeProxiedLoader(Hls.DefaultConfig.loader);
+    const hls = new Hls({ loader: ProxiedLoader, lowLatencyMode: false, manifestLoadingTimeOut: 8000 });
+    _rowHlsInstances.set(eventId, hls);
+    hls.loadSource(proxiedUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); if (stEl) stEl.textContent = '● live'; if (stEl) stEl.style.color = '#34d058'; });
+    hls.on(Hls.Events.ERROR, (_, data) => {
+      if (data.fatal && stEl) { stEl.textContent = 'offline'; stEl.style.color = '#f9c74f'; }
+    });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = proxiedUrl;
+    video.addEventListener('loadedmetadata', () => { video.play().catch(()=>{}); if (stEl) stEl.textContent = '● live'; });
+    video.addEventListener('error', () => { if (stEl) stEl.textContent = 'offline'; });
+  } else {
+    if (stEl) stEl.textContent = 'unsupported';
+  }
+}
+function destroyAllRowHls() {
+  for (const [, hls] of _rowHlsInstances) { try { hls.destroy(); } catch {} }
+  _rowHlsInstances.clear();
+}
+function setEncoderAndPreview(id, encoder) {
+  setEncoder(id, encoder);
+  attachEncoderPreview(id, encoder);
 }
 
 // Encoder slot suffix detection — schools' WSC streams are named
@@ -717,6 +812,7 @@ function signOut() {
   localStorage.removeItem(UNLOCK_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
   stopAllMv();
+  destroyAllRowHls();
   window.location.href = 'hub.html';
 }
 
@@ -729,10 +825,13 @@ function wireTabs() {
       document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
-      const id = 'tab-' + btn.dataset.tab;
-      document.getElementById(id).classList.add('active');
-      if (btn.dataset.tab === 'multi') rebuildMv();
-      else stopAllMv();
+      const tab = btn.dataset.tab;
+      document.getElementById('tab-' + tab).classList.add('active');
+      // Tear down players from tabs we're leaving so they don't keep streaming.
+      if (tab !== 'multi')  stopAllMv();
+      if (tab !== 'manual') destroyAllRowHls();
+      if (tab === 'multi')  rebuildMv();
+      if (tab === 'manual') renderManual(); // re-attach previews for selected encoders
     });
   });
 }
@@ -749,11 +848,13 @@ function bindFilterControls() {
     document.getElementById(scope + 'From').addEventListener('change',   e => { f.from   = e.target.value; renderTable(scope); });
     document.getElementById(scope + 'To').addEventListener('change',     e => { f.to     = e.target.value; renderTable(scope); });
     const conf = document.getElementById(scope + 'Unconf');
-    conf.addEventListener('click', () => {
-      f.hideConf = !f.hideConf;
-      conf.classList.toggle('active', f.hideConf);
-      renderTable(scope);
-    });
+    if (conf) {
+      conf.addEventListener('click', () => {
+        f.hideConf = !f.hideConf;
+        conf.classList.toggle('active', f.hideConf);
+        renderTable(scope);
+      });
+    }
   });
 }
 
@@ -806,10 +907,16 @@ function renderManual() { renderTable('manual'); }
 
 function renderTable(scope) {
   const tableEl = document.getElementById(scope + 'Table');
+  const isMaster = scope === 'master';
+
+  // Tear down inline encoder previews from a previous render of this scope.
+  if (!isMaster) destroyAllRowHls();
+
   const all = allEvents()
     .map(e => Object.assign({ _cat: categorize(e) }, e))
     .filter(e => e._cat === scope)
     .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
+
   // stats
   const today = new Date(); today.setHours(0,0,0,0);
   const weekOut = new Date(today); weekOut.setDate(weekOut.getDate() + 7);
@@ -817,10 +924,13 @@ function renderTable(scope) {
     const t = e.event_date ? new Date(e.event_date) : null;
     return t && t >= today && t <= weekOut;
   }).length;
-  const confirmed = all.filter(e => getCaptureFor(e.id)?.av_confirmed).length;
-  document.getElementById(scope + 'Count').textContent      = all.length;
-  document.getElementById(scope + 'Confirmed').textContent  = confirmed;
-  document.getElementById(scope + 'Upcoming').textContent   = upcoming;
+  document.getElementById(scope + 'Count').textContent    = all.length;
+  document.getElementById(scope + 'Upcoming').textContent = upcoming;
+  if (isMaster) {
+    const confirmed = all.filter(e => getCaptureFor(e.id)?.av_confirmed).length;
+    const cEl = document.getElementById('masterConfirmed');
+    if (cEl) cEl.textContent = confirmed;
+  }
 
   const rows = applyFilters(all, scope);
   if (rows.length === 0) {
@@ -828,8 +938,7 @@ function renderTable(scope) {
     return;
   }
 
-  const isMaster = scope === 'master';
-  const head = `
+  const head = isMaster ? `
     <thead><tr>
       <th>Date</th>
       <th>Sport</th>
@@ -838,75 +947,115 @@ function renderTable(scope) {
       <th>Host School</th>
       <th>School Contact</th>
       <th>A/V Confirmed</th>
-      ${isMaster ? '<th>SRT (WSC · SportRadar)</th>' : ''}
+      <th>SRT (WSC · SportRadar)</th>
+      <th>Tata Support Contact</th>
+    </tr></thead>` : `
+    <thead><tr>
+      <th>Date</th>
+      <th>Sport</th>
+      <th>Matchup</th>
+      <th class="col-network">Network</th>
+      <th>Host School</th>
       <th>Encoder</th>
+      <th>HLS Preview</th>
     </tr></thead>`;
+
+  const encOpts = (_config?.encoders || []).map(e => `<option value="${e.id}">${e.id}</option>`).join('');
 
   const body = rows.map(ev => {
     const status = getCaptureFor(ev.id);
     const school = schoolByName(ev._host);
-    const contacts = (school?.contacts || []);
-    const srt = school?.srt?.[ev.sport] || school?.srt?.[primarySportKey(ev.sport)];
-    const confirmed = !!status.av_confirmed;
-    const stamp = status.confirmed_at
-      ? new Date(status.confirmed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-        (status.confirmed_by ? ' · ' + status.confirmed_by.split('@')[0] : '')
-      : '';
     const testChip = ev._isTest
       ? '<span style="font-size:9px;background:rgba(200,255,0,0.2);color:#C8FF00;padding:1px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:6px;font-weight:800;vertical-align:middle">TEST</span>'
       : '';
     const matchup = `${escapeHtml(ev.away || '?')} @ ${escapeHtml(ev.home || '?')}${testChip}`;
     const sub = [ev.event_time, ev.conference].filter(Boolean).map(escapeHtml).join(' · ');
+    const sportCell = `<td class="col-sport"><span>${escapeHtml(shortSport(ev.sport))}</span></td>`;
+    const baseLeftCells = `
+        <td class="col-date">${formatDate(ev.event_date)}</td>
+        ${sportCell}
+        <td class="col-matchup">${matchup}${sub ? `<span class="sub">${sub}</span>` : ''}</td>
+        <td class="col-network">${escapeHtml(ev.network || '')}</td>`;
 
-    const contactHtml = contacts.length ? `
-      <span class="name">${escapeHtml(contacts[0].name)}${contacts[0].role ? ' <small style="color:var(--wsc-green);font-weight:600">· '+escapeHtml(contacts[0].role)+'</small>' : ''}</span>
-      <span class="meta">
-        ${contacts[0].email ? `<a href="mailto:${escapeHtml(contacts[0].email)}">${escapeHtml(contacts[0].email)}</a>` : ''}
-        ${contacts[0].phone ? `<a href="tel:${escapeHtml(contacts[0].phone)}">${escapeHtml(contacts[0].phone)}</a>` : ''}
-      </span>` : `<span class="meta" style="color:var(--wsc-mute)">—</span>`;
-
-    const srtHtml = isMaster ? `<td>
-      <div class="srt-cell">
-        <div class="srt-row">
-          <span class="label wsc">WSC</span>
-          ${srt?.wsc ? `<span class="url" onclick="copyToClipboard('${escapeAttr(srt.wsc)}')">${escapeHtml(srt.wsc)}</span><button class="copy" onclick="copyToClipboard('${escapeAttr(srt.wsc)}')">Copy</button>` : '<span class="url" style="color:var(--wsc-mute)">—</span>'}
+    if (isMaster) {
+      const contacts = (school?.contacts || []);
+      const srt = school?.srt?.[ev.sport] || school?.srt?.[primarySportKey(ev.sport)];
+      const confirmed = !!status.av_confirmed;
+      const stamp = status.confirmed_at
+        ? new Date(status.confirmed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+          (status.confirmed_by ? ' · ' + status.confirmed_by.split('@')[0] : '')
+        : '';
+      const contactHtml = contacts.length ? `
+        <span class="name">${escapeHtml(contacts[0].name)}${contacts[0].role ? ' <small style="color:var(--wsc-green);font-weight:600">· '+escapeHtml(contacts[0].role)+'</small>' : ''}</span>
+        <span class="meta">
+          ${contacts[0].email ? `<a href="mailto:${escapeHtml(contacts[0].email)}">${escapeHtml(contacts[0].email)}</a>` : ''}
+          ${contacts[0].phone ? `<a href="tel:${escapeHtml(contacts[0].phone)}">${escapeHtml(contacts[0].phone)}</a>` : ''}
+        </span>` : `<span class="meta" style="color:var(--wsc-mute)">—</span>`;
+      const srtHtml = `<td>
+        <div class="srt-cell">
+          <div class="srt-row">
+            <span class="label wsc">WSC</span>
+            ${srt?.wsc ? `<span class="url" onclick="copyToClipboard('${escapeAttr(srt.wsc)}')">${escapeHtml(srt.wsc)}</span><button class="copy" onclick="copyToClipboard('${escapeAttr(srt.wsc)}')">Copy</button>` : '<span class="url" style="color:var(--wsc-mute)">—</span>'}
+          </div>
+          <div class="srt-row">
+            <span class="label">SR</span>
+            ${srt?.sportradar ? `<span class="url" onclick="copyToClipboard('${escapeAttr(srt.sportradar)}')">${escapeHtml(srt.sportradar)}</span><button class="copy" onclick="copyToClipboard('${escapeAttr(srt.sportradar)}')">Copy</button>` : '<span class="url" style="color:var(--wsc-mute)">—</span>'}
+          </div>
         </div>
-        <div class="srt-row">
-          <span class="label">SR</span>
-          ${srt?.sportradar ? `<span class="url" onclick="copyToClipboard('${escapeAttr(srt.sportradar)}')">${escapeHtml(srt.sportradar)}</span><button class="copy" onclick="copyToClipboard('${escapeAttr(srt.sportradar)}')">Copy</button>` : '<span class="url" style="color:var(--wsc-mute)">—</span>'}
-        </div>
-      </div>
-    </td>` : '';
+      </td>`;
+      return `
+        <tr class="${confirmed ? 'confirmed' : ''}">
+          ${baseLeftCells}
+          <td class="col-host">${escapeHtml(ev._host || '—')}</td>
+          <td class="col-contact">${contactHtml}</td>
+          <td>
+            <button class="av-toggle ${confirmed ? 'confirmed' : ''}" onclick="toggleAvConfirmed('${ev.id}')">
+              ${confirmed ? '✓ Confirmed' : 'Mark A/V'}
+              ${stamp ? `<span class="stamp">${escapeHtml(stamp)}</span>` : ''}
+            </button>
+          </td>
+          ${srtHtml}
+          <td class="col-tata">
+            <strong>Tata MES NOC</strong>
+            <a href="mailto:mes-noc@tatacommunications.com">mes-noc@tatacommunications.com</a>
+            <small>24/7 transmission ops</small>
+          </td>
+        </tr>`;
+    }
 
-    const encOpts = (_config?.encoders || []).map(e =>
+    // Manual Capture row
+    const isShsu = ev._host === 'Sam Houston' || canonicalOf(ev.school) === 'Sam Houston';
+    const splashtopBtn = isShsu
+      ? `<button class="splashtop-btn" onclick="openSplashtop()" title="Remote into the office capture computer">🖥 Splashtop</button>`
+      : '';
+    const encOptsRow = (_config?.encoders || []).map(e =>
       `<option value="${e.id}" ${status.encoder === e.id ? 'selected' : ''}>${e.id}</option>`
     ).join('');
-
     return `
-      <tr class="${confirmed ? 'confirmed' : ''}">
-        <td class="col-date">${formatDate(ev.event_date)}</td>
-        <td class="col-sport"><span>${escapeHtml(shortSport(ev.sport))}</span></td>
-        <td class="col-matchup">${matchup}${sub ? `<span class="sub">${sub}</span>` : ''}</td>
-        <td class="col-network">${escapeHtml(ev.network || '')}</td>
-        <td class="col-host">${escapeHtml(ev._host || '—')}</td>
-        <td class="col-contact">${contactHtml}</td>
-        <td>
-          <button class="av-toggle ${confirmed ? 'confirmed' : ''}" onclick="toggleAvConfirmed('${ev.id}')">
-            ${confirmed ? '✓ Confirmed' : 'Mark A/V'}
-            ${stamp ? `<span class="stamp">${escapeHtml(stamp)}</span>` : ''}
-          </button>
-        </td>
-        ${srtHtml}
+      <tr>
+        ${baseLeftCells}
+        <td class="col-host">${escapeHtml(ev._host || '—')}${splashtopBtn}</td>
         <td class="encoder-cell">
-          <select class="${status.encoder ? 'set' : ''}" onchange="setEncoder('${ev.id}', this.value)">
+          <select class="${status.encoder ? 'set' : ''}" onchange="setEncoderAndPreview('${ev.id}', this.value)">
             <option value="">— Select —</option>
-            ${encOpts}
+            ${encOptsRow}
           </select>
+        </td>
+        <td class="col-hls-preview" id="enc-cell-${cssId(ev.id)}">
+          <div class="hls-preview-empty">Pick an encoder →</div>
         </td>
       </tr>`;
   }).join('');
 
   tableEl.innerHTML = `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
+
+  // Re-attach inline previews for any rows that already have an encoder selected.
+  if (!isMaster) {
+    for (const ev of rows) {
+      const st = getCaptureFor(ev.id);
+      if (st.encoder) attachEncoderPreview(ev.id, st.encoder);
+    }
+  }
 }
 
 function primarySportKey(sport) {

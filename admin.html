@@ -343,8 +343,25 @@
        onerror="this.style.display='none'">
   <h1>ESPN+ Viewership — Admin Portal <span id="liveBadge" class="live-badge" style="display:none">Live</span></h1>
   <span id="currentUser" style="color:rgba(255,255,255,0.8);font-size:11px;font-weight:600"></span>
+  <button id="changePwBtn" onclick="openChangePwModal()" style="background:rgba(255,255,255,0.10);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">🔑 Change Password</button>
   <button id="lockBtn" onclick="lockViewer()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">🔒 Sign Out</button>
   <a href="viewership.html">← Public View</a>
+</div>
+
+<!-- Change-password modal -->
+<div id="changePwOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:99999;font-family:Segoe UI,Helvetica Neue,sans-serif">
+  <div style="background:#fff;width:360px;padding:26px;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.3)">
+    <h2 style="margin:0 0 4px;font-size:17px;color:#00263A">Change Password</h2>
+    <div style="font-size:12px;color:#666;margin-bottom:14px">Updates your <strong id="cpwEmail"></strong> entry. Your existing password is required.</div>
+    <input id="cpwCur" type="password" placeholder="Current password" autocomplete="current-password" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font-size:13px;margin-bottom:6px;font-family:inherit"/>
+    <input id="cpwNew" type="password" placeholder="New password (min 8 chars)" autocomplete="new-password" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font-size:13px;margin-bottom:6px;font-family:inherit"/>
+    <input id="cpwConfirm" type="password" placeholder="Confirm new password" autocomplete="new-password" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font-size:13px;margin-bottom:8px;font-family:inherit"/>
+    <div id="cpwErr" style="display:none;color:#c00;font-size:12px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeChangePwModal()" style="flex:1;padding:10px;background:#fff;color:#444;border:1px solid #ccc;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="submitChangePw()" id="cpwSubmit" style="flex:1;padding:10px;background:#00263A;color:#fff;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Update</button>
+    </div>
+  </div>
 </div>
 
 <!-- Password modal — full-page gate -->
@@ -615,6 +632,86 @@
     localStorage.removeItem(VW_UNLOCK_KEY);
     localStorage.removeItem(CURRENT_USER_KEY);
     window.location.href = 'viewership.html';
+  }
+
+  // ── Self-service password change ─────────────────────────────────────────
+  // Updates the signed-in user's row in admin_users. Requires the current
+  // password to authenticate before the swap. Also updates the matching row
+  // in creative_hub_users (if it exists) so the Creative Hub login uses the
+  // new password too — keeps Keith's two systems in sync without a manual
+  // SQL run after each rotation.
+  function openChangePwModal() {
+    if (!_currentUser || !_currentUser.email) {
+      alert('Sign in first.');
+      return;
+    }
+    document.getElementById('cpwEmail').textContent = _currentUser.email;
+    document.getElementById('cpwCur').value      = '';
+    document.getElementById('cpwNew').value      = '';
+    document.getElementById('cpwConfirm').value  = '';
+    document.getElementById('cpwErr').style.display = 'none';
+    document.getElementById('changePwOverlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('cpwCur').focus(), 80);
+  }
+  function closeChangePwModal() {
+    document.getElementById('changePwOverlay').style.display = 'none';
+  }
+  async function submitChangePw() {
+    const errEl = document.getElementById('cpwErr');
+    const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+    errEl.style.display = 'none';
+    const cur     = document.getElementById('cpwCur').value;
+    const next    = document.getElementById('cpwNew').value;
+    const confirmPw = document.getElementById('cpwConfirm').value;
+    if (!cur || !next || !confirmPw)         { showErr('Fill in all three fields.'); return; }
+    if (next.length < 8)                     { showErr('New password must be at least 8 characters.'); return; }
+    if (next !== confirmPw)                  { showErr('New password and confirmation do not match.'); return; }
+    if (cur === next)                        { showErr('New password is the same as the current one.'); return; }
+    if (!_db)                                { showErr('Database not connected.'); return; }
+    if (!_currentUser || !_currentUser.email){ showErr('Not signed in.'); return; }
+
+    const btn = document.getElementById('cpwSubmit');
+    btn.disabled = true; btn.textContent = 'Updating…';
+    try {
+      const curHash  = await hashPw(cur);
+      const nextHash = await hashPw(next);
+
+      // Verify current password against admin_users.
+      const { data: row, error: e1 } = await _db.from('admin_users')
+        .select('email, pw_hash, is_active').eq('email', _currentUser.email).maybeSingle();
+      if (e1) throw e1;
+      // Legacy fallback — same logic as login: any email + the legacy hash
+      // is also valid (covers seeded rows that don't match the live email).
+      const isLegacyOk = (curHash === VW_PW_HASH);
+      if (!row || !row.is_active || (row.pw_hash !== curHash && !isLegacyOk)) {
+        showErr('Current password is incorrect.');
+        btn.disabled = false; btn.textContent = 'Update';
+        return;
+      }
+
+      // Update admin_users (upsert so legacy-only sessions still get a row).
+      const { error: e2 } = await _db.from('admin_users').upsert({
+        email: _currentUser.email,
+        pw_hash: nextHash,
+        display_name: (row && row.display_name) || _currentUser.display_name || _currentUser.email,
+        is_active: true,
+      }, { onConflict: 'email' });
+      if (e2) throw e2;
+
+      // Best-effort: update creative_hub_users if a matching row exists, so
+      // the Creative Hub login uses the new password too. Silent-fail.
+      try {
+        await _db.from('creative_hub_users').update({ pw_hash: nextHash })
+          .eq('email', _currentUser.email);
+      } catch (_) {}
+
+      logActivity('password-change', null, 'Changed own password', 'auth');
+      closeChangePwModal();
+      alert('Password updated. Use the new password next time you sign in.');
+    } catch (e) {
+      showErr('Update failed: ' + (e.message || e));
+      btn.disabled = false; btn.textContent = 'Update';
+    }
   }
   function loadCurrentUser() {
     try { _currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); }
@@ -3033,16 +3130,33 @@
   }
 
   // ── Creative Hub state override ──────────────────────────────────────────
-  // Reads/edits creative_hub_state rows for cusa-creative-hub editor pages.
-  // Keith uses this to fix a user's broken state, push his version of a page
-  // to another editor, or wipe a row so the user gets defaults again.
-  let _chSelected = null; // { email, page_key }
+  // Three sections, in order of urgency:
+  //   1. Pending Save Requests — Josh's championship "request global" submissions
+  //      that need Keith to approve (promote) or reject.
+  //   2. Global State — one row per page in creative_hub_global_state, what
+  //      every signed-in user sees on page load.
+  //   3. Per-User State — creative_hub_state, individual local overrides.
+  let _chSelected  = null; // { email, page_key }   per-user
+  let _chgSelected = null; // { page_key }           global
+  let _chrSelected = null; // { id }                 pending request
 
   function _chEsc(s)     { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function _chAttr(s)    { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
   function _chFmtAgo(iso){ try { return new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); } catch { return iso || ''; } }
   function _chMsg(text, ok) {
     const el = document.getElementById('ch-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = ok ? '#080' : '#c00';
+  }
+  function _chgMsg(text, ok) {
+    const el = document.getElementById('chg-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = ok ? '#080' : '#c00';
+  }
+  function _chrMsg(text, ok) {
+    const el = document.getElementById('chr-msg');
     if (!el) return;
     el.textContent = text || '';
     el.style.color = ok ? '#080' : '#c00';
@@ -3054,29 +3168,69 @@
       container.innerHTML =
         '<div style="padding:14px">' +
           '<h3 style="margin-bottom:6px;color:var(--navy);font-size:15px">Creative Hub State Override</h3>' +
-          '<div style="font-size:12px;color:#555;margin-bottom:14px">View and replace per-user editor state for cusa-creative-hub editor pages. Changes take effect when the user next opens the page (or reloads).</div>' +
-          '<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">' +
-            '<div style="flex:0 0 320px">' +
-              '<h4 style="margin-bottom:8px;font-size:12px;color:#444">Users · pages</h4>' +
-              '<div id="ch-users-list" style="max-height:560px;overflow:auto;border:1px solid #ddd;border-radius:6px;padding:8px;background:#fff;font-size:12px"></div>' +
+          '<div style="font-size:12px;color:#555;margin-bottom:14px">Manage shared global state, approve save requests, and override individual users\' local state.</div>' +
+
+          // ── Pending Save Requests ──────────────────────────────────
+          '<div style="background:#fff7e6;border:1px solid #f0c674;border-radius:6px;padding:12px;margin-bottom:18px">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+              '<h4 style="font-size:13px;color:#8a5a00;margin:0">📨 Pending Save Requests</h4>' +
+              '<span id="chr-msg" style="font-size:11px"></span>' +
+            '</div>' +
+            '<div id="chr-list" style="font-size:12px"></div>' +
+            '<div id="chr-detail" style="margin-top:10px;display:none">' +
+              '<div style="font-size:11px;color:#666;margin-bottom:4px">Snapshot from <strong id="chr-detail-meta"></strong></div>' +
+              '<textarea id="chr-detail-json" rows="10" readonly style="width:100%;font-family:Menlo,monospace;font-size:11px;padding:6px;border:1px solid #ccc;border-radius:4px;background:#fafafa"></textarea>' +
+              '<div style="margin-top:6px;display:flex;gap:8px">' +
+                '<button class="btn btn-save"  id="chr-approve" style="background:#1f6c33">✓ Approve (promote to global)</button>' +
+                '<button class="btn btn-clear" id="chr-reject">✕ Reject</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          // ── Global State ───────────────────────────────────────────
+          '<h4 style="font-size:13px;color:var(--navy);margin-bottom:8px">🌐 Global State (what everyone sees)</h4>' +
+          '<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px">' +
+            '<div style="flex:0 0 260px">' +
+              '<div id="chg-list" style="max-height:300px;overflow:auto;border:1px solid #ddd;border-radius:6px;padding:8px;background:#fff;font-size:12px"></div>' +
             '</div>' +
             '<div style="flex:1;min-width:360px">' +
-              '<h4 style="margin-bottom:8px;font-size:12px;color:#444">Selected: <span id="ch-selected-label" style="color:#888;font-weight:400">none</span></h4>' +
-              '<textarea id="ch-state-edit" rows="22" style="width:100%;font-family:Menlo,Monaco,monospace;font-size:11px;padding:8px;border:1px solid #ccc;border-radius:6px" placeholder="Pick a user/page on the left to load state."></textarea>' +
+              '<div style="font-size:12px;color:#444;margin-bottom:6px">Selected: <span id="chg-selected-label" style="color:#888">none</span></div>' +
+              '<textarea id="chg-state-edit" rows="14" style="width:100%;font-family:Menlo,monospace;font-size:11px;padding:8px;border:1px solid #ccc;border-radius:6px" placeholder="Pick a page on the left to load its global state."></textarea>' +
               '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
-                '<button class="btn btn-save"   id="ch-save"      disabled>💾 Save edited JSON</button>' +
-                '<button class="btn"            id="ch-push-mine" disabled style="background:#0077B5;color:#fff">⬆ Push my state to this user</button>' +
-                '<button class="btn btn-clear"  id="ch-clear"     disabled>🗑 Delete row</button>' +
-                '<span id="ch-msg" style="font-size:11px;align-self:center"></span>' +
+                '<button class="btn btn-save"  id="chg-save"  disabled>💾 Save edited JSON</button>' +
+                '<button class="btn btn-clear" id="chg-clear" disabled>🗑 Delete global row</button>' +
+                '<span id="chg-msg" style="font-size:11px"></span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          // ── Per-User State (existing) ──────────────────────────────
+          '<h4 style="font-size:13px;color:var(--navy);margin-bottom:8px">👤 Per-User Local State</h4>' +
+          '<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">' +
+            '<div style="flex:0 0 320px">' +
+              '<div id="ch-users-list" style="max-height:400px;overflow:auto;border:1px solid #ddd;border-radius:6px;padding:8px;background:#fff;font-size:12px"></div>' +
+            '</div>' +
+            '<div style="flex:1;min-width:360px">' +
+              '<div style="font-size:12px;color:#444;margin-bottom:6px">Selected: <span id="ch-selected-label" style="color:#888">none</span></div>' +
+              '<textarea id="ch-state-edit" rows="14" style="width:100%;font-family:Menlo,monospace;font-size:11px;padding:8px;border:1px solid #ccc;border-radius:6px" placeholder="Pick a user/page on the left to load state."></textarea>' +
+              '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+                '<button class="btn btn-save"  id="ch-save"      disabled>💾 Save edited JSON</button>' +
+                '<button class="btn"           id="ch-push-mine" disabled style="background:#0077B5;color:#fff">⬆ Push my state to this user</button>' +
+                '<button class="btn btn-clear" id="ch-clear"     disabled>🗑 Delete row</button>' +
+                '<span id="ch-msg" style="font-size:11px"></span>' +
               '</div>' +
             '</div>' +
           '</div>' +
         '</div>';
-      container.querySelector('#ch-save').addEventListener('click', chSaveCurrent);
+      container.querySelector('#ch-save').addEventListener('click',      chSaveCurrent);
       container.querySelector('#ch-push-mine').addEventListener('click', chPushMine);
-      container.querySelector('#ch-clear').addEventListener('click', chClearCurrent);
+      container.querySelector('#ch-clear').addEventListener('click',     chClearCurrent);
+      container.querySelector('#chg-save').addEventListener('click',     chgSaveCurrent);
+      container.querySelector('#chg-clear').addEventListener('click',    chgClearCurrent);
+      container.querySelector('#chr-approve').addEventListener('click',  chrApproveSelected);
+      container.querySelector('#chr-reject').addEventListener('click',   chrRejectSelected);
     }
-    await chReloadList();
+    await Promise.all([chrReload(), chgReloadList(), chReloadList()]);
   }
 
   async function chReloadList() {
@@ -3211,6 +3365,201 @@
       _chSelected = null;
       chReloadList();
     } catch (e) { _chMsg('Delete failed: ' + (e.message || e)); }
+  }
+
+  // ── Global state section ────────────────────────────────────────────────
+  async function chgReloadList() {
+    const list = document.getElementById('chg-list');
+    if (!list) return;
+    if (!_db) { list.innerHTML = '<em style="color:#888">DB not connected.</em>'; return; }
+    list.innerHTML = '<em style="color:#888">Loading…</em>';
+    try {
+      const { data, error } = await _db.from('creative_hub_global_state')
+        .select('page_key, updated_at, updated_by_email').order('page_key');
+      if (error) throw error;
+      if (!data || !data.length) {
+        list.innerHTML = '<em style="color:#888">No global state saved yet. Pages start with defaults until an admin saves.</em>';
+        return;
+      }
+      let html = '<div style="display:flex;flex-direction:column;gap:3px">';
+      for (const r of data) {
+        html += '<a href="#" class="chg-row" data-page="' + _chAttr(r.page_key) + '" style="font-size:12px;color:#0077B5;text-decoration:none;padding:5px 8px;border-radius:4px">' +
+                  '<strong>' + _chEsc(r.page_key) + '</strong>' +
+                  '<div style="color:#888;font-size:10px;margin-top:1px">' + _chEsc(_chFmtAgo(r.updated_at)) + ' · by ' + _chEsc(r.updated_by_email || 'unknown') + '</div>' +
+                '</a>';
+      }
+      html += '</div>';
+      list.innerHTML = html;
+      list.querySelectorAll('.chg-row').forEach(a => a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        list.querySelectorAll('.chg-row').forEach(x => x.style.background = '');
+        a.style.background = '#dbe7f0';
+        await chgSelect(a.dataset.page);
+      }));
+    } catch (e) {
+      list.innerHTML = '<em style="color:#c00">Failed: ' + _chEsc(e.message || String(e)) + '</em>';
+    }
+  }
+
+  async function chgSelect(pageKey) {
+    _chgSelected = { page_key: pageKey };
+    document.getElementById('chg-selected-label').textContent = pageKey;
+    const ta = document.getElementById('chg-state-edit');
+    ta.value = 'Loading…';
+    document.getElementById('chg-save').disabled  = true;
+    document.getElementById('chg-clear').disabled = true;
+    _chgMsg('');
+    try {
+      const { data, error } = await _db.from('creative_hub_global_state')
+        .select('state, updated_at, updated_by_email').eq('page_key', pageKey).maybeSingle();
+      if (error) throw error;
+      ta.value = JSON.stringify(data ? data.state : null, null, 2);
+      document.getElementById('chg-save').disabled  = false;
+      document.getElementById('chg-clear').disabled = !data;
+    } catch (e) { ta.value = 'Failed to load: ' + (e.message || e); }
+  }
+
+  async function chgSaveCurrent() {
+    if (!_chgSelected) return;
+    const ta = document.getElementById('chg-state-edit');
+    let parsed;
+    try { parsed = JSON.parse(ta.value); }
+    catch (e) { _chgMsg('Invalid JSON: ' + e.message); return; }
+    _chgMsg('Saving…', true);
+    try {
+      const { error } = await _db.from('creative_hub_global_state').upsert({
+        page_key: _chgSelected.page_key, state: parsed,
+        updated_at: new Date().toISOString(),
+        updated_by_email: (_currentUser && _currentUser.email) || null,
+      }, { onConflict: 'page_key' });
+      if (error) throw error;
+      logActivity('edit', 'creative-hub:GLOBAL/' + _chgSelected.page_key, 'Saved global state JSON', 'creative-hub');
+      _chgMsg('Saved.', true);
+      chgReloadList();
+    } catch (e) { _chgMsg('Save failed: ' + (e.message || e)); }
+  }
+
+  async function chgClearCurrent() {
+    if (!_chgSelected) return;
+    if (!confirm('Delete the global state for "' + _chgSelected.page_key + '"? Every user will see defaults until someone saves a new global version.')) return;
+    _chgMsg('Deleting…', true);
+    try {
+      const { error } = await _db.from('creative_hub_global_state').delete()
+        .eq('page_key', _chgSelected.page_key);
+      if (error) throw error;
+      logActivity('delete', 'creative-hub:GLOBAL/' + _chgSelected.page_key, 'Deleted global state row', 'creative-hub');
+      _chgMsg('Deleted.', true);
+      document.getElementById('chg-state-edit').value = '';
+      document.getElementById('chg-selected-label').textContent = 'none';
+      document.getElementById('chg-save').disabled  = true;
+      document.getElementById('chg-clear').disabled = true;
+      _chgSelected = null;
+      chgReloadList();
+    } catch (e) { _chgMsg('Delete failed: ' + (e.message || e)); }
+  }
+
+  // ── Pending Save Requests section ───────────────────────────────────────
+  async function chrReload() {
+    const list = document.getElementById('chr-list');
+    if (!list) return;
+    if (!_db) { list.innerHTML = '<em style="color:#888">DB not connected.</em>'; return; }
+    list.innerHTML = '<em style="color:#888">Loading…</em>';
+    try {
+      const { data, error } = await _db.from('creative_hub_save_requests')
+        .select('id, page_key, requester_email, requested_at, note')
+        .eq('status', 'pending').order('requested_at', { ascending: false });
+      if (error) throw error;
+      if (!data || !data.length) {
+        list.innerHTML = '<em style="color:#888">No pending requests.</em>';
+        document.getElementById('chr-detail').style.display = 'none';
+        _chrSelected = null;
+        return;
+      }
+      let html = '<div style="display:flex;flex-direction:column;gap:4px">';
+      for (const r of data) {
+        html += '<a href="#" class="chr-row" data-id="' + _chAttr(r.id) + '" style="font-size:12px;color:#0077B5;text-decoration:none;padding:6px 8px;border-radius:4px;background:rgba(255,255,255,0.5)">' +
+                  '<strong>' + _chEsc(r.page_key) + '</strong>' +
+                  '<span style="color:#666"> · ' + _chEsc(r.requester_email) + '</span>' +
+                  '<span style="color:#888;font-size:10px"> · ' + _chEsc(_chFmtAgo(r.requested_at)) + '</span>' +
+                  (r.note ? '<div style="color:#444;font-size:11px;margin-top:2px;font-style:italic">"' + _chEsc(r.note) + '"</div>' : '') +
+                '</a>';
+      }
+      html += '</div>';
+      list.innerHTML = html;
+      list.querySelectorAll('.chr-row').forEach(a => a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        list.querySelectorAll('.chr-row').forEach(x => x.style.background = 'rgba(255,255,255,0.5)');
+        a.style.background = '#ffe8a8';
+        await chrSelect(a.dataset.id);
+      }));
+    } catch (e) {
+      list.innerHTML = '<em style="color:#c00">Failed: ' + _chEsc(e.message || String(e)) + '</em>';
+    }
+  }
+
+  async function chrSelect(id) {
+    _chrSelected = { id };
+    const detail = document.getElementById('chr-detail');
+    detail.style.display = 'block';
+    document.getElementById('chr-detail-meta').textContent = 'Loading…';
+    document.getElementById('chr-detail-json').value = '';
+    try {
+      const { data, error } = await _db.from('creative_hub_save_requests')
+        .select('page_key, requester_email, requested_at, state, note').eq('id', id).maybeSingle();
+      if (error) throw error;
+      if (!data) { _chrMsg('Request not found.'); return; }
+      document.getElementById('chr-detail-meta').textContent = data.requester_email + ' for ' + data.page_key + ' · ' + _chFmtAgo(data.requested_at);
+      document.getElementById('chr-detail-json').value = JSON.stringify(data.state, null, 2);
+      // Stash the selected request's state for approve to use without an extra fetch.
+      _chrSelected.state    = data.state;
+      _chrSelected.pageKey  = data.page_key;
+      _chrSelected.email    = data.requester_email;
+    } catch (e) { _chrMsg('Load failed: ' + (e.message || e)); }
+  }
+
+  async function chrApproveSelected() {
+    if (!_chrSelected || !_chrSelected.state) return;
+    if (!confirm('Promote ' + _chrSelected.email + "'s submission for " + _chrSelected.pageKey + ' to GLOBAL? This becomes the version everyone sees.')) return;
+    _chrMsg('Promoting…', true);
+    try {
+      const meEmail = (_currentUser && _currentUser.email) || null;
+      const nowIso  = new Date().toISOString();
+      // 1. Upsert into creative_hub_global_state.
+      const { error: e1 } = await _db.from('creative_hub_global_state').upsert({
+        page_key: _chrSelected.pageKey, state: _chrSelected.state,
+        updated_at: nowIso, updated_by_email: meEmail,
+      }, { onConflict: 'page_key' });
+      if (e1) throw e1;
+      // 2. Mark the request approved.
+      const { error: e2 } = await _db.from('creative_hub_save_requests').update({
+        status: 'approved', processed_by_email: meEmail, processed_at: nowIso,
+      }).eq('id', _chrSelected.id);
+      if (e2) throw e2;
+      logActivity('approve', 'creative-hub:GLOBAL/' + _chrSelected.pageKey, 'Promoted request from ' + _chrSelected.email, 'creative-hub');
+      _chrMsg('Approved + promoted.', true);
+      _chrSelected = null;
+      document.getElementById('chr-detail').style.display = 'none';
+      await Promise.all([chrReload(), chgReloadList()]);
+    } catch (e) { _chrMsg('Approve failed: ' + (e.message || e)); }
+  }
+
+  async function chrRejectSelected() {
+    if (!_chrSelected) return;
+    if (!confirm('Reject ' + _chrSelected.email + "'s submission for " + _chrSelected.pageKey + '? Their local copy is unaffected; the request is just dismissed.')) return;
+    _chrMsg('Rejecting…', true);
+    try {
+      const { error } = await _db.from('creative_hub_save_requests').update({
+        status: 'rejected',
+        processed_by_email: (_currentUser && _currentUser.email) || null,
+        processed_at: new Date().toISOString(),
+      }).eq('id', _chrSelected.id);
+      if (error) throw error;
+      logActivity('reject', 'creative-hub:request/' + _chrSelected.pageKey, 'Rejected request from ' + _chrSelected.email, 'creative-hub');
+      _chrMsg('Rejected.', true);
+      _chrSelected = null;
+      document.getElementById('chr-detail').style.display = 'none';
+      await chrReload();
+    } catch (e) { _chrMsg('Reject failed: ' + (e.message || e)); }
   }
 </script>
 </body>

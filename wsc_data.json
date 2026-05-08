@@ -1,0 +1,253 @@
+{
+  "_meta": {
+    "description": "WSC Portal reference data — schools, contacts, SRT endpoints, HLS blob URLs, CUSA encoders.",
+    "sources": [
+      "Tata_WSC/CUSA x Tata School Streaming Shared Doc.xlsx",
+      "Tata_WSC/CUSA Production - WSC Capture.xlsx",
+      "Tata_WSC/Matrox Testing.xlsx"
+    ]
+  },
+  "schools": [
+    {
+      "canonical": "Delaware",
+      "aliases": ["Delaware", "Blue Hens", "UDel"],
+      "video_format": "1080i",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10012",  "sportradar": "srt://34.227.39.11:33724" },
+        "Men's Basketball":   { "wsc": "srt://172.172.50.73:10006", "sportradar": "srt://34.227.39.11:33720" },
+        "Women's Basketball": { "wsc": "srt://172.172.50.73:10006", "sportradar": "srt://34.227.39.11:33720" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/delawarefootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/delawarewbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/delawarewbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Caleb Pfleiger",   "email": "pfleiger@udel.edu", "phone": "267-374-2372", "role": "Matrox POC" },
+        { "name": "Damien Hollyday",  "email": "dhollyda@udel.edu", "phone": "" }
+      ]
+    },
+    {
+      "canonical": "FIU",
+      "aliases": ["FIU", "Florida International", "Panthers"],
+      "video_format": "720p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10003",  "sportradar": "srt://34.194.113.16:33392" },
+        "Men's Basketball":   { "wsc": "srt://20.49.36.13:10012",   "sportradar": "srt://34.227.39.11:33722" },
+        "Women's Basketball": { "wsc": "srt://20.49.36.13:10012",   "sportradar": "srt://34.227.39.11:33722" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/fiufootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/fiuwbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/fiuwbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Nick Garrido", "email": "ngarrido@fiu.edu",       "phone": "305-984-5523", "role": "Matrox POC" },
+        { "name": "Bill Craig",   "email": "bcraig@icorintl.com",    "phone": "" }
+      ]
+    },
+    {
+      "canonical": "Jacksonville State",
+      "aliases": ["Jacksonville State", "Jax State", "JSU", "Jacksonville St."],
+      "video_format": "720p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10009",  "sportradar": "srt://34.194.113.16:33455" },
+        "Men's Basketball":   { "wsc": "srt://172.172.50.73:10003", "sportradar": "srt://34.227.39.11:33716" },
+        "Women's Basketball": { "wsc": "srt://172.172.50.73:10003", "sportradar": "srt://34.227.39.11:33716" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/jacksonvillestatefootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/jacksonvillestatewbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/jacksonvillestatewbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Kyle Raughton",    "email": "braughton@jsu.edu", "phone": "256-282-4292", "role": "Matrox POC" },
+        { "name": "Koby Flippo",      "email": "klflippo@jsu.edu",  "phone": "256-762-6460" }
+      ]
+    },
+    {
+      "canonical": "Kennesaw State",
+      "aliases": ["Kennesaw State", "Kennesaw", "KSU", "Kennesaw St."],
+      "video_format": "1080i",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10010",  "sportradar": "srt://34.227.39.11:33726" },
+        "Men's Basketball":   { "wsc": "srt://172.172.50.73:10004", "sportradar": "srt://34.194.113.16:33302" },
+        "Women's Basketball": { "wsc": "srt://172.172.50.73:10004", "sportradar": "srt://34.194.113.16:33302" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/kennesawstatefootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/kennesawstatewbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/kennesawstatewbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Brandon Bedford",  "email": "bbedfor4@kennesaw.edu", "phone": "770-235-8882", "role": "Matrox POC" },
+        { "name": "Sanders Sullivan", "email": "ssulli52@kennesaw.edu", "phone": "803-261-5548" }
+      ]
+    },
+    {
+      "canonical": "Liberty",
+      "aliases": ["Liberty", "Flames"],
+      "video_format": "720p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10001",  "sportradar": "srt://34.194.113.16:33457" },
+        "Men's Basketball":   { "wsc": "srt://20.49.36.13:10010",   "sportradar": "srt://34.227.39.11:33304" },
+        "Women's Basketball": { "wsc": "srt://20.49.36.13:10010",   "sportradar": "srt://34.227.39.11:33304" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/libertyfootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/libertywbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/libertywbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Rob Whitley",   "email": "rwwhitley@liberty.edu", "phone": "434-363-6250", "role": "Matrox POC" },
+        { "name": "Levi Sirmans",  "email": "lwsirmans@liberty.edu", "phone": "912-592-6571" },
+        { "name": "Bobby Keating", "email": "rfkeating@liberty.edu", "phone": "757-753-6667" }
+      ]
+    },
+    {
+      "canonical": "Louisiana Tech",
+      "aliases": ["Louisiana Tech", "LA Tech", "LT", "LaTech"],
+      "video_format": "1080p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10004",  "sportradar": "srt://34.227.39.11:33752" },
+        "Men's Basketball":   { "wsc": "srt://20.49.36.13:10013",   "sportradar": "srt://34.227.39.11:33718" },
+        "Women's Basketball": { "wsc": "srt://20.49.36.13:10013",   "sportradar": "srt://34.227.39.11:33718" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/louisianatechfootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/louisianatechwbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/louisianatechwbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "George Brandon", "email": "gbrandon@latech.edu", "phone": "318-957-1463" },
+        { "name": "Gerald Jordan",  "email": "gjordan@latech.edu",  "phone": "318-257-5323" }
+      ]
+    },
+    {
+      "canonical": "Middle Tennessee",
+      "aliases": ["Middle Tennessee", "MTSU", "Middle Tenn.", "Middle Tenn"],
+      "video_format": "720p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10005",  "sportradar": "srt://34.227.39.11:33756" },
+        "Men's Basketball":   { "wsc": "srt://20.49.36.13:10014",   "sportradar": "srt://34.194.113.16:33378" },
+        "Women's Basketball": { "wsc": "srt://20.49.36.13:10014",   "sportradar": "srt://34.194.113.16:33378" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/middletennesseefootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/middletennesseewbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/middletennesseewbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Ronson Wolf",    "email": "Ronson.Wolf@mtsu.edu",   "phone": "615-981-7609", "role": "Matrox POC" },
+        { "name": "Nathan Wallach", "email": "nathan.wallach@mtsu.edu","phone": "" },
+        { "name": "Allison Doll",   "email": "Allison.Doll@mtsu.edu",  "phone": "865-244-7035" }
+      ]
+    },
+    {
+      "canonical": "Missouri State",
+      "aliases": ["Missouri State", "MOST", "Mo State", "Missouri St."],
+      "video_format": "720p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10011",  "sportradar": "srt://34.194.113.16:33389" },
+        "Men's Basketball":   { "wsc": "srt://172.172.50.73:10005", "sportradar": "srt://172.172.50.73:10005" },
+        "Women's Basketball": { "wsc": "srt://172.172.50.73:10005", "sportradar": "srt://172.172.50.73:10005" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/missouristatefootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/missouristatewbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/missouristatewbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Brandon Hite",   "email": "brandon@hite-media.com", "phone": "417-350-7573", "role": "Matrox POC" },
+        { "name": "Kelly Magruder", "email": "kelly@hite-media.com",   "phone": "" }
+      ]
+    },
+    {
+      "canonical": "New Mexico State",
+      "aliases": ["New Mexico State", "NMSU", "NM State", "New Mexico St."],
+      "video_format": "1080i",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10007",  "sportradar": "srt://34.227.39.11:33758" },
+        "Men's Basketball":   { "wsc": "srt://172.172.50.73:10001", "sportradar": "srt://34.194.113.16:33381" },
+        "Women's Basketball": { "wsc": "srt://172.172.50.73:10001", "sportradar": "srt://34.194.113.16:33381" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/newmexicostatefootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/newmexicostatewbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/newmexicostatewbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "IJ Rosenblum",   "email": "ij.rosenblum@oakviewgroup.com", "phone": "575-644-1529", "role": "Matrox POC" },
+        { "name": "Vincent Conway", "email": "vconway@nmsu.edu",              "phone": "815-519-5343" }
+      ]
+    },
+    {
+      "canonical": "Sam Houston",
+      "aliases": ["Sam Houston", "SHSU", "Sam Houston State"],
+      "video_format": "720p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10008",  "sportradar": "srt://34.194.113.16:33459" },
+        "Men's Basketball":   { "wsc": "srt://172.172.50.73:10004", "sportradar": "srt://34.194.113.16:33367" },
+        "Women's Basketball": { "wsc": "srt://172.172.50.73:10002", "sportradar": "srt://34.194.113.16:33367" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/samhoustonfootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/samhoustonwbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/samhoustonwbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Brian Duval",   "email": "bad012@shsu.edu", "phone": "281-210-7740", "role": "Matrox POC" },
+        { "name": "Jason Barfield","email": "JDB014@shsu.edu", "phone": "281-450-8920" }
+      ]
+    },
+    {
+      "canonical": "UTEP",
+      "aliases": ["UTEP", "Texas El Paso"],
+      "video_format": "720p",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10006",  "sportradar": "Leaving CUSA fall 2026" },
+        "Men's Basketball":   { "wsc": "srt://20.49.36.13:10015",   "sportradar": "srt://34.194.113.16:33382" },
+        "Women's Basketball": { "wsc": "srt://20.49.36.13:10015",   "sportradar": "srt://34.194.113.16:33382" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/utepfootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/utepwbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/utepwbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Ben Peterson", "email": "bppeterson@utep.edu", "phone": "763-360-7431" }
+      ]
+    },
+    {
+      "canonical": "Western Kentucky",
+      "aliases": ["Western Kentucky", "WKU", "Western Ky."],
+      "video_format": "1080i",
+      "srt": {
+        "Football":           { "wsc": "srt://40.84.31.225:10002",  "sportradar": "srt://34.194.113.16:33461" },
+        "Men's Basketball":   { "wsc": "srt://20.49.36.13:10011",   "sportradar": "srt://34.194.113.16:33384" },
+        "Women's Basketball": { "wsc": "srt://20.49.36.13:10011",   "sportradar": "srt://34.194.113.16:33384" }
+      },
+      "hls": {
+        "Football":           "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/wkufootball.stream/playlist.m3u8",
+        "Men's Basketball":   "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/wkuwbb.stream/playlist.m3u8",
+        "Women's Basketball": "https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/wkuwbb.stream/playlist.m3u8"
+      },
+      "contacts": [
+        { "name": "Ethan Carlson", "email": "ethan.carlson@wku.edu", "phone": "615-517-4898", "role": "Matrox POC" },
+        { "name": "Jordan Basham", "email": "jordan.basham@wku.edu", "phone": "270-303-9246" }
+      ]
+    }
+  ],
+  "encoders": [
+    { "id": "CUSA1",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA1/manifest.m3u8",  "roku_ip": "10.11.50.54", "aja_ip": "10.11.50.11" },
+    { "id": "CUSA2",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA2/manifest.m3u8",  "roku_ip": "10.11.50.60", "aja_ip": "10.11.50.12" },
+    { "id": "CUSA3",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA3/manifest.m3u8",  "roku_ip": "10.11.50.55", "aja_ip": "10.11.50.13" },
+    { "id": "CUSA4",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA4/manifest.m3u8",  "roku_ip": "10.11.50.56", "aja_ip": "10.11.50.14" },
+    { "id": "CUSA5",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA5/manifest.m3u8",  "roku_ip": "10.11.50.57", "aja_ip": "10.11.50.15" },
+    { "id": "CUSA6",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA6/manifest.m3u8",  "roku_ip": "10.11.50.67", "aja_ip": "10.11.50.16" },
+    { "id": "CUSA7",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA7/manifest.m3u8",  "roku_ip": "10.11.50.66", "aja_ip": "10.11.50.17" },
+    { "id": "CUSA8",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA8/manifest.m3u8",  "roku_ip": "10.11.50.61", "aja_ip": "10.11.50.18" },
+    { "id": "CUSA9",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA9/manifest.m3u8",  "roku_ip": "10.11.50.53", "aja_ip": "10.11.50.19" },
+    { "id": "CUSA10", "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA10/manifest.m3u8", "roku_ip": "10.11.50.50", "aja_ip": "10.11.50.20" }
+  ]
+}

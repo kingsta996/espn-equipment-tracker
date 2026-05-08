@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>CUSA × WSC Capture Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --wsc-black: #0a0a0a;
+    --wsc-bg: #111315;
+    --wsc-panel: #1a1d20;
+    --wsc-panel-hi: #23272b;
+    --wsc-line: #2a2f33;
+    --wsc-text: #f5f5f5;
+    --wsc-mute: #9aa0a6;
+    --wsc-green: #C8FF00;
+    --wsc-green-soft: rgba(200,255,0,0.18);
+    --navy: #00263A;
+    --espn-red: #EF4035;
+    --ok: #34d058;
+    --warn: #f9c74f;
+    --err: #f25f5c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--wsc-bg);
+    color: var(--wsc-text);
+    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif;
+    min-height: 100vh;
+  }
+  a { color: var(--wsc-green); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Password gate ── */
+  .pw-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .pw-overlay.open { display: flex; }
+  .pw-box {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 14px;
+    padding: 32px 36px; width: 92%; max-width: 380px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .pw-box h2 { color: var(--wsc-green); font-size: 18px; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .pw-box p { color: var(--wsc-mute); font-size: 12px; margin-bottom: 18px; }
+  .pw-input {
+    width: 100%; background: #0e1012; color: var(--wsc-text); border: 1px solid var(--wsc-line);
+    border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-bottom: 10px; font-family: inherit;
+  }
+  .pw-input:focus { border-color: var(--wsc-green); outline: 0; }
+  .pw-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  .pw-actions button {
+    background: var(--wsc-green); color: #000; border: 0; padding: 10px 20px;
+    border-radius: 8px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .pw-actions button.secondary { background: #2a2f33; color: var(--wsc-text); }
+  .pw-err { color: var(--err); font-size: 12px; margin-top: 4px; min-height: 16px; }
+
+  /* ── Header ── */
+  .header {
+    background: var(--wsc-black); border-bottom: 2px solid var(--wsc-green);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .header .logos { display: flex; align-items: center; gap: 14px; }
+  .header img.wsc-logo { height: 28px; }
+  .header img.cusa-logo { height: 22px; filter: brightness(0) invert(1); }
+  .header .divider { width: 1px; height: 22px; background: var(--wsc-line); }
+  .header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; flex: 1; min-width: 200px; }
+  .header h1 small { color: var(--wsc-green); font-weight: 600; letter-spacing: 1px; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .header .who { color: var(--wsc-mute); font-size: 11px; }
+  .header a.back, .header button.signout {
+    color: var(--wsc-mute); font-size: 11px; padding: 5px 12px; border-radius: 5px;
+    background: transparent; border: 1px solid var(--wsc-line); cursor: pointer; font-family: inherit;
+  }
+  .header a.back:hover, .header button.signout:hover { color: var(--wsc-green); border-color: var(--wsc-green); text-decoration: none; }
+
+  /* ── Tabs ── */
+  .tab-bar {
+    background: var(--wsc-panel); border-bottom: 1px solid var(--wsc-line);
+    display: flex; gap: 0; padding: 0 12px; overflow-x: auto;
+  }
+  .tab-bar button {
+    background: transparent; color: var(--wsc-mute); border: 0; padding: 14px 18px;
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    border-bottom: 3px solid transparent; white-space: nowrap; letter-spacing: 0.2px;
+  }
+  .tab-bar button:hover { color: var(--wsc-text); }
+  .tab-bar button.active { color: var(--wsc-green); border-bottom-color: var(--wsc-green); }
+  .tab-content { display: none; padding: 20px; }
+  .tab-content.active { display: block; }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 14px;
+  }
+  .toolbar input, .toolbar select {
+    background: #0e1012; color: var(--wsc-text); border: 1px solid var(--wsc-line);
+    border-radius: 6px; padding: 7px 10px; font-size: 12px; font-family: inherit;
+  }
+  .toolbar input::placeholder { color: var(--wsc-mute); }
+  .toolbar input:focus, .toolbar select:focus { border-color: var(--wsc-green); outline: 0; }
+  .toolbar label { font-size: 10px; text-transform: uppercase; color: var(--wsc-mute); letter-spacing: 0.6px; font-weight: 700; }
+  .toolbar .grow { flex: 1; min-width: 12px; }
+  .toolbar .pill {
+    font-size: 11px; padding: 5px 10px; border-radius: 999px; background: var(--wsc-green-soft);
+    color: var(--wsc-green); font-weight: 700; letter-spacing: 0.4px;
+  }
+  .toolbar button.toggle {
+    background: #0e1012; color: var(--wsc-mute); border: 1px solid var(--wsc-line);
+    border-radius: 6px; padding: 7px 12px; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 600;
+  }
+  .toolbar button.toggle.active { background: var(--wsc-green); color: #000; border-color: var(--wsc-green); }
+
+  /* ── Table ── */
+  .table-wrap {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 10px;
+    overflow: auto; max-height: calc(100vh - 280px);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: #14171a; position: sticky; top: 0; z-index: 1; }
+  thead th {
+    text-align: left; padding: 10px 10px; font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase; color: var(--wsc-mute);
+    border-bottom: 1px solid var(--wsc-line); white-space: nowrap;
+  }
+  tbody td {
+    padding: 10px 10px; border-bottom: 1px solid var(--wsc-line); vertical-align: middle;
+  }
+  tbody tr:hover { background: rgba(200,255,0,0.04); }
+  tbody tr.confirmed { background: rgba(52,208,88,0.06); }
+  tbody tr.confirmed:hover { background: rgba(52,208,88,0.1); }
+
+  td.col-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.col-matchup { font-weight: 600; min-width: 200px; }
+  td.col-matchup .sub { display: block; color: var(--wsc-mute); font-size: 10.5px; font-weight: 500; margin-top: 2px; }
+  td.col-sport span { font-size: 10px; padding: 3px 8px; border-radius: 4px; background: #2a2f33; color: var(--wsc-text); white-space: nowrap; font-weight: 600; }
+  td.col-network { color: var(--wsc-mute); font-weight: 600; }
+  td.col-host { font-weight: 600; }
+  td.col-contact .name { display: block; font-weight: 600; }
+  td.col-contact .meta { display: block; color: var(--wsc-mute); font-size: 10.5px; }
+  td.col-contact a { display: inline-block; margin-right: 8px; }
+
+  /* AV confirmed toggle */
+  .av-toggle {
+    background: #0e1012; color: var(--wsc-mute); border: 1px solid var(--wsc-line);
+    border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 700;
+    cursor: pointer; font-family: inherit; letter-spacing: 0.3px; white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  .av-toggle.confirmed { background: var(--ok); color: #052e0f; border-color: var(--ok); }
+  .av-toggle:not(.confirmed):hover { color: var(--wsc-green); border-color: var(--wsc-green); }
+  .av-toggle .stamp { display: block; font-size: 9.5px; font-weight: 500; margin-top: 2px; opacity: 0.8; }
+
+  /* SRT badges */
+  .srt-cell { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+  .srt-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .srt-row .label { font-size: 9.5px; font-weight: 800; color: var(--wsc-mute); width: 56px; letter-spacing: 0.5px; }
+  .srt-row .label.wsc { color: var(--wsc-green); }
+  .srt-row .url { font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; font-size: 11px; color: var(--wsc-text); flex: 1; cursor: pointer; }
+  .srt-row .url:hover { color: var(--wsc-green); }
+  .srt-row .copy { background: transparent; color: var(--wsc-mute); border: 1px solid var(--wsc-line); padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 10px; font-family: inherit; }
+  .srt-row .copy:hover { color: var(--wsc-green); border-color: var(--wsc-green); }
+
+  /* Encoder dropdown */
+  .encoder-cell select {
+    background: #0e1012; color: var(--wsc-text); border: 1px solid var(--wsc-line);
+    border-radius: 6px; padding: 6px 8px; font-size: 11px; font-family: inherit; min-width: 100px;
+  }
+  .encoder-cell select:focus { border-color: var(--wsc-green); outline: 0; }
+  .encoder-cell select.set { border-color: var(--wsc-green); color: var(--wsc-green); }
+
+  /* Multiviewer */
+  .mv-grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+  .mv-tile {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 10px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .mv-tile-head {
+    padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;
+    background: var(--wsc-panel-hi); border-bottom: 1px solid var(--wsc-line);
+  }
+  .mv-tile-head .ttl { font-size: 12px; font-weight: 700; }
+  .mv-tile-head .ttl small { display: block; color: var(--wsc-mute); font-size: 10px; font-weight: 500; margin-top: 2px; letter-spacing: 0.4px; text-transform: uppercase; }
+  .mv-tile-head .open-ext { color: var(--wsc-mute); font-size: 11px; }
+  .mv-tile-head .open-ext:hover { color: var(--wsc-green); }
+  .mv-tile video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; }
+  .mv-tile .mv-status { padding: 6px 10px; font-size: 10px; color: var(--wsc-mute); border-top: 1px solid var(--wsc-line); display: flex; justify-content: space-between; }
+  .mv-tile .mv-status.live::before { content: '● LIVE'; color: var(--err); font-weight: 800; letter-spacing: 0.5px; }
+  .mv-tile .mv-status.idle::before { content: '○ IDLE'; color: var(--wsc-mute); font-weight: 800; letter-spacing: 0.5px; }
+  .mv-tile .mv-status.err::before { content: '! OFFLINE'; color: var(--warn); font-weight: 800; letter-spacing: 0.5px; }
+
+  /* Empty / loading */
+  .empty {
+    padding: 60px 20px; text-align: center; color: var(--wsc-mute); font-size: 13px;
+    background: var(--wsc-panel); border: 1px dashed var(--wsc-line); border-radius: 10px;
+  }
+  .empty h3 { color: var(--wsc-text); font-size: 16px; margin-bottom: 6px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(40px);
+    background: var(--wsc-panel); color: var(--wsc-text); padding: 10px 18px; border-radius: 8px;
+    border: 1px solid var(--wsc-line); font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    opacity: 0; transition: all 0.2s ease; pointer-events: none; z-index: 999; font-weight: 600;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.ok { border-left: 3px solid var(--ok); }
+  .toast.err { border-left: 3px solid var(--err); }
+
+  /* Stats strip */
+  .stats-strip {
+    display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .stat {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 10px;
+    padding: 10px 16px; min-width: 130px;
+  }
+  .stat .num { font-size: 22px; font-weight: 800; color: var(--wsc-green); font-variant-numeric: tabular-nums; }
+  .stat .lbl { font-size: 10px; color: var(--wsc-mute); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
+
+  @media (max-width: 720px) {
+    .header h1 { width: 100%; order: 99; }
+    .tab-content { padding: 14px; }
+    td.col-network, th.col-network { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Password gate -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>WSC CAPTURE PORTAL</h2>
+    <p>Sign in with your admin email and password</p>
+    <input class="pw-input" id="pwEmail"  type="email"    placeholder="you@example.com" autocomplete="email">
+    <input class="pw-input" id="pwInput"  type="password" placeholder="Password"        autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr"></div>
+    <div class="pw-actions">
+      <button class="secondary" onclick="window.location.href='hub.html'">Cancel</button>
+      <button onclick="submitPw()">Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="logos">
+    <img class="wsc-logo" src="Logos/WSC/wsc-sports-white-on-black.png" alt="WSC Sports">
+    <span class="divider"></span>
+    <img class="cusa-logo" src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN"
+         onerror="this.style.display='none'">
+  </div>
+  <h1>
+    <small>WSC Capture Portal · 2025–26</small>
+    Master Schedule, Manual Capture &amp; Multiviewer
+  </h1>
+  <span class="who" id="currentUser"></span>
+  <a class="back" href="hub.html">← Production Hub</a>
+  <button class="signout" onclick="signOut()">Sign Out</button>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar">
+  <button class="active" data-tab="master">📡 Master Schedule <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Tata SRT)</span></button>
+  <button data-tab="manual">🎯 Manual Capture</button>
+  <button data-tab="multi">📺 Multiviewer</button>
+</div>
+
+<!-- Master Schedule -->
+<section class="tab-content active" id="tab-master">
+  <div class="stats-strip">
+    <div class="stat"><div class="num" id="masterCount">—</div><div class="lbl">Tata Events</div></div>
+    <div class="stat"><div class="num" id="masterConfirmed">—</div><div class="lbl">A/V Confirmed</div></div>
+    <div class="stat"><div class="num" id="masterUpcoming">—</div><div class="lbl">Upcoming 7 days</div></div>
+  </div>
+  <div class="toolbar">
+    <span class="pill">TATA COMMUNICATIONS</span>
+    <input id="masterSearch"   placeholder="Search matchup, school, network…">
+    <select id="masterSport"><option value="">All Sports</option></select>
+    <select id="masterSchool"><option value="">All Schools</option></select>
+    <input id="masterFrom" type="date" title="From">
+    <input id="masterTo"   type="date" title="To">
+    <button class="toggle" id="masterUnconf" type="button">Hide Confirmed</button>
+    <span class="grow"></span>
+    <button class="toggle" type="button" onclick="exportMaster()">⇣ CSV</button>
+  </div>
+  <div id="masterTable"></div>
+</section>
+
+<!-- Manual Capture -->
+<section class="tab-content" id="tab-manual">
+  <div class="stats-strip">
+    <div class="stat"><div class="num" id="manualCount">—</div><div class="lbl">Manual Events</div></div>
+    <div class="stat"><div class="num" id="manualConfirmed">—</div><div class="lbl">A/V Confirmed</div></div>
+    <div class="stat"><div class="num" id="manualUpcoming">—</div><div class="lbl">Upcoming 7 days</div></div>
+  </div>
+  <div class="toolbar">
+    <span class="pill">CONFERENCE PROVIDED · HLS</span>
+    <input id="manualSearch"   placeholder="Search matchup, school, network…">
+    <select id="manualSport"><option value="">All Sports</option></select>
+    <select id="manualSchool"><option value="">All Schools</option></select>
+    <input id="manualFrom" type="date" title="From">
+    <input id="manualTo"   type="date" title="To">
+    <button class="toggle" id="manualUnconf" type="button">Hide Confirmed</button>
+    <span class="grow"></span>
+    <button class="toggle" type="button" onclick="exportManual()">⇣ CSV</button>
+  </div>
+  <div id="manualTable"></div>
+</section>
+
+<!-- Multiviewer -->
+<section class="tab-content" id="tab-multi">
+  <div class="toolbar">
+    <span class="pill">LIVE HLS</span>
+    <button class="toggle active" id="mvScopeAll"   type="button" onclick="setMvScope('all')">All Schools</button>
+    <button class="toggle"        id="mvScopeToday" type="button" onclick="setMvScope('today')">Today's Events</button>
+    <select id="mvSport">
+      <option value="">All Sports</option>
+      <option value="Football">Football</option>
+      <option value="Men's Basketball">Men's Basketball</option>
+      <option value="Women's Basketball">Women's Basketball</option>
+    </select>
+    <span class="grow"></span>
+    <button class="toggle" type="button" onclick="rebuildMv()">↻ Refresh</button>
+    <button class="toggle" type="button" onclick="stopAllMv()">⏸ Stop All</button>
+  </div>
+  <div class="mv-grid" id="mvGrid"></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+ *  CONSTANTS
+ * ══════════════════════════════════════════════════════════════════ */
+const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+const UNLOCK_KEY = 'cusa_wsc_unlocked';
+const CURRENT_USER_KEY = 'cusa_wsc_user';
+
+const SAM_HOUSTON_MANUAL_SPORTS = new Set([
+  'Soccer', "Men's Soccer", "Women's Soccer", 'Volleyball', "Men's Volleyball", 'Baseball', 'Softball'
+]);
+const FOOTBALL = 'Football';
+const BASKETBALL = new Set(["Men's Basketball", "Women's Basketball", "Women’s Basketball"]);
+
+/* ════════════════════════════════════════════════════════════════════
+ *  STATE
+ * ══════════════════════════════════════════════════════════════════ */
+let _db = null;
+let _config = null;       // loaded from wsc_data.json
+let _aliasMap = new Map(); // lowercase alias → canonical
+let _events = [];         // schedule_events rows (deduped, master+manual scope)
+let _captureStatus = new Map(); // schedule_event_id → wsc_capture_status row
+let _currentUser = null;
+let _adminUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true';
+
+let _filters = {
+  master: { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
+  manual: { search: '', sport: '', school: '', from: '', to: '', hideConf: false }
+};
+let _mvScope = 'all';
+let _mvSportFilter = '';
+const _hlsInstances = new Map(); // tile key → Hls instance
+
+/* ════════════════════════════════════════════════════════════════════
+ *  INIT
+ * ══════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', async () => {
+  initSupabase();
+  loadCurrentUser();
+  if (!_adminUnlocked) { openPwModal(); return; }
+  await initPortal();
+});
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+async function initPortal() {
+  document.getElementById('currentUser').textContent =
+    _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
+  await loadConfig();
+  await Promise.all([loadEvents(), loadCaptureStatus()]);
+  bindFilterControls();
+  populateFilterDropdowns();
+  wireTabs();
+  renderMaster();
+  renderManual();
+  setupRealtime();
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch('wsc_data.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _config = await res.json();
+    _aliasMap = new Map();
+    for (const s of _config.schools) {
+      for (const a of s.aliases) _aliasMap.set(a.toLowerCase().trim(), s.canonical);
+      _aliasMap.set(s.canonical.toLowerCase().trim(), s.canonical);
+    }
+  } catch (e) {
+    console.error('wsc_data.json load failed:', e);
+    showToast('Failed to load WSC reference data', 'err');
+    _config = { schools: [], encoders: [] };
+  }
+}
+
+async function loadEvents() {
+  if (!_db) return;
+  try {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const earliest = new Date(today); earliest.setDate(earliest.getDate() - 30);
+    const { data, error } = await _db.from('schedule_events')
+      .select('*')
+      .gte('event_date', earliest.toISOString().slice(0,10))
+      .order('event_date');
+    if (error) throw error;
+    _events = dedupeEvents(data || []).filter(e => !e.archived);
+  } catch (e) {
+    console.error('schedule_events load:', e);
+    showToast('Could not load schedule', 'err');
+  }
+}
+
+async function loadCaptureStatus() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('wsc_capture_status').select('*');
+    if (error) throw error;
+    _captureStatus = new Map((data || []).map(r => [r.schedule_event_id, r]));
+  } catch (e) {
+    console.warn('wsc_capture_status load:', e?.message || e);
+    _captureStatus = new Map();
+  }
+}
+
+function dedupeEvents(rows) {
+  // Each game can be submitted by both schools — collapse on date+home+away+sport.
+  const map = new Map();
+  for (const r of rows) {
+    const key = [r.event_date, normalize(r.home), normalize(r.away), r.sport].join('|');
+    const prev = map.get(key);
+    // Prefer the row submitted by the home school (if home matches a CUSA team).
+    if (!prev || (canonicalOf(r.home) && r.school === canonicalOf(r.home))) {
+      map.set(key, r);
+    }
+  }
+  return Array.from(map.values());
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  ALIAS / CATEGORY HELPERS
+ * ══════════════════════════════════════════════════════════════════ */
+function normalize(s) { return String(s || '').trim().toLowerCase(); }
+function canonicalOf(team) {
+  if (!team) return null;
+  const k = normalize(team);
+  if (_aliasMap.has(k)) return _aliasMap.get(k);
+  // fuzzy: team string contains alias
+  for (const [alias, canon] of _aliasMap) {
+    if (k.includes(alias) || alias.includes(k)) return canon;
+  }
+  return null;
+}
+function isCusaTeam(team) { return canonicalOf(team) != null; }
+
+/**
+ * Returns 'master' (Tata), 'manual', or null.
+ *
+ * Master Schedule (Tata) =
+ *   • Football where home is CUSA, OR
+ *   • MBB / WBB where conference == 'Conference USA' (both teams CUSA), OR
+ *   • MBB / WBB where home is CUSA and conference != 'Conference USA' (home non-conf).
+ *
+ * Manual Capture =
+ *   • Football where home is non-CUSA and away is CUSA (road non-conf), OR
+ *   • MBB / WBB where home is non-CUSA and away is CUSA and conference != 'Conference USA', OR
+ *   • Sam Houston soccer / volleyball / baseball / softball (any home/away).
+ */
+function categorize(ev) {
+  const sport = ev.sport || '';
+  const homeIsCusa = isCusaTeam(ev.home);
+  const awayIsCusa = isCusaTeam(ev.away);
+  const isCusaConf = (ev.conference || '').trim().toLowerCase() === 'conference usa';
+
+  if (sport === FOOTBALL) {
+    if (homeIsCusa) return 'master';
+    if (awayIsCusa) return 'manual';
+    return null;
+  }
+  if (BASKETBALL.has(sport)) {
+    if (isCusaConf) return 'master';
+    if (homeIsCusa) return 'master';
+    if (awayIsCusa) return 'manual';
+    return null;
+  }
+  if (SAM_HOUSTON_MANUAL_SPORTS.has(sport)) {
+    if (canonicalOf(ev.school) === 'Sam Houston' || canonicalOf(ev.home) === 'Sam Houston' || canonicalOf(ev.away) === 'Sam Houston') {
+      return 'manual';
+    }
+  }
+  return null;
+}
+
+/** Returns the school whose contacts/SRT/HLS to display. */
+function hostSchoolFor(ev, category) {
+  // For Tata events we always use the home (host) school's SRT.
+  if (category === 'master') return canonicalOf(ev.home);
+  // For manual capture: Sam Houston for SHSU sports; otherwise the CUSA team that's on the road.
+  if (canonicalOf(ev.school) === 'Sam Houston' && SAM_HOUSTON_MANUAL_SPORTS.has(ev.sport)) return 'Sam Houston';
+  return canonicalOf(ev.away) || canonicalOf(ev.school);
+}
+
+function schoolByName(name) {
+  if (!name || !_config) return null;
+  return _config.schools.find(s => s.canonical === name) || null;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  AUTH
+ * ══════════════════════════════════════════════════════════════════ */
+function loadCurrentUser() {
+  try { _currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); }
+  catch { _currentUser = null; }
+}
+function openPwModal() {
+  document.getElementById('pwOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('pwEmail').focus(), 60);
+}
+function closePwModal() { document.getElementById('pwOverlay').classList.remove('open'); }
+async function hashPw(s) {
+  const buf = new TextEncoder().encode(s);
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function submitPw() {
+  const email = (document.getElementById('pwEmail').value || '').trim().toLowerCase();
+  const pw    = document.getElementById('pwInput').value;
+  const errEl = document.getElementById('pwErr');
+  if (!email || !pw) { errEl.textContent = 'Email and password required.'; return; }
+  const h = await hashPw(pw);
+  let user = null;
+  if (_db) {
+    try {
+      const { data } = await _db.from('admin_users')
+        .select('email, pw_hash, display_name, is_active')
+        .eq('email', email).maybeSingle();
+      if (data && data.is_active && data.pw_hash === h) {
+        user = { email: data.email, display_name: data.display_name || data.email };
+      }
+    } catch (e) { console.warn('admin_users lookup failed:', e); }
+  }
+  if (!user && h === VW_PW_HASH) user = { email: email || 'legacy-admin', display_name: 'Legacy Admin' };
+  if (!user) { errEl.textContent = 'Incorrect email or password.'; return; }
+  _currentUser = user;
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  _adminUnlocked = true;
+  localStorage.setItem(UNLOCK_KEY, 'true');
+  closePwModal();
+  await initPortal();
+}
+function signOut() {
+  localStorage.removeItem(UNLOCK_KEY);
+  localStorage.removeItem(CURRENT_USER_KEY);
+  stopAllMv();
+  window.location.href = 'hub.html';
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  TABS
+ * ══════════════════════════════════════════════════════════════════ */
+function wireTabs() {
+  document.querySelectorAll('.tab-bar button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      const id = 'tab-' + btn.dataset.tab;
+      document.getElementById(id).classList.add('active');
+      if (btn.dataset.tab === 'multi') rebuildMv();
+      else stopAllMv();
+    });
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  FILTERS
+ * ══════════════════════════════════════════════════════════════════ */
+function bindFilterControls() {
+  ['master', 'manual'].forEach(scope => {
+    const f = _filters[scope];
+    document.getElementById(scope + 'Search').addEventListener('input', e => { f.search = e.target.value; renderTable(scope); });
+    document.getElementById(scope + 'Sport').addEventListener('change',  e => { f.sport  = e.target.value; renderTable(scope); });
+    document.getElementById(scope + 'School').addEventListener('change', e => { f.school = e.target.value; renderTable(scope); });
+    document.getElementById(scope + 'From').addEventListener('change',   e => { f.from   = e.target.value; renderTable(scope); });
+    document.getElementById(scope + 'To').addEventListener('change',     e => { f.to     = e.target.value; renderTable(scope); });
+    const conf = document.getElementById(scope + 'Unconf');
+    conf.addEventListener('click', () => {
+      f.hideConf = !f.hideConf;
+      conf.classList.toggle('active', f.hideConf);
+      renderTable(scope);
+    });
+  });
+  document.getElementById('mvSport').addEventListener('change', e => { _mvSportFilter = e.target.value; rebuildMv(); });
+}
+
+function populateFilterDropdowns() {
+  const sportsM = new Set(), sportsX = new Set(), schoolsM = new Set(), schoolsX = new Set();
+  for (const ev of _events) {
+    const cat = categorize(ev);
+    if (!cat) continue;
+    const host = hostSchoolFor(ev, cat);
+    (cat === 'master' ? sportsM : sportsX).add(ev.sport);
+    if (host) (cat === 'master' ? schoolsM : schoolsX).add(host);
+  }
+  fillSelect('masterSport',  Array.from(sportsM).sort());
+  fillSelect('manualSport',  Array.from(sportsX).sort());
+  fillSelect('masterSchool', Array.from(schoolsM).sort());
+  fillSelect('manualSchool', Array.from(schoolsX).sort());
+}
+function fillSelect(id, vals) {
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">' + sel.querySelector('option').textContent + '</option>' +
+    vals.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  sel.value = cur;
+}
+
+function applyFilters(events, scope) {
+  const f = _filters[scope];
+  const fromTs = f.from ? new Date(f.from).getTime() : -Infinity;
+  const toTs   = f.to   ? new Date(f.to).getTime() + 86400000 : Infinity;
+  const q = f.search.trim().toLowerCase();
+  return events.filter(ev => {
+    if (f.sport && ev.sport !== f.sport) return false;
+    if (f.school && ev._host !== f.school) return false;
+    const t = ev.event_date ? new Date(ev.event_date).getTime() : 0;
+    if (t < fromTs || t > toTs) return false;
+    if (f.hideConf && _captureStatus.get(ev.id)?.av_confirmed) return false;
+    if (q) {
+      const hay = [ev.home, ev.away, ev.sport, ev.network, ev._host, ev.notes].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  RENDER
+ * ══════════════════════════════════════════════════════════════════ */
+function renderMaster() { renderTable('master'); }
+function renderManual() { renderTable('manual'); }
+
+function renderTable(scope) {
+  const tableEl = document.getElementById(scope + 'Table');
+  const all = _events
+    .map(e => Object.assign({ _cat: categorize(e) }, e))
+    .filter(e => e._cat === scope)
+    .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
+  // stats
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekOut = new Date(today); weekOut.setDate(weekOut.getDate() + 7);
+  const upcoming = all.filter(e => {
+    const t = e.event_date ? new Date(e.event_date) : null;
+    return t && t >= today && t <= weekOut;
+  }).length;
+  const confirmed = all.filter(e => _captureStatus.get(e.id)?.av_confirmed).length;
+  document.getElementById(scope + 'Count').textContent      = all.length;
+  document.getElementById(scope + 'Confirmed').textContent  = confirmed;
+  document.getElementById(scope + 'Upcoming').textContent   = upcoming;
+
+  const rows = applyFilters(all, scope);
+  if (rows.length === 0) {
+    tableEl.innerHTML = `<div class="empty"><h3>No events match</h3>Adjust filters or wait for the schedule submission to populate.</div>`;
+    return;
+  }
+
+  const isMaster = scope === 'master';
+  const head = `
+    <thead><tr>
+      <th>Date</th>
+      <th>Sport</th>
+      <th>Matchup</th>
+      <th class="col-network">Network</th>
+      <th>Host School</th>
+      <th>School Contact</th>
+      <th>A/V Confirmed</th>
+      ${isMaster ? '<th>SRT (WSC · SportRadar)</th>' : ''}
+      <th>Encoder</th>
+    </tr></thead>`;
+
+  const body = rows.map(ev => {
+    const status = _captureStatus.get(ev.id) || {};
+    const school = schoolByName(ev._host);
+    const contacts = (school?.contacts || []);
+    const srt = school?.srt?.[ev.sport] || school?.srt?.[primarySportKey(ev.sport)];
+    const confirmed = !!status.av_confirmed;
+    const stamp = status.confirmed_at
+      ? new Date(status.confirmed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+        (status.confirmed_by ? ' · ' + status.confirmed_by.split('@')[0] : '')
+      : '';
+    const matchup = `${escapeHtml(ev.away || '?')} @ ${escapeHtml(ev.home || '?')}`;
+    const sub = [ev.event_time, ev.conference].filter(Boolean).map(escapeHtml).join(' · ');
+
+    const contactHtml = contacts.length ? `
+      <span class="name">${escapeHtml(contacts[0].name)}${contacts[0].role ? ' <small style="color:var(--wsc-green);font-weight:600">· '+escapeHtml(contacts[0].role)+'</small>' : ''}</span>
+      <span class="meta">
+        ${contacts[0].email ? `<a href="mailto:${escapeHtml(contacts[0].email)}">${escapeHtml(contacts[0].email)}</a>` : ''}
+        ${contacts[0].phone ? `<a href="tel:${escapeHtml(contacts[0].phone)}">${escapeHtml(contacts[0].phone)}</a>` : ''}
+      </span>` : `<span class="meta" style="color:var(--wsc-mute)">—</span>`;
+
+    const srtHtml = isMaster ? `<td>
+      <div class="srt-cell">
+        <div class="srt-row">
+          <span class="label wsc">WSC</span>
+          ${srt?.wsc ? `<span class="url" onclick="copyToClipboard('${escapeAttr(srt.wsc)}')">${escapeHtml(srt.wsc)}</span><button class="copy" onclick="copyToClipboard('${escapeAttr(srt.wsc)}')">Copy</button>` : '<span class="url" style="color:var(--wsc-mute)">—</span>'}
+        </div>
+        <div class="srt-row">
+          <span class="label">SR</span>
+          ${srt?.sportradar ? `<span class="url" onclick="copyToClipboard('${escapeAttr(srt.sportradar)}')">${escapeHtml(srt.sportradar)}</span><button class="copy" onclick="copyToClipboard('${escapeAttr(srt.sportradar)}')">Copy</button>` : '<span class="url" style="color:var(--wsc-mute)">—</span>'}
+        </div>
+      </div>
+    </td>` : '';
+
+    const encOpts = (_config?.encoders || []).map(e =>
+      `<option value="${e.id}" ${status.encoder === e.id ? 'selected' : ''}>${e.id}</option>`
+    ).join('');
+
+    return `
+      <tr class="${confirmed ? 'confirmed' : ''}">
+        <td class="col-date">${formatDate(ev.event_date)}</td>
+        <td class="col-sport"><span>${escapeHtml(shortSport(ev.sport))}</span></td>
+        <td class="col-matchup">${matchup}${sub ? `<span class="sub">${sub}</span>` : ''}</td>
+        <td class="col-network">${escapeHtml(ev.network || '')}</td>
+        <td class="col-host">${escapeHtml(ev._host || '—')}</td>
+        <td class="col-contact">${contactHtml}</td>
+        <td>
+          <button class="av-toggle ${confirmed ? 'confirmed' : ''}" onclick="toggleAvConfirmed('${ev.id}')">
+            ${confirmed ? '✓ Confirmed' : 'Mark A/V'}
+            ${stamp ? `<span class="stamp">${escapeHtml(stamp)}</span>` : ''}
+          </button>
+        </td>
+        ${srtHtml}
+        <td class="encoder-cell">
+          <select class="${status.encoder ? 'set' : ''}" onchange="setEncoder('${ev.id}', this.value)">
+            <option value="">— Select —</option>
+            ${encOpts}
+          </select>
+        </td>
+      </tr>`;
+  }).join('');
+
+  tableEl.innerHTML = `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
+}
+
+function primarySportKey(sport) {
+  // SRT data has Football / Men's Basketball / Women's Basketball — non-listed sports fall through.
+  if (sport === FOOTBALL) return FOOTBALL;
+  if (BASKETBALL.has(sport)) return sport;
+  return null;
+}
+
+function shortSport(s) {
+  return ({
+    "Men's Basketball": "MBB",
+    "Women's Basketball": "WBB",
+    "Women’s Basketball": "WBB",
+    "Football": "FB",
+    "Volleyball": "VB",
+    "Baseball": "BB",
+    "Softball": "SB",
+    "Soccer": "SOC",
+    "Women's Soccer": "WSOC",
+    "Men's Soccer": "MSOC"
+  })[s] || s;
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T12:00:00');
+  return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  STATUS TOGGLES
+ * ══════════════════════════════════════════════════════════════════ */
+async function toggleAvConfirmed(eventId) {
+  if (!_db) return showToast('Database not connected', 'err');
+  const cur = _captureStatus.get(eventId) || {};
+  const next = !cur.av_confirmed;
+  const patch = {
+    schedule_event_id: eventId,
+    av_confirmed: next,
+    confirmed_by: next ? (_currentUser?.email || 'unknown') : null,
+    confirmed_at: next ? new Date().toISOString() : null,
+    encoder:      cur.encoder || null,
+    updated_at:   new Date().toISOString()
+  };
+  // Optimistic
+  _captureStatus.set(eventId, Object.assign({}, cur, patch));
+  renderMaster(); renderManual();
+  try {
+    const { error } = await _db.from('wsc_capture_status').upsert(patch, { onConflict: 'schedule_event_id' });
+    if (error) throw error;
+    showToast(next ? 'Marked A/V confirmed' : 'Cleared A/V confirmation', 'ok');
+  } catch (e) {
+    console.error('toggle av:', e);
+    _captureStatus.set(eventId, cur);
+    renderMaster(); renderManual();
+    showToast('Save failed: ' + (e.message || e), 'err');
+  }
+}
+
+async function setEncoder(eventId, encoder) {
+  if (!_db) return;
+  const cur = _captureStatus.get(eventId) || {};
+  const patch = {
+    schedule_event_id: eventId,
+    av_confirmed: !!cur.av_confirmed,
+    confirmed_by:  cur.confirmed_by  || null,
+    confirmed_at:  cur.confirmed_at  || null,
+    encoder:       encoder || null,
+    updated_at:    new Date().toISOString()
+  };
+  _captureStatus.set(eventId, Object.assign({}, cur, patch));
+  try {
+    const { error } = await _db.from('wsc_capture_status').upsert(patch, { onConflict: 'schedule_event_id' });
+    if (error) throw error;
+  } catch (e) {
+    console.error('encoder save:', e);
+    showToast('Encoder save failed', 'err');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  REALTIME
+ * ══════════════════════════════════════════════════════════════════ */
+function setupRealtime() {
+  if (!_db) return;
+  _db.channel('wsc-portal')
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_capture_status' }, async () => {
+       await loadCaptureStatus();
+       renderMaster(); renderManual();
+     })
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_events' }, async () => {
+       await loadEvents();
+       populateFilterDropdowns();
+       renderMaster(); renderManual();
+       if (document.getElementById('tab-multi').classList.contains('active')) rebuildMv();
+     })
+     .subscribe();
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  MULTIVIEWER
+ * ══════════════════════════════════════════════════════════════════ */
+function setMvScope(scope) {
+  _mvScope = scope;
+  document.getElementById('mvScopeAll').classList.toggle('active', scope === 'all');
+  document.getElementById('mvScopeToday').classList.toggle('active', scope === 'today');
+  rebuildMv();
+}
+
+function buildMvTiles() {
+  // For 'all': one tile per (school × sport) covered by HLS data.
+  // For 'today': only schools/sports that actually have an event today (from _events).
+  const tiles = [];
+  if (_mvScope === 'today') {
+    const today = new Date().toISOString().slice(0,10);
+    const seen = new Set();
+    for (const ev of _events) {
+      if (ev.event_date !== today) continue;
+      const cat = categorize(ev);
+      if (!cat) continue;
+      const host = hostSchoolFor(ev, cat);
+      const sportKey = primarySportKey(ev.sport);
+      if (!host || !sportKey) continue;
+      const key = host + '|' + sportKey;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const sc = schoolByName(host);
+      const url = sc?.hls?.[sportKey];
+      if (!url) continue;
+      tiles.push({ key, school: host, sport: sportKey, url, sub: `${ev.away} @ ${ev.home} · ${ev.event_time || ''}`.trim() });
+    }
+  } else {
+    for (const sc of (_config?.schools || [])) {
+      for (const sport of ['Football', "Men's Basketball"]) {
+        const url = sc.hls?.[sport];
+        if (!url) continue;
+        if (_mvSportFilter && _mvSportFilter !== sport && !(sport === "Men's Basketball" && _mvSportFilter === "Women's Basketball")) continue;
+        tiles.push({ key: sc.canonical + '|' + sport, school: sc.canonical, sport, url, sub: '' });
+      }
+    }
+  }
+  return tiles;
+}
+
+function rebuildMv() {
+  stopAllMv();
+  const grid = document.getElementById('mvGrid');
+  const tiles = buildMvTiles();
+  if (tiles.length === 0) {
+    grid.innerHTML = `<div class="empty"><h3>No live tiles</h3>${_mvScope === 'today' ? 'No events scheduled today, or HLS feeds unavailable.' : 'No HLS feeds match the current filter.'}</div>`;
+    return;
+  }
+  grid.innerHTML = tiles.map(t => `
+    <div class="mv-tile" data-key="${escapeAttr(t.key)}">
+      <div class="mv-tile-head">
+        <div class="ttl">${escapeHtml(t.school)} <small>${escapeHtml(shortSport(t.sport))}${t.sub ? ' · ' + escapeHtml(t.sub) : ''}</small></div>
+        <a class="open-ext" href="${escapeAttr(t.url)}" target="_blank" rel="noopener" title="Open in new tab">↗</a>
+      </div>
+      <video id="mv-${cssId(t.key)}" muted playsinline></video>
+      <div class="mv-status idle" id="mvst-${cssId(t.key)}"><span></span><span style="opacity:0.6">${escapeHtml(t.url.replace(/^https?:\/\//, '').slice(0, 48))}…</span></div>
+    </div>
+  `).join('');
+  // Attach players
+  for (const t of tiles) attachHls(t);
+}
+
+function attachHls(t) {
+  const video = document.getElementById('mv-' + cssId(t.key));
+  const status = document.getElementById('mvst-' + cssId(t.key));
+  if (!video) return;
+  const setStatus = (cls) => { status.className = 'mv-status ' + cls; };
+  if (window.Hls && Hls.isSupported()) {
+    const hls = new Hls({ lowLatencyMode: true, liveSyncDuration: 4 });
+    _hlsInstances.set(t.key, hls);
+    hls.loadSource(t.url);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); setStatus('live'); });
+    hls.on(Hls.Events.ERROR, (_, data) => { if (data.fatal) setStatus('err'); });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = t.url;
+    video.addEventListener('loadedmetadata', () => { video.play().catch(()=>{}); setStatus('live'); });
+    video.addEventListener('error', () => setStatus('err'));
+  } else {
+    setStatus('err');
+  }
+}
+
+function stopAllMv() {
+  for (const [, hls] of _hlsInstances) { try { hls.destroy(); } catch {} }
+  _hlsInstances.clear();
+  document.querySelectorAll('#mvGrid video').forEach(v => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch {} });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  EXPORT
+ * ══════════════════════════════════════════════════════════════════ */
+function exportMaster() { exportScope('master'); }
+function exportManual() { exportScope('manual'); }
+function exportScope(scope) {
+  const all = _events
+    .map(e => Object.assign({ _cat: categorize(e) }, e))
+    .filter(e => e._cat === scope)
+    .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
+  const rows = applyFilters(all, scope);
+  const isMaster = scope === 'master';
+  const headers = ['Date', 'Sport', 'Away', 'Home', 'Network', 'Host', 'Contact', 'Email', 'Phone', 'A/V Confirmed', 'Encoder'];
+  if (isMaster) headers.push('SRT WSC', 'SRT SportRadar');
+  const lines = [headers.join(',')];
+  for (const ev of rows) {
+    const st = _captureStatus.get(ev.id) || {};
+    const sc = schoolByName(ev._host);
+    const c = sc?.contacts?.[0] || {};
+    const srt = sc?.srt?.[ev.sport] || sc?.srt?.[primarySportKey(ev.sport)] || {};
+    const cells = [ev.event_date, ev.sport, ev.away, ev.home, ev.network, ev._host, c.name || '', c.email || '', c.phone || '', st.av_confirmed ? 'YES' : 'NO', st.encoder || ''];
+    if (isMaster) cells.push(srt.wsc || '', srt.sportradar || '');
+    lines.push(cells.map(csvCell).join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `wsc-${scope}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+function csvCell(v) {
+  const s = String(v == null ? '' : v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  UTIL
+ * ══════════════════════════════════════════════════════════════════ */
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
+function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(
+    () => showToast('Copied: ' + text.slice(0, 50), 'ok'),
+    () => showToast('Copy failed', 'err')
+  );
+}
+
+function showToast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (kind ? ' ' + kind : '');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+}
+</script>
+</body>
+</html>

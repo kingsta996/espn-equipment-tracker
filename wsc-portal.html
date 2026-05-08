@@ -67,9 +67,9 @@
     padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   }
   .header .logos { display: flex; align-items: center; gap: 14px; }
-  .header img.wsc-logo { height: 60px; }
+  .header img.wsc-logo { height: 72px; }
   .header img.cusa-logo { height: 32px; }
-  .header .divider { width: 1px; height: 40px; background: var(--wsc-line); }
+  .header .divider { width: 1px; height: 48px; background: var(--wsc-line); }
   .header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; flex: 1; min-width: 200px; }
   .header h1 small { color: var(--wsc-green); font-weight: 600; letter-spacing: 1px; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 2px; }
   .header .who { color: var(--wsc-mute); font-size: 11px; }
@@ -370,7 +370,7 @@
 <div class="pw-overlay" id="pwOverlay">
   <div class="pw-box">
     <h2>WSC CAPTURE PORTAL</h2>
-    <p>Sign in with your admin email and password</p>
+    <p>Conference admin or school login — same credentials as the Equipment Compliance page</p>
     <input class="pw-input" id="pwEmail"  type="email"    placeholder="you@example.com" autocomplete="email">
     <input class="pw-input" id="pwInput"  type="password" placeholder="Password"        autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPw()">
     <div class="pw-err" id="pwErr"></div>
@@ -400,7 +400,7 @@
 
 <!-- Tabs -->
 <div class="tab-bar">
-  <button class="active" data-tab="master">📡 Master Schedule <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Tata SRT)</span></button>
+  <button class="active" data-tab="master" data-school-hidden>📡 Master Schedule <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Tata SRT)</span></button>
   <button data-tab="manual">🎯 Manual Capture</button>
   <button data-tab="multi"    data-super-admin-only>📺 Multiviewer <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
   <button data-tab="settings" data-super-admin-only>🔧 Settings <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
@@ -501,11 +501,20 @@ const CURRENT_USER_KEY = 'cusa_wsc_user';
 const TEST_MODE_KEY = 'cusa_wsc_test_mode';
 const TEST_DATA_URL = 'wsc_test_data.json';
 
-// Super admins see the Multiviewer + Settings tabs and can edit reference data.
-// Plain admins (e.g., the Tata NOC) only see Master + Manual.
+// Three roles, gated post-login:
+//   • super  — Master + Manual + Multiviewer + Settings (allowlist below)
+//   • admin  — Master + Manual (any row in admin_users; e.g. Tata NOC)
+//   • school — Manual only, scoped to the user's school's events. Auths
+//              against schools.auth_email + schools.pw_hash from the
+//              Equipment Compliance database (single password per school).
 const SUPER_ADMINS = new Set(['kking@conferenceusa.com']);
 function isSuperAdmin() {
   return _currentUser && SUPER_ADMINS.has(String(_currentUser.email || '').toLowerCase());
+}
+function userRole() {
+  if (!_currentUser) return null;
+  if (_currentUser.role === 'school') return 'school';
+  return isSuperAdmin() ? 'super' : 'admin';
 }
 
 // HLS preview gating: rows with an event date other than today render a
@@ -808,10 +817,24 @@ async function initPortal() {
 }
 
 function applyAdminVisibility() {
-  const admin = isSuperAdmin();
+  const role = userRole();
+  const isSuper = role === 'super';
+  const isSchool = role === 'school';
   document.querySelectorAll('[data-super-admin-only]').forEach(el => {
-    el.style.display = admin ? '' : 'none';
+    el.style.display = isSuper ? '' : 'none';
   });
+  document.querySelectorAll('[data-school-hidden]').forEach(el => {
+    el.style.display = isSchool ? 'none' : '';
+  });
+  // School users: snap to Manual tab. Their default tab (Master) is hidden.
+  if (isSchool) {
+    document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const manualBtn = document.querySelector('.tab-bar button[data-tab="manual"]');
+    const manualSec = document.getElementById('tab-manual');
+    if (manualBtn) manualBtn.classList.add('active');
+    if (manualSec) manualSec.classList.add('active');
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1227,17 +1250,37 @@ async function submitPw() {
   if (!email || !pw) { errEl.textContent = 'Email and password required.'; return; }
   const h = await hashPw(pw);
   let user = null;
+
+  // 1) admin_users — Tata NOC, conference admins, etc.
   if (_db) {
     try {
       const { data } = await _db.from('admin_users')
         .select('email, pw_hash, display_name, is_active')
         .eq('email', email).maybeSingle();
       if (data && data.is_active && data.pw_hash === h) {
-        user = { email: data.email, display_name: data.display_name || data.email };
+        user = { email: data.email, display_name: data.display_name || data.email, role: 'admin' };
       }
     } catch (e) { console.warn('admin_users lookup failed:', e); }
   }
-  if (!user && h === VW_PW_HASH) user = { email: email || 'legacy-admin', display_name: 'Legacy Admin' };
+
+  // 2) schools — match the Equipment Compliance login. case-insensitive on auth_email.
+  if (!user && _db) {
+    try {
+      const { data } = await _db.from('schools')
+        .select('name, auth_email, pw_hash')
+        .ilike('auth_email', email);
+      const match = (data || []).find(s => s.pw_hash && s.pw_hash === h);
+      if (match) {
+        user = { email, display_name: match.name, role: 'school', school: match.name };
+      }
+    } catch (e) { console.warn('schools lookup failed:', e); }
+  }
+
+  // 3) Legacy fallback shared admin password.
+  if (!user && h === VW_PW_HASH) {
+    user = { email: email || 'legacy-admin', display_name: 'Legacy Admin', role: 'admin' };
+  }
+
   if (!user) { errEl.textContent = 'Incorrect email or password.'; return; }
   _currentUser = user;
   localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
@@ -1353,10 +1396,15 @@ function renderTable(scope) {
   // Tear down inline previews from a previous render — both tabs use them now.
   destroyAllRowHls();
 
-  const all = allEvents()
+  let all = allEvents()
     .map(e => Object.assign({ _cat: categorize(e) }, e))
     .filter(e => e._cat === scope)
     .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
+
+  // School-role users only see their own events.
+  if (userRole() === 'school' && _currentUser?.school) {
+    all = all.filter(e => e._host === _currentUser.school);
+  }
 
   // stats
   const today = new Date(); today.setHours(0,0,0,0);

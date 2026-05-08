@@ -445,7 +445,8 @@ function openSplashtop() {
 
 const _rowHlsInstances = new Map(); // schedule_event_id → Hls instance for the inline encoder preview
 
-function attachEncoderPreview(eventId, encoderId) {
+/** Generic helper: mount an HLS.js player into the row preview cell. */
+function attachInlineHls(eventId, url, label) {
   // Tear down any previous preview for this row.
   const prev = _rowHlsInstances.get(eventId);
   if (prev) { try { prev.destroy(); } catch {} }
@@ -453,20 +454,15 @@ function attachEncoderPreview(eventId, encoderId) {
 
   const cell = document.getElementById('enc-cell-' + cssId(eventId));
   if (!cell) return;
-  if (!encoderId) {
-    cell.innerHTML = '<div class="hls-preview-empty">Pick an encoder →</div>';
+  if (!url) {
+    cell.innerHTML = '<div class="hls-preview-empty">No feed mapped</div>';
     return;
   }
-  const enc = (_config?.encoders || []).find(e => e.id === encoderId);
-  if (!enc || !enc.hls) {
-    cell.innerHTML = `<div class="hls-preview-empty err">No HLS for ${escapeHtml(encoderId)}</div>`;
-    return;
-  }
-  const proxiedUrl = proxyBlobUrl(enc.hls);
+  const proxiedUrl = proxyBlobUrl(url);
   cell.innerHTML = `
     <div class="hls-preview-wrap">
       <video id="enchls-${cssId(eventId)}" muted playsinline controls></video>
-      <div class="hls-preview-meta"><span class="hls-preview-id">${escapeHtml(encoderId)}</span><span class="hls-preview-status" id="enchls-st-${cssId(eventId)}">connecting…</span></div>
+      <div class="hls-preview-meta"><span class="hls-preview-id">${escapeHtml(label || '')}</span><span class="hls-preview-status" id="enchls-st-${cssId(eventId)}">connecting…</span></div>
     </div>`;
   const video = document.getElementById('enchls-' + cssId(eventId));
   const stEl  = document.getElementById('enchls-st-' + cssId(eventId));
@@ -476,7 +472,7 @@ function attachEncoderPreview(eventId, encoderId) {
     _rowHlsInstances.set(eventId, hls);
     hls.loadSource(proxiedUrl);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); if (stEl) stEl.textContent = '● live'; if (stEl) stEl.style.color = '#34d058'; });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); if (stEl) { stEl.textContent = '● live'; stEl.style.color = '#34d058'; } });
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (data.fatal && stEl) { stEl.textContent = 'offline'; stEl.style.color = '#f9c74f'; }
     });
@@ -487,6 +483,33 @@ function attachEncoderPreview(eventId, encoderId) {
   } else {
     if (stEl) stEl.textContent = 'unsupported';
   }
+}
+
+function attachEncoderPreview(eventId, encoderId) {
+  if (!encoderId) {
+    const prev = _rowHlsInstances.get(eventId);
+    if (prev) { try { prev.destroy(); } catch {} }
+    _rowHlsInstances.delete(eventId);
+    const cell = document.getElementById('enc-cell-' + cssId(eventId));
+    if (cell) cell.innerHTML = '<div class="hls-preview-empty">Pick an encoder →</div>';
+    return;
+  }
+  const enc = (_config?.encoders || []).find(e => e.id === encoderId);
+  if (!enc || !enc.hls) {
+    const cell = document.getElementById('enc-cell-' + cssId(eventId));
+    if (cell) cell.innerHTML = `<div class="hls-preview-empty err">No HLS for ${escapeHtml(encoderId)}</div>`;
+    return;
+  }
+  attachInlineHls(eventId, enc.hls, encoderId);
+}
+
+/** Master rows: school-direct HLS (Wowza blob) keyed by host school + sport. */
+function attachSchoolHlsPreview(eventId, ev) {
+  const school = schoolByName(ev._host);
+  const sportKey = primarySportKey(ev.sport);
+  const url = school?.hls?.[ev.sport] || school?.hls?.[sportKey] || null;
+  const slug = url ? (url.match(/cusa\/([^/]+)\.stream/)?.[1] || '') : '';
+  attachInlineHls(eventId, url, slug);
 }
 function destroyAllRowHls() {
   for (const [, hls] of _rowHlsInstances) { try { hls.destroy(); } catch {} }
@@ -827,11 +850,13 @@ function wireTabs() {
       btn.classList.add('active');
       const tab = btn.dataset.tab;
       document.getElementById('tab-' + tab).classList.add('active');
-      // Tear down players from tabs we're leaving so they don't keep streaming.
-      if (tab !== 'multi')  stopAllMv();
-      if (tab !== 'manual') destroyAllRowHls();
+      // Tear down everything from the previous tab so streams don't pile up.
+      stopAllMv();
+      destroyAllRowHls();
+      // Re-render the entering tab so its previews remount.
       if (tab === 'multi')  rebuildMv();
-      if (tab === 'manual') renderManual(); // re-attach previews for selected encoders
+      if (tab === 'master') renderMaster();
+      if (tab === 'manual') renderManual();
     });
   });
 }
@@ -909,8 +934,8 @@ function renderTable(scope) {
   const tableEl = document.getElementById(scope + 'Table');
   const isMaster = scope === 'master';
 
-  // Tear down inline encoder previews from a previous render of this scope.
-  if (!isMaster) destroyAllRowHls();
+  // Tear down inline previews from a previous render — both tabs use them now.
+  destroyAllRowHls();
 
   const all = allEvents()
     .map(e => Object.assign({ _cat: categorize(e) }, e))
@@ -948,7 +973,7 @@ function renderTable(scope) {
       <th>School Contact</th>
       <th>A/V Confirmed</th>
       <th>SRT (WSC · SportRadar)</th>
-      <th>Tata Support Contact</th>
+      <th>HLS Preview</th>
     </tr></thead>` : `
     <thead><tr>
       <th>Date</th>
@@ -1015,10 +1040,8 @@ function renderTable(scope) {
             </button>
           </td>
           ${srtHtml}
-          <td class="col-tata">
-            <strong>Tata MES NOC</strong>
-            <a href="mailto:mes-noc@tatacommunications.com">mes-noc@tatacommunications.com</a>
-            <small>24/7 transmission ops</small>
+          <td class="col-hls-preview" id="enc-cell-${cssId(ev.id)}">
+            <div class="hls-preview-empty">Loading…</div>
           </td>
         </tr>`;
     }
@@ -1049,8 +1072,12 @@ function renderTable(scope) {
 
   tableEl.innerHTML = `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
 
-  // Re-attach inline previews for any rows that already have an encoder selected.
-  if (!isMaster) {
+  // Mount the inline HLS preview cells.
+  if (isMaster) {
+    // School-direct Wowza HLS auto-loads per host school + sport.
+    for (const ev of rows) attachSchoolHlsPreview(ev.id, ev);
+  } else {
+    // Manual rows mount only when an encoder is selected.
     for (const ev of rows) {
       const st = getCaptureFor(ev.id);
       if (st.encoder) attachEncoderPreview(ev.id, st.encoder);

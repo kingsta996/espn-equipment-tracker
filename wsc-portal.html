@@ -197,7 +197,16 @@
   .mv-tile .mv-status { padding: 6px 10px; font-size: 10px; color: var(--wsc-mute); border-top: 1px solid var(--wsc-line); display: flex; justify-content: space-between; }
   .mv-tile .mv-status.live::before { content: '● LIVE'; color: var(--err); font-weight: 800; letter-spacing: 0.5px; }
   .mv-tile .mv-status.idle::before { content: '○ IDLE'; color: var(--wsc-mute); font-weight: 800; letter-spacing: 0.5px; }
-  .mv-tile .mv-status.err::before { content: '! OFFLINE'; color: var(--warn); font-weight: 800; letter-spacing: 0.5px; }
+  .mv-tile .mv-status.err::before  { content: '! OFFLINE'; color: var(--warn); font-weight: 800; letter-spacing: 0.5px; }
+
+  /* Per-tile Primary/Backup switcher (basketball only) */
+  .slot-switch { display: inline-flex; gap: 0; border: 1px solid var(--wsc-line); border-radius: 6px; overflow: hidden; margin-left: 8px; }
+  .slot-switch button {
+    background: transparent; color: var(--wsc-mute); border: 0; padding: 3px 8px; font-size: 10px;
+    font-weight: 700; cursor: pointer; font-family: inherit; letter-spacing: 0.4px;
+  }
+  .slot-switch button.active { background: var(--wsc-green); color: #000; }
+  .slot-switch button:not(.active):hover { color: var(--wsc-text); }
 
   /* Empty / loading */
   .empty {
@@ -322,21 +331,18 @@
 <section class="tab-content" id="tab-multi">
   <div class="toolbar">
     <span class="pill" id="mvDiscoveryStatus">DISCOVERING…</span>
-    <button class="toggle active" id="mvScopeAll"   type="button" onclick="setMvScope('all')">All Encoder Slots</button>
+    <button class="toggle active" id="mvSecFootball"  type="button" onclick="setMvSection('football')">🏈 Football</button>
+    <button class="toggle"        id="mvSecBasketball" type="button" onclick="setMvSection('basketball')">🏀 Basketball</button>
+    <span style="width:14px"></span>
+    <button class="toggle active" id="mvScopeAll"   type="button" onclick="setMvScope('all')">All Schools</button>
     <button class="toggle"        id="mvScopeToday" type="button" onclick="setMvScope('today')">Today's Events</button>
     <button class="toggle"        id="mvOnlyLive"   type="button" onclick="toggleOnlyLive()">Only Live</button>
-    <select id="mvSport">
-      <option value="">All Slots</option>
-      <option value="FB">FB Encoder</option>
-      <option value="MBB">MBB Encoder</option>
-      <option value="WBB">WBB Encoder</option>
-    </select>
     <span class="grow"></span>
     <button class="toggle" type="button" onclick="rebuildMv()">↻ Refresh</button>
     <button class="toggle" type="button" onclick="stopAllMv()">⏸ Stop All</button>
   </div>
   <div style="font-size:11px;color:var(--wsc-mute);margin:-6px 0 12px;line-height:1.5">
-    Tiles are <strong>encoder slots</strong>, not sports — a school's <code>FB</code> slot may be carrying soccer or softball today depending on which input the school's encoder is patched to. <strong>● LIVE</strong> = chunklist updated &lt;35s ago.
+    <strong>Football</strong> tiles use each school's <code>FB</code> stream. <strong>Basketball</strong> tiles default to the primary <code>WBB</code> stream with a <code>MBB</code> backup toggle per tile. <strong>● LIVE</strong> = chunklist updated &lt;35s ago.
   </div>
   <div class="mv-grid" id="mvGrid"></div>
 </section>
@@ -401,9 +407,10 @@ let _filters = {
   manual: { search: '', sport: '', school: '', from: '', to: '', hideConf: false }
 };
 let _mvScope = 'all';
-let _mvSportFilter = '';
+let _mvSection = 'football';     // 'football' | 'basketball'
 let _mvOnlyLive = false;
 let _mvDiscovered = new Map();   // slug → { school, slot, slug, lastModified, isLive }
+let _mvBasketballChoice = new Map(); // school → 'wbb' | 'mbb' (per-school basketball stream choice)
 let _mvRefreshTimer = null;
 const _hlsInstances = new Map(); // tile key → Hls instance
 
@@ -649,7 +656,6 @@ function bindFilterControls() {
       renderTable(scope);
     });
   });
-  document.getElementById('mvSport').addEventListener('change', e => { _mvSportFilter = e.target.value; rebuildMv(); });
 }
 
 function populateFilterDropdowns() {
@@ -906,11 +912,22 @@ function setMvScope(scope) {
   _mvScope = scope;
   document.getElementById('mvScopeAll').classList.toggle('active', scope === 'all');
   document.getElementById('mvScopeToday').classList.toggle('active', scope === 'today');
-  rebuildMv();
+  renderMvFromCache();
+}
+function setMvSection(section) {
+  _mvSection = section;
+  document.getElementById('mvSecFootball').classList.toggle('active', section === 'football');
+  document.getElementById('mvSecBasketball').classList.toggle('active', section === 'basketball');
+  renderMvFromCache();
 }
 function toggleOnlyLive() {
   _mvOnlyLive = !_mvOnlyLive;
   document.getElementById('mvOnlyLive').classList.toggle('active', _mvOnlyLive);
+  renderMvFromCache();
+}
+function setBasketballSlot(school, slot) {
+  _mvBasketballChoice.set(school, slot);
+  // Tear down only the affected tile and rebuild it.
   renderMvFromCache();
 }
 
@@ -978,12 +995,51 @@ async function refreshMvLiveness() {
   }
 }
 
+/**
+ * Return tile descriptors for the active section.
+ *
+ * Football section: one tile per school whose FB slot exists in discovery.
+ * Basketball section: one tile per school whose WBB *or* MBB slot exists,
+ *   with both options surfaced so the user can flip between them per tile.
+ *   The "active" slot defaults to WBB (primary) but can be overridden via
+ *   _mvBasketballChoice.
+ */
 function tilesForCurrentView() {
   const slots = Array.from(_mvDiscovered.values());
-  // Filter by scope
-  let filtered = slots;
+  // Index slots by school for quick lookup.
+  const bySchool = new Map();
+  for (const s of slots) {
+    if (!bySchool.has(s.school)) bySchool.set(s.school, {});
+    bySchool.get(s.school)[s.slot] = s; // {FB, WBB, MBB}
+  }
+
+  let tiles = [];
+  if (_mvSection === 'football') {
+    for (const [school, slotMap] of bySchool) {
+      if (!slotMap.FB) continue;
+      tiles.push({
+        school,
+        activeSlot: 'FB',
+        active: slotMap.FB,
+        alts: null
+      });
+    }
+  } else {
+    for (const [school, slotMap] of bySchool) {
+      if (!slotMap.WBB && !slotMap.MBB) continue;
+      const choice = _mvBasketballChoice.get(school) || (slotMap.WBB ? 'WBB' : 'MBB');
+      const active = slotMap[choice] || slotMap.WBB || slotMap.MBB;
+      tiles.push({
+        school,
+        activeSlot: active.slot,
+        active,
+        alts: { primary: slotMap.WBB || null, backup: slotMap.MBB || null }
+      });
+    }
+  }
+
+  // Today's-events filter
   if (_mvScope === 'today') {
-    // Limit to schools that have at least one event today.
     const today = new Date().toISOString().slice(0,10);
     const todaysSchools = new Set();
     for (const ev of _events) {
@@ -993,15 +1049,16 @@ function tilesForCurrentView() {
       const host = hostSchoolFor(ev, cat);
       if (host) todaysSchools.add(host);
     }
-    filtered = slots.filter(s => todaysSchools.has(s.school));
+    tiles = tiles.filter(t => todaysSchools.has(t.school));
   }
-  if (_mvSportFilter) filtered = filtered.filter(s => s.slot === _mvSportFilter);
-  if (_mvOnlyLive)    filtered = filtered.filter(s => s.isLive);
-  filtered.sort((a, b) => {
-    if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
-    return (a.school + a.slot).localeCompare(b.school + b.slot);
+
+  if (_mvOnlyLive) tiles = tiles.filter(t => t.active.isLive);
+
+  tiles.sort((a, b) => {
+    if (a.active.isLive !== b.active.isLive) return a.active.isLive ? -1 : 1;
+    return a.school.localeCompare(b.school);
   });
-  return filtered;
+  return tiles;
 }
 
 function todaysEventForSchool(school) {
@@ -1023,24 +1080,42 @@ function renderMvFromCache() {
     return;
   }
   grid.innerHTML = tiles.map(t => {
-    const url = `${WSC_BLOB}/playlists/hls/cusa/${t.slug}.stream/playlist.m3u8`;
-    const externalUrl = `https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/${t.slug}.stream/playlist.m3u8`;
+    const slug = t.active.slug;
+    const externalUrl = `https://wowzaprodeus2.blob.core.windows.net/playlists/hls/cusa/${slug}.stream/playlist.m3u8`;
     const ev = todaysEventForSchool(t.school);
-    const sub = ev ? `${ev.sport} · ${ev.away} @ ${ev.home}` : t.slot + ' encoder slot';
-    const ago = t.lastModified ? Math.round((Date.now() - t.lastModified) / 1000) + 's ago' : '—';
+    const sub = ev ? `${ev.sport} · ${ev.away} @ ${ev.home}` : (_mvSection === 'football' ? 'Football' : 'Basketball');
+    const ago = t.active.lastModified ? Math.round((Date.now() - t.active.lastModified) / 1000) + 's ago' : '—';
+
+    let switchHtml = '';
+    if (t.alts) {
+      const primaryDisabled = !t.alts.primary ? 'disabled style="opacity:0.4;cursor:not-allowed"' : '';
+      const backupDisabled  = !t.alts.backup  ? 'disabled style="opacity:0.4;cursor:not-allowed"' : '';
+      const escSchool = escapeAttr(t.school);
+      switchHtml = `
+        <div class="slot-switch" title="WBB primary · MBB backup">
+          <button class="${t.activeSlot === 'WBB' ? 'active' : ''}" ${primaryDisabled} onclick="setBasketballSlot('${escSchool}','WBB')">Primary</button>
+          <button class="${t.activeSlot === 'MBB' ? 'active' : ''}" ${backupDisabled}  onclick="setBasketballSlot('${escSchool}','MBB')">Backup</button>
+        </div>`;
+    }
+
     return `
-      <div class="mv-tile" data-key="${escapeAttr(t.slug)}">
+      <div class="mv-tile" data-key="${escapeAttr(slug)}">
         <div class="mv-tile-head">
-          <div class="ttl">${escapeHtml(t.school)} · ${escapeHtml(t.slot)} <small>${escapeHtml(sub)}</small></div>
-          <a class="open-ext" href="${escapeAttr(externalUrl)}" target="_blank" rel="noopener" title="Open .m3u8 in a new tab (VLC, etc.)">↗</a>
+          <div class="ttl">
+            ${escapeHtml(t.school)} <small>${escapeHtml(t.activeSlot)} · ${escapeHtml(sub)}</small>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${switchHtml}
+            <a class="open-ext" href="${escapeAttr(externalUrl)}" target="_blank" rel="noopener" title="Open .m3u8 in a new tab (VLC, etc.)">↗</a>
+          </div>
         </div>
-        <video id="mv-${cssId(t.slug)}" muted playsinline controls></video>
-        <div class="mv-status ${t.isLive ? 'live' : 'idle'}" id="mvst-${cssId(t.slug)}">
+        <video id="mv-${cssId(slug)}" muted playsinline controls></video>
+        <div class="mv-status ${t.active.isLive ? 'live' : 'idle'}" id="mvst-${cssId(slug)}">
           <span class="ago" style="margin-left:auto;opacity:0.6">${ago}</span>
         </div>
       </div>`;
   }).join('');
-  for (const t of tiles) attachHls(t);
+  for (const t of tiles) attachHls(t.active);
 }
 
 // Custom loader that rewrites every Wowza absolute URL to our same-origin
@@ -1059,10 +1134,11 @@ function makeProxiedLoader(BaseLoader) {
   };
 }
 
-function attachHls(t) {
-  const url = `${WSC_BLOB}/playlists/hls/cusa/${t.slug}.stream/playlist.m3u8`;
-  const video = document.getElementById('mv-' + cssId(t.slug));
-  const status = document.getElementById('mvst-' + cssId(t.slug));
+function attachHls(slotMeta) {
+  const slug = slotMeta.slug;
+  const url = `${WSC_BLOB}/playlists/hls/cusa/${slug}.stream/playlist.m3u8`;
+  const video = document.getElementById('mv-' + cssId(slug));
+  const status = document.getElementById('mvst-' + cssId(slug));
   if (!video) return;
   if (window.Hls && Hls.isSupported()) {
     const ProxiedLoader = makeProxiedLoader(Hls.DefaultConfig.loader);
@@ -1072,13 +1148,13 @@ function attachHls(t) {
       liveSyncDuration: 6,
       manifestLoadingTimeOut: 10000
     });
-    _hlsInstances.set(t.slug, hls);
+    _hlsInstances.set(slug, hls);
     hls.loadSource(url);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); });
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (data.fatal && status) status.className = 'mv-status err';
-      if (data.fatal) console.warn('HLS fatal', t.slug, data.type, data.details, data.url);
+      if (data.fatal) console.warn('HLS fatal', slug, data.type, data.details, data.url);
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = url;

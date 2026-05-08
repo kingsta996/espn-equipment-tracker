@@ -496,7 +496,7 @@ const TEST_DATA_URL = 'wsc_test_data.json';
 
 // Super admins see the Multiviewer + Settings tabs and can edit reference data.
 // Plain admins (e.g., the Tata NOC) only see Master + Manual.
-const SUPER_ADMINS = new Set(['keithmkingjr@gmail.com']);
+const SUPER_ADMINS = new Set(['kking@conferenceusa.com']);
 function isSuperAdmin() {
   return _currentUser && SUPER_ADMINS.has(String(_currentUser.email || '').toLowerCase());
 }

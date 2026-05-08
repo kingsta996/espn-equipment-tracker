@@ -67,9 +67,9 @@
     padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   }
   .header .logos { display: flex; align-items: center; gap: 14px; }
-  .header img.wsc-logo { height: 44px; }
+  .header img.wsc-logo { height: 60px; }
   .header img.cusa-logo { height: 32px; }
-  .header .divider { width: 1px; height: 36px; background: var(--wsc-line); }
+  .header .divider { width: 1px; height: 40px; background: var(--wsc-line); }
   .header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; flex: 1; min-width: 200px; }
   .header h1 small { color: var(--wsc-green); font-weight: 600; letter-spacing: 1px; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 2px; }
   .header .who { color: var(--wsc-mute); font-size: 11px; }
@@ -154,6 +154,12 @@
     cursor: pointer; font-family: inherit; letter-spacing: 0.3px; white-space: nowrap;
     transition: all 0.15s ease;
   }
+  .av-format-chip {
+    display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 4px;
+    background: rgba(200,255,0,0.12); color: var(--wsc-green); font-size: 10px;
+    font-weight: 800; letter-spacing: 0.4px; font-family: 'SF Mono','Menlo',monospace;
+  }
+  .av-format-chip.unset { background: transparent; color: var(--wsc-mute); border: 1px dashed var(--wsc-line); }
   .av-toggle.confirmed { background: var(--ok); color: #052e0f; border-color: var(--ok); }
   .av-toggle:not(.confirmed):hover { color: var(--wsc-green); border-color: var(--wsc-green); }
   .av-toggle .stamp { display: block; font-size: 9.5px; font-weight: 500; margin-top: 2px; opacity: 0.8; }
@@ -188,6 +194,7 @@
   .hls-preview-wrap video { width: 240px; aspect-ratio: 16/9; background: #000; border-radius: 6px; border: 1px solid var(--wsc-line); }
   .hls-preview-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--wsc-mute); font-family: 'SF Mono', 'Menlo', monospace; }
   .hls-preview-id { color: var(--wsc-green); font-weight: 700; }
+  .hls-preview-format { color: var(--wsc-green); font-weight: 800; letter-spacing: 0.4px; }
   .hls-preview-countdown { color: var(--wsc-green); font-weight: 700; }
   .preview-btn {
     background: rgba(200,255,0,0.12); color: var(--wsc-green); border: 1px solid rgba(200,255,0,0.4);
@@ -545,6 +552,17 @@ function isToday(iso) {
   return d.getTime() === today.getTime();
 }
 
+/** Map a stream's pixel dimensions to a standard format label (720p / 1080p …). */
+function formatLabelFor(w, h) {
+  if (!h) return '—';
+  const heights = { 360: '360p', 480: '480p', 540: '540p', 720: '720p', 1080: '1080p', 1440: '1440p', 2160: '2160p' };
+  // Snap to nearest standard height within ±20px.
+  for (const std of Object.keys(heights)) {
+    if (Math.abs(h - Number(std)) <= 20) return heights[std];
+  }
+  return `${w}×${h}`;
+}
+
 function destroyRowHls(eventId) {
   const prev = _rowHlsInstances.get(eventId);
   if (prev) { try { prev.destroy(); } catch {} }
@@ -573,26 +591,45 @@ function attachInlineHls(eventId, url, label, opts) {
     <div class="hls-preview-wrap">
       <video id="enchls-${cssId(eventId)}" muted playsinline controls></video>
       <div class="hls-preview-meta">
-        <span class="hls-preview-id">${escapeHtml(label || '')}</span>
+        <span class="hls-preview-format" id="enchls-fmt-${cssId(eventId)}">detecting…</span>
         ${remainingHtml}
         <span class="hls-preview-status" id="enchls-st-${cssId(eventId)}">connecting…</span>
       </div>
     </div>`;
   const video = document.getElementById('enchls-' + cssId(eventId));
   const stEl  = document.getElementById('enchls-st-' + cssId(eventId));
+  const fmtEl = document.getElementById('enchls-fmt-' + cssId(eventId));
+  const writeFormat = (w, h) => {
+    if (fmtEl) fmtEl.textContent = formatLabelFor(w, h);
+  };
   if (window.Hls && Hls.isSupported()) {
     const ProxiedLoader = makeProxiedLoader(Hls.DefaultConfig.loader);
     const hls = new Hls({ loader: ProxiedLoader, lowLatencyMode: false, manifestLoadingTimeOut: 8000 });
     _rowHlsInstances.set(eventId, hls);
     hls.loadSource(proxiedUrl);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(()=>{}); if (stEl) { stEl.textContent = '● live'; stEl.style.color = '#34d058'; } });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(()=>{});
+      if (stEl) { stEl.textContent = '● live'; stEl.style.color = '#34d058'; }
+      const lvl = (hls.levels || [])[0];
+      if (lvl) writeFormat(lvl.width, lvl.height);
+    });
+    hls.on(Hls.Events.LEVEL_LOADED, () => {
+      // Pick the active level once HLS has settled on one.
+      const idx = hls.currentLevel >= 0 ? hls.currentLevel : 0;
+      const lvl = (hls.levels || [])[idx];
+      if (lvl) writeFormat(lvl.width, lvl.height);
+    });
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (data.fatal && stEl) { stEl.textContent = 'offline'; stEl.style.color = '#f9c74f'; }
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = proxiedUrl;
-    video.addEventListener('loadedmetadata', () => { video.play().catch(()=>{}); if (stEl) stEl.textContent = '● live'; });
+    video.addEventListener('loadedmetadata', () => {
+      video.play().catch(()=>{});
+      if (stEl) stEl.textContent = '● live';
+      writeFormat(video.videoWidth, video.videoHeight);
+    });
     video.addEventListener('error', () => { if (stEl) stEl.textContent = 'offline'; });
   } else {
     if (stEl) stEl.textContent = 'unsupported';
@@ -1417,6 +1454,7 @@ function renderTable(scope) {
               ${confirmed ? '✓ Confirmed' : 'Mark A/V'}
               ${stamp ? `<span class="stamp">${escapeHtml(stamp)}</span>` : ''}
             </button>
+            <div class="av-format-chip ${school?.video_format ? '' : 'unset'}">${escapeHtml(school?.video_format || '— format —')}</div>
           </td>
           ${srtHtml}
           <td class="col-hls-preview" id="enc-cell-${cssId(ev.id)}">

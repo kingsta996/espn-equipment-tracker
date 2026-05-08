@@ -297,6 +297,18 @@
   <button data-tab="multi">📺 Multiviewer</button>
 </div>
 
+<!-- Test mode banner -->
+<div id="testBanner" style="display:none;background:linear-gradient(90deg,rgba(200,255,0,0.12),rgba(200,255,0,0.04));border-bottom:1px solid rgba(200,255,0,0.4);padding:8px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px">
+  <span style="background:#C8FF00;color:#000;font-weight:800;padding:3px 10px;border-radius:4px;letter-spacing:0.6px;font-size:10px">🧪 TEST MODE</span>
+  <span id="testBannerMsg" style="color:var(--wsc-text)">Loading test fixture…</span>
+  <span class="grow" style="flex:1"></span>
+  <button onclick="clearTestMode()" style="background:transparent;color:var(--wsc-mute);border:1px solid var(--wsc-line);padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Clear Test Data</button>
+</div>
+<div id="testEntry" style="padding:8px 20px;background:var(--wsc-panel);border-bottom:1px solid var(--wsc-line);display:flex;gap:10px;align-items:center;font-size:11px;color:var(--wsc-mute)">
+  <span>Empty schedule? Try a test fixture sourced from the 2026 CUSA football schedule + Sam Houston soccer/VB.</span>
+  <button onclick="loadTestMode()" style="background:transparent;color:var(--wsc-green);border:1px solid rgba(200,255,0,0.4);padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🧪 Load Test Schedule</button>
+</div>
+
 <!-- Master Schedule -->
 <section class="tab-content active" id="tab-master">
   <div class="stats-strip">
@@ -368,6 +380,8 @@
 const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
 const UNLOCK_KEY = 'cusa_wsc_unlocked';
 const CURRENT_USER_KEY = 'cusa_wsc_user';
+const TEST_MODE_KEY = 'cusa_wsc_test_mode';
+const TEST_DATA_URL = 'wsc_test_data.json';
 
 const SAM_HOUSTON_MANUAL_SPORTS = new Set([
   'Soccer', "Men's Soccer", "Women's Soccer", 'Volleyball', "Men's Volleyball", 'Baseball', 'Softball'
@@ -410,9 +424,12 @@ let _db = null;
 let _config = null;       // loaded from wsc_data.json
 let _aliasMap = new Map(); // lowercase alias → canonical
 let _events = [];         // schedule_events rows (deduped, master+manual scope)
+let _testEvents = [];     // synthetic test events when test mode is active
+let _testCaptureLocal = new Map(); // schedule_event_id → { av_confirmed, encoder } (test-only, in-memory)
 let _captureStatus = new Map(); // schedule_event_id → wsc_capture_status row
 let _currentUser = null;
 let _adminUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true';
+let _testMode = localStorage.getItem(TEST_MODE_KEY) === '1';
 
 let _filters = {
   master: { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
@@ -447,12 +464,82 @@ async function initPortal() {
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
   await Promise.all([loadEvents(), loadCaptureStatus()]);
+  if (_testMode) await loadTestEvents();
+  refreshTestBanner();
   bindFilterControls();
   populateFilterDropdowns();
   wireTabs();
   renderMaster();
   renderManual();
   setupRealtime();
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ *  TEST MODE — loads wsc_test_data.json and merges synthetic events
+ *  into the rendering pipeline. Test events use a `__test_<n>__` id
+ *  prefix and never hit the database; A/V toggle + encoder choice are
+ *  stored in-memory only.
+ * ──────────────────────────────────────────────────────────────────*/
+async function loadTestMode() {
+  _testMode = true;
+  localStorage.setItem(TEST_MODE_KEY, '1');
+  await loadTestEvents();
+  refreshTestBanner();
+  populateFilterDropdowns();
+  renderMaster(); renderManual();
+}
+async function clearTestMode() {
+  _testMode = false;
+  _testEvents = [];
+  _testCaptureLocal.clear();
+  localStorage.removeItem(TEST_MODE_KEY);
+  refreshTestBanner();
+  populateFilterDropdowns();
+  renderMaster(); renderManual();
+}
+function refreshTestBanner() {
+  document.getElementById('testBanner').style.display  = _testMode ? 'flex' : 'none';
+  document.getElementById('testEntry').style.display   = _testMode ? 'none' : 'flex';
+  if (_testMode) {
+    const fb = _testEvents.filter(e => e.sport === 'Football').length;
+    const so = _testEvents.filter(e => e.sport === 'Soccer').length;
+    const vb = _testEvents.filter(e => e.sport === 'Volleyball').length;
+    document.getElementById('testBannerMsg').textContent =
+      `${_testEvents.length} synthetic events loaded · ${fb} football, ${so} SHSU soccer, ${vb} SHSU volleyball — A/V toggles store in-memory only.`;
+  }
+}
+async function loadTestEvents() {
+  try {
+    const res = await fetch(TEST_DATA_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    _testEvents = (json.games || []).map((g, i) => ({
+      id: '__test_' + i + '__',
+      school: g.home,                    // submitter (just for legend)
+      athletic_year: '2025-26', season: '', archived: false,
+      sport: g.sport, event_date: g.date, event_time: g.time || '',
+      duration: '', network: '',
+      away: g.away, home: g.home,
+      conference: g.conference, round_text: '',
+      production: '', ad_serve: '', site: '',
+      manned_cameras: null, lock_off_cameras: null,
+      graphics: '', replay: '', talent: '',
+      transmission: '', notes: 'TEST FIXTURE',
+      _isTest: true
+    }));
+  } catch (e) {
+    console.error('Test fixture load failed:', e);
+    showToast('Could not load test fixture: ' + (e.message || e), 'err');
+    _testEvents = [];
+  }
+}
+
+/** All events for rendering: real Supabase events + test events (if test mode). */
+function allEvents() { return _testMode ? _events.concat(_testEvents) : _events; }
+function isTestId(id) { return typeof id === 'string' && id.startsWith('__test_'); }
+function getCaptureFor(id) {
+  if (isTestId(id)) return _testCaptureLocal.get(id) || {};
+  return _captureStatus.get(id) || {};
 }
 
 async function loadConfig() {
@@ -672,7 +759,7 @@ function bindFilterControls() {
 
 function populateFilterDropdowns() {
   const sportsM = new Set(), sportsX = new Set(), schoolsM = new Set(), schoolsX = new Set();
-  for (const ev of _events) {
+  for (const ev of allEvents()) {
     const cat = categorize(ev);
     if (!cat) continue;
     const host = hostSchoolFor(ev, cat);
@@ -702,7 +789,7 @@ function applyFilters(events, scope) {
     if (f.school && ev._host !== f.school) return false;
     const t = ev.event_date ? new Date(ev.event_date).getTime() : 0;
     if (t < fromTs || t > toTs) return false;
-    if (f.hideConf && _captureStatus.get(ev.id)?.av_confirmed) return false;
+    if (f.hideConf && getCaptureFor(ev.id)?.av_confirmed) return false;
     if (q) {
       const hay = [ev.home, ev.away, ev.sport, ev.network, ev._host, ev.notes].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
@@ -719,7 +806,7 @@ function renderManual() { renderTable('manual'); }
 
 function renderTable(scope) {
   const tableEl = document.getElementById(scope + 'Table');
-  const all = _events
+  const all = allEvents()
     .map(e => Object.assign({ _cat: categorize(e) }, e))
     .filter(e => e._cat === scope)
     .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
@@ -730,7 +817,7 @@ function renderTable(scope) {
     const t = e.event_date ? new Date(e.event_date) : null;
     return t && t >= today && t <= weekOut;
   }).length;
-  const confirmed = all.filter(e => _captureStatus.get(e.id)?.av_confirmed).length;
+  const confirmed = all.filter(e => getCaptureFor(e.id)?.av_confirmed).length;
   document.getElementById(scope + 'Count').textContent      = all.length;
   document.getElementById(scope + 'Confirmed').textContent  = confirmed;
   document.getElementById(scope + 'Upcoming').textContent   = upcoming;
@@ -756,7 +843,7 @@ function renderTable(scope) {
     </tr></thead>`;
 
   const body = rows.map(ev => {
-    const status = _captureStatus.get(ev.id) || {};
+    const status = getCaptureFor(ev.id);
     const school = schoolByName(ev._host);
     const contacts = (school?.contacts || []);
     const srt = school?.srt?.[ev.sport] || school?.srt?.[primarySportKey(ev.sport)];
@@ -765,7 +852,10 @@ function renderTable(scope) {
       ? new Date(status.confirmed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
         (status.confirmed_by ? ' · ' + status.confirmed_by.split('@')[0] : '')
       : '';
-    const matchup = `${escapeHtml(ev.away || '?')} @ ${escapeHtml(ev.home || '?')}`;
+    const testChip = ev._isTest
+      ? '<span style="font-size:9px;background:rgba(200,255,0,0.2);color:#C8FF00;padding:1px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:6px;font-weight:800;vertical-align:middle">TEST</span>'
+      : '';
+    const matchup = `${escapeHtml(ev.away || '?')} @ ${escapeHtml(ev.home || '?')}${testChip}`;
     const sub = [ev.event_time, ev.conference].filter(Boolean).map(escapeHtml).join(' · ');
 
     const contactHtml = contacts.length ? `
@@ -851,8 +941,7 @@ function formatDate(d) {
  *  STATUS TOGGLES
  * ══════════════════════════════════════════════════════════════════ */
 async function toggleAvConfirmed(eventId) {
-  if (!_db) return showToast('Database not connected', 'err');
-  const cur = _captureStatus.get(eventId) || {};
+  const cur = getCaptureFor(eventId);
   const next = !cur.av_confirmed;
   const patch = {
     schedule_event_id: eventId,
@@ -862,7 +951,13 @@ async function toggleAvConfirmed(eventId) {
     encoder:      cur.encoder || null,
     updated_at:   new Date().toISOString()
   };
-  // Optimistic
+  if (isTestId(eventId)) {
+    _testCaptureLocal.set(eventId, Object.assign({}, cur, patch));
+    renderMaster(); renderManual();
+    showToast(next ? 'Marked A/V confirmed (test)' : 'Cleared A/V confirmation (test)', 'ok');
+    return;
+  }
+  if (!_db) return showToast('Database not connected', 'err');
   _captureStatus.set(eventId, Object.assign({}, cur, patch));
   renderMaster(); renderManual();
   try {
@@ -878,8 +973,7 @@ async function toggleAvConfirmed(eventId) {
 }
 
 async function setEncoder(eventId, encoder) {
-  if (!_db) return;
-  const cur = _captureStatus.get(eventId) || {};
+  const cur = getCaptureFor(eventId);
   const patch = {
     schedule_event_id: eventId,
     av_confirmed: !!cur.av_confirmed,
@@ -888,6 +982,11 @@ async function setEncoder(eventId, encoder) {
     encoder:       encoder || null,
     updated_at:    new Date().toISOString()
   };
+  if (isTestId(eventId)) {
+    _testCaptureLocal.set(eventId, Object.assign({}, cur, patch));
+    return;
+  }
+  if (!_db) return;
   _captureStatus.set(eventId, Object.assign({}, cur, patch));
   try {
     const { error } = await _db.from('wsc_capture_status').upsert(patch, { onConflict: 'schedule_event_id' });
@@ -1056,7 +1155,7 @@ function tilesForCurrentView() {
   if (_mvScope === 'today') {
     const today = new Date().toISOString().slice(0,10);
     const todaysSchools = new Set();
-    for (const ev of _events) {
+    for (const ev of allEvents()) {
       if (ev.event_date !== today) continue;
       const cat = categorize(ev);
       if (!cat) continue;
@@ -1078,7 +1177,7 @@ function tilesForCurrentView() {
 
 function todaysEventForSchool(school) {
   const today = new Date().toISOString().slice(0,10);
-  return _events.find(ev => {
+  return allEvents().find(ev => {
     if (ev.event_date !== today) return false;
     const cat = categorize(ev);
     if (!cat) return false;
@@ -1215,7 +1314,7 @@ function stopAllMv() {
 function exportMaster() { exportScope('master'); }
 function exportManual() { exportScope('manual'); }
 function exportScope(scope) {
-  const all = _events
+  const all = allEvents()
     .map(e => Object.assign({ _cat: categorize(e) }, e))
     .filter(e => e._cat === scope)
     .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
@@ -1225,7 +1324,7 @@ function exportScope(scope) {
   if (isMaster) headers.push('SRT WSC', 'SRT SportRadar');
   const lines = [headers.join(',')];
   for (const ev of rows) {
-    const st = _captureStatus.get(ev.id) || {};
+    const st = getCaptureFor(ev.id);
     const sc = schoolByName(ev._host);
     const c = sc?.contacts?.[0] || {};
     const srt = sc?.srt?.[ev.sport] || sc?.srt?.[primarySportKey(ev.sport)] || {};

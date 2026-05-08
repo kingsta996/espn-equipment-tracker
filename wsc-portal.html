@@ -175,12 +175,19 @@
   .srt-row .copy:hover { color: var(--wsc-green); border-color: var(--wsc-green); }
 
   /* Encoder dropdown */
+  .encoder-cell { display: flex; flex-direction: column; gap: 5px; }
   .encoder-cell select {
     background: #0e1012; color: var(--wsc-text); border: 1px solid var(--wsc-line);
     border-radius: 6px; padding: 6px 8px; font-size: 11px; font-family: inherit; min-width: 100px;
   }
   .encoder-cell select:focus { border-color: var(--wsc-green); outline: 0; }
   .encoder-cell select.set { border-color: var(--wsc-green); color: var(--wsc-green); }
+  .copy-encoder-url {
+    background: rgba(200,255,0,0.12); color: var(--wsc-green); border: 1px solid rgba(200,255,0,0.45);
+    padding: 5px 10px; border-radius: 6px; font-size: 10.5px; font-weight: 800;
+    cursor: pointer; font-family: inherit; letter-spacing: 0.4px; white-space: nowrap;
+  }
+  .copy-encoder-url:hover { background: var(--wsc-green); color: #000; }
 
   /* Inline HLS preview cell (Manual Capture + Master Schedule) */
   .hls-preview-empty {
@@ -543,10 +550,11 @@ function proxyBlobUrl(u) {
 }
 
 const SPLASHTOP_URL = 'https://my.splashtop.com/w/web_client/75806762';
-function openSplashtop() {
+function openSplashtop(eventId) {
   // Splashtop sends X-Frame-Options: SAMEORIGIN, so we open a sized popup
   // instead of embedding in an iframe.
   window.open(SPLASHTOP_URL, 'splashtop_remote', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+  logActivity('splashtop', eventId ? 'event:' + eventId : null, 'Opened Splashtop popup');
 }
 
 const _rowHlsInstances = new Map(); // schedule_event_id → Hls instance for the inline encoder preview
@@ -726,6 +734,9 @@ function destroyAllRowHls() {
 }
 function setEncoderAndPreview(id, encoder) {
   setEncoder(id, encoder);
+  // Toggle the SHSU "Copy URL" button visibility.
+  const copyBtn = document.getElementById('copy-enc-' + cssId(id));
+  if (copyBtn) copyBtn.style.display = encoder ? '' : 'none';
   const ev = allEvents().find(e => e.id === id);
   if (ev && isToday(ev.event_date)) {
     attachEncoderPreview(id, encoder);
@@ -739,6 +750,15 @@ function setEncoderAndPreview(id, encoder) {
     }
     destroyRowHls(id);
   }
+}
+
+function copyEncoderUrlForEvent(eventId) {
+  const st = getCaptureFor(eventId);
+  if (!st.encoder) { showToast('Pick an encoder first', 'err'); return; }
+  const enc = (_config?.encoders || []).find(e => e.id === st.encoder);
+  if (!enc?.hls) { showToast('No HLS URL for ' + st.encoder, 'err'); return; }
+  copyToClipboard(enc.hls);
+  logActivity('encoder-copy', 'event:' + eventId, st.encoder);
 }
 
 // Encoder slot suffix detection — schools' WSC streams are named
@@ -1229,6 +1249,23 @@ function schoolByName(name) {
 /* ════════════════════════════════════════════════════════════════════
  *  AUTH
  * ══════════════════════════════════════════════════════════════════ */
+/* ──────────────────────────────────────────────────────────────────
+ *  ACTIVITY LOG — appends to admin_activity_log shared with the other
+ *  admin pages (compliance, schedule, melts, viewership). app='wsc'.
+ * ──────────────────────────────────────────────────────────────────*/
+function logActivity(action, target, details) {
+  if (!_db) return Promise.resolve();
+  const u = _currentUser || {};
+  return _db.from('admin_activity_log').insert({
+    email: u.email || 'unknown',
+    display_name: u.display_name || null,
+    app: 'wsc',
+    action,
+    target: target || null,
+    details: details || null
+  }).then(({ error }) => { if (error) console.warn('logActivity failed:', error); });
+}
+
 function loadCurrentUser() {
   try { _currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); }
   catch { _currentUser = null; }
@@ -1287,9 +1324,12 @@ async function submitPw() {
   _adminUnlocked = true;
   localStorage.setItem(UNLOCK_KEY, 'true');
   closePwModal();
+  logActivity('login', user.school ? 'school:' + user.school : null, user.role || 'admin');
   await initPortal();
 }
-function signOut() {
+async function signOut() {
+  // Fire activity log before clearing _currentUser so the row carries the user's email.
+  try { await logActivity('sign-out', null, userRole() || 'unknown'); } catch {}
   localStorage.removeItem(UNLOCK_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
   stopAllMv();
@@ -1514,11 +1554,19 @@ function renderTable(scope) {
     // Manual Capture row
     const isShsu = ev._host === 'Sam Houston' || canonicalOf(ev.school) === 'Sam Houston';
     const splashtopBtn = isShsu
-      ? `<button class="splashtop-btn" onclick="openSplashtop()" title="Remote into the office capture computer">🖥 Splashtop</button>`
+      ? `<button class="splashtop-btn" onclick="openSplashtop('${ev.id}')" title="Remote into the office capture computer">🖥 Splashtop</button>`
       : '';
     const encOptsRow = (_config?.encoders || []).map(e =>
       `<option value="${e.id}" ${status.encoder === e.id ? 'selected' : ''}>${e.id}</option>`
     ).join('');
+    // Sam Houston (school role) gets a Copy URL button under the dropdown
+    // so they can pull the encoder's HLS link into VLC / OBS.
+    const showCopyForShsu = userRole() === 'school' && _currentUser?.school === 'Sam Houston';
+    const copyBtnHtml = showCopyForShsu
+      ? `<button class="copy-encoder-url" id="copy-enc-${cssId(ev.id)}" type="button"
+                  style="display:${status.encoder ? '' : 'none'}"
+                  onclick="copyEncoderUrlForEvent('${ev.id}')">📋 Copy URL</button>`
+      : '';
     return `
       <tr>
         ${baseLeftCells}
@@ -1528,6 +1576,7 @@ function renderTable(scope) {
             <option value="">— Select —</option>
             ${encOptsRow}
           </select>
+          ${copyBtnHtml}
         </td>
         <td class="col-hls-preview" id="enc-cell-${cssId(ev.id)}">
           <div class="hls-preview-empty">Pick an encoder →</div>
@@ -1643,6 +1692,10 @@ async function setEncoder(eventId, encoder) {
     encoder:       encoder || null,
     updated_at:    new Date().toISOString()
   };
+  // Activity log: only log if the value actually changed.
+  if (encoder !== (cur.encoder || null)) {
+    logActivity('encoder', 'event:' + eventId, encoder || '(cleared)');
+  }
   if (isTestId(eventId)) {
     _testCaptureLocal.set(eventId, Object.assign({}, cur, patch));
     return;

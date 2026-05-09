@@ -450,7 +450,7 @@
   <button class="active" data-tab="master" data-school-hidden>📡 Master Schedule <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Tata SRT)</span></button>
   <button data-tab="manual">🎯 Manual Capture</button>
   <button data-tab="streamsheet">📊 WSC Stream Sheet</button>
-  <button data-tab="multi"    data-super-admin-only>📺 Multiviewer <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
+  <button data-tab="multi"    data-multiviewer-only>📺 Multiviewer</button>
   <button data-tab="settings" data-super-admin-only>🔧 Settings <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
 </div>
 
@@ -558,7 +558,7 @@
 </section>
 
 <!-- Multiviewer -->
-<section class="tab-content" id="tab-multi">
+<section class="tab-content" id="tab-multi" data-multiviewer-only>
   <div class="toolbar">
     <span class="pill" id="mvDiscoveryStatus">DISCOVERING…</span>
     <button class="toggle active" id="mvSecFootball"  type="button" onclick="setMvSection('football')">🏈 Football</button>
@@ -596,8 +596,17 @@ const TEST_DATA_URL = 'wsc_test_data.json';
 //              against schools.auth_email + schools.pw_hash from the
 //              Equipment Compliance database (single password per school).
 const SUPER_ADMINS = new Set(['kking@conferenceusa.com']);
+// Admins beyond super who also see the Multiviewer tab (Tata Communications
+// liaisons, etc.). Settings stays super-admin-only.
+const MULTIVIEWER_ADMINS = new Set([
+  'kking@conferenceusa.com',
+  'michael.adams@tatacommunications.com'
+]);
 function isSuperAdmin() {
   return _currentUser && SUPER_ADMINS.has(String(_currentUser.email || '').toLowerCase());
+}
+function isMultiviewerAdmin() {
+  return _currentUser && MULTIVIEWER_ADMINS.has(String(_currentUser.email || '').toLowerCase());
 }
 function userRole() {
   if (!_currentUser) return null;
@@ -979,8 +988,12 @@ function applyAdminVisibility() {
   const role = userRole();
   const isSuper = role === 'super';
   const isSchool = role === 'school';
+  const canMv = isSuper || isMultiviewerAdmin();
   document.querySelectorAll('[data-super-admin-only]').forEach(el => {
     el.style.display = isSuper ? '' : 'none';
+  });
+  document.querySelectorAll('[data-multiviewer-only]').forEach(el => {
+    el.style.display = canMv ? '' : 'none';
   });
   document.querySelectorAll('[data-school-hidden]').forEach(el => {
     el.style.display = isSchool ? 'none' : '';

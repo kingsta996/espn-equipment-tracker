@@ -2,9 +2,19 @@
  * claude-chat — Netlify Function that proxies a chat request to Anthropic's
  * Claude API. Used by the "Chat with Support" widget on hub.html.
  *
+ * Side effects:
+ *   • Fetches active chat_faq entries (app='production_hub' OR 'both') from
+ *     Supabase and injects them into the system prompt so Claude can refer
+ *     redundant questions back to the FAQ via [FAQ:slug] markers.
+ *   • Logs every turn to chat_logs (with the caller's email/role as supplied
+ *     by the front-end localStorage user object — best-effort, not trusted).
+ *
  * Env vars (Netlify):
  *   ANTHROPIC_API_KEY  — required. Console: console.anthropic.com → API Keys.
  *   CLAUDE_CHAT_MODEL  — optional. Defaults to claude-sonnet-4-6.
+ *   SUPABASE_URL       — already configured for this site.
+ *   SUPABASE_ANON_KEY  — already configured (writes use the public RLS policy).
+ *   CHAT_ALLOWED_HOSTS — optional comma-separated extra hosts.
  *
  * Safety / abuse mitigation:
  *   - Referer-origin check pinned to known Hub domains (Netlify + localhost).
@@ -21,10 +31,13 @@ const cors = {
 };
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const SUPABASE_URL  = process.env.SUPABASE_URL;
+const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const MODEL = process.env.CLAUDE_CHAT_MODEL || 'claude-sonnet-4-6';
 const MAX_TOKENS = 1500;
 const MAX_USER_CHARS = 6000;
 const MAX_HISTORY = 20;
+const APP_KEY = 'production_hub';
 
 // Accept any *.netlify.app host plus localhost. To allow a custom domain
 // later, set CHAT_ALLOWED_HOSTS in Netlify (comma-separated, e.g.
@@ -77,9 +90,76 @@ The Production Hub is a Netlify-hosted set of internal web tools maintained by K
 - If you don't know the answer with reasonable confidence, say so and escalate to Keith rather than guessing.
 - If the user is upset or stuck, acknowledge the friction briefly, then move to action.
 
+# FAQ referrals
+
+You will receive a list of curated FAQ entries below (under "AVAILABLE FAQ"). When the user's question matches an FAQ entry well, point them to it explicitly using this exact marker syntax (one per line, no extra punctuation):
+
+  [FAQ:slug-of-the-entry]
+
+The Hub front-end will turn that marker into a clickable link to /faq.html#slug. Use the marker for repeat / well-known issues that already have a curated answer; you can still add a one-line summary alongside it. If no FAQ matches, just answer normally.
+
 # Tone
 
 Professional, calm, broadcast-ops-aware. The users you'll talk to are mostly school AV/broadcast staff and CUSA conference staff under deadline pressure. Get them unblocked fast.`;
+
+/* ── Supabase REST helpers (no SDK to keep cold-start small) ────────── */
+
+async function supabaseGet(path) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: 'Bearer ' + SUPABASE_KEY,
+      Accept: 'application/json'
+    }
+  });
+  if (!r.ok) return null;
+  try { return await r.json(); } catch { return null; }
+}
+
+async function supabasePost(path, payload) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (_) { /* swallow — logging is best-effort */ }
+}
+
+async function loadActiveFaq() {
+  // Active entries scoped to this app or marked 'both'. Cap at 60 entries
+  // to keep the prompt bounded; sort_order then created_at asc.
+  const path = `chat_faq?select=slug,app,category,question,answer,keywords&is_active=eq.true&app=in.(${APP_KEY},both)&order=sort_order.asc,created_at.asc&limit=60`;
+  return (await supabaseGet(path)) || [];
+}
+
+function faqContextBlock(faq) {
+  if (!faq.length) return 'AVAILABLE FAQ\n(no curated entries yet)';
+  const lines = ['AVAILABLE FAQ — refer with [FAQ:slug] when relevant:'];
+  for (const f of faq) {
+    const cat = f.category ? ` (${f.category})` : '';
+    const kw  = (f.keywords && f.keywords.length) ? `\n  keywords: ${f.keywords.join(', ')}` : '';
+    // Trim each answer to ~400 chars in the prompt; full text lives in faq.html.
+    const ans = String(f.answer || '').replace(/\s+/g, ' ').slice(0, 400);
+    lines.push(`- [FAQ:${f.slug}]${cat} ${f.question}${kw}\n  summary: ${ans}`);
+  }
+  return lines.join('\n');
+}
+
+function extractFaqMarkers(text) {
+  const out = new Set();
+  const re = /\[FAQ:([a-z0-9][a-z0-9-_]+)\]/gi;
+  let m;
+  while ((m = re.exec(String(text || '')))) out.add(m[1].toLowerCase());
+  return Array.from(out);
+}
 
 function originAllowed(event) {
   const ref = event.headers?.referer || event.headers?.referrer || '';
@@ -131,6 +211,19 @@ exports.handler = async (event) => {
 
   if (!trimmed.length) return jsonResponse(400, { error: 'no usable content in messages' });
 
+  // Caller-provided user (best-effort, from localStorage on the front-end).
+  const u = (body.user && typeof body.user === 'object') ? body.user : {};
+  const userEmail   = u.email ? String(u.email).slice(0, 200).toLowerCase() : null;
+  const userDisplay = u.display_name ? String(u.display_name).slice(0, 120) : null;
+  const userRole    = u.role ? String(u.role).slice(0, 32) : null;
+  const conversationId = body.conversation_id ? String(body.conversation_id).slice(0, 64) : null;
+
+  const lastUserMsg = trimmed.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
+
+  // Pull FAQ context concurrently with assembling the request.
+  const faqList = await loadActiveFaq();
+  const systemPrompt = SYSTEM_PROMPT + '\n\n' + faqContextBlock(faqList);
+
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -142,9 +235,8 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model:       MODEL,
         max_tokens:  MAX_TOKENS,
-        // Cache the system prompt so subsequent turns hit a much cheaper read.
         system: [
-          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }
+          { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }
         ],
         messages: trimmed
       })
@@ -152,6 +244,18 @@ exports.handler = async (event) => {
 
     if (!r.ok) {
       const txt = await r.text();
+      await supabasePost('chat_logs', {
+        app: APP_KEY,
+        conversation_id: conversationId,
+        message_index: trimmed.length - 1,
+        user_email: userEmail,
+        user_display_name: userDisplay,
+        user_role: userRole,
+        user_message: lastUserMsg,
+        assistant_reply: null,
+        model: MODEL,
+        faq_slugs_referenced: null
+      });
       return jsonResponse(r.status, {
         error: 'Anthropic API error',
         detail: txt.slice(0, 600)
@@ -163,8 +267,28 @@ exports.handler = async (event) => {
       .map(b => b.text)
       .join('\n')
       .trim();
+    const referencedSlugs = extractFaqMarkers(reply);
+
+    await supabasePost('chat_logs', {
+      app: APP_KEY,
+      conversation_id: conversationId,
+      message_index: trimmed.length - 1,
+      user_email: userEmail,
+      user_display_name: userDisplay,
+      user_role: userRole,
+      user_message: lastUserMsg,
+      assistant_reply: reply,
+      model: data.model || MODEL,
+      input_tokens:        data.usage?.input_tokens ?? null,
+      output_tokens:       data.usage?.output_tokens ?? null,
+      cache_read_tokens:   data.usage?.cache_read_input_tokens ?? null,
+      cache_creation_tokens: data.usage?.cache_creation_input_tokens ?? null,
+      faq_slugs_referenced: referencedSlugs.length ? referencedSlugs : null
+    });
+
     return jsonResponse(200, {
       reply,
+      faq_slugs: referencedSlugs,
       usage: data.usage,
       stop_reason: data.stop_reason,
       model: data.model

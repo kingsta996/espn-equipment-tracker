@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Logs · Production Hub Admin</title>
+<style>
+  :root { --navy:#00263A; --gray:#BFCED6; --white:#FFFFFF; --red:#E40046; --blue:#00B5E2; --green:#A7D500; --line:rgba(255,255,255,0.12); --panel:rgba(255,255,255,0.04); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--navy); color: var(--white); font-family: 'Segoe UI','Helvetica Neue',sans-serif; min-height: 100vh; padding: 0; }
+  .header { padding: 18px 24px; display: flex; gap: 14px; align-items: center; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header h1 small { display: block; color: var(--gray); font-weight: 500; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
+  .header .grow { flex: 1; }
+  .header a { color: var(--blue); font-size: 12px; text-decoration: none; font-weight: 600; }
+  .header a:hover { color: var(--white); }
+  .who { color: var(--gray); font-size: 12px; }
+  .signout { background: transparent; color: var(--gray); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .signout:hover { color: var(--red); border-color: var(--red); }
+  .tabs { display: flex; gap: 0; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .tabs button { background: transparent; color: rgba(255,255,255,0.5); border: 0; padding: 14px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; border-bottom: 3px solid transparent; }
+  .tabs button.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tabs button:hover { color: var(--white); }
+  section.tab { display: none; padding: 22px 24px; }
+  section.tab.active { display: block; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  .toolbar input, .toolbar select { background: var(--panel); color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; font-family: inherit; }
+  .toolbar input { flex: 1; min-width: 200px; }
+  .toolbar input:focus, .toolbar select:focus { outline: 0; border-color: var(--blue); }
+  .stat-strip { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; min-width: 130px; }
+  .stat .num { font-size: 22px; font-weight: 800; color: var(--blue); }
+  .stat .lbl { font-size: 10px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  thead th { text-align: left; padding: 10px 12px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--gray); border-bottom: 1px solid var(--line); white-space: nowrap; background: rgba(255,255,255,0.06); }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr.promoted { background: rgba(167,213,0,0.08); }
+  td.col-when { white-space: nowrap; color: var(--gray); font-variant-numeric: tabular-nums; }
+  td.col-user { white-space: nowrap; }
+  td.col-user .display { display: block; font-weight: 700; }
+  td.col-user .email   { display: block; color: var(--gray); font-size: 10.5px; }
+  td.col-msg { width: 38%; }
+  td.col-reply { width: 38%; }
+  .msg-snippet, .reply-snippet { display: block; max-height: 100px; overflow: hidden; line-height: 1.5; font-size: 12px; color: rgba(255,255,255,0.9); white-space: pre-wrap; word-wrap: break-word; }
+  .reply-snippet { color: rgba(255,255,255,0.75); }
+  .full-toggle { display: inline-block; margin-top: 4px; font-size: 10.5px; color: var(--blue); cursor: pointer; }
+  .full-toggle:hover { color: var(--white); }
+  .col-actions { white-space: nowrap; text-align: right; }
+  .row-btn { background: transparent; color: var(--blue); border: 1px solid rgba(0,181,226,0.4); padding: 5px 10px; border-radius: 6px; font-size: 10.5px; font-weight: 800; cursor: pointer; font-family: inherit; letter-spacing: 0.4px; margin-left: 6px; white-space: nowrap; }
+  .row-btn:hover { background: var(--blue); color: #001923; }
+  .role-pill { display: inline-block; padding: 1.5px 7px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.5px; border-radius: 999px; margin-top: 4px; }
+  .role-admin { background: rgba(0,181,226,0.18); color: var(--blue); }
+  .role-school { background: rgba(167,213,0,0.16); color: var(--green); }
+  .role-anon { background: rgba(255,255,255,0.06); color: var(--gray); }
+  .promoted-chip { display: inline-block; padding: 1.5px 7px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.5px; border-radius: 999px; background: rgba(167,213,0,0.18); color: var(--green); margin-top: 4px; }
+  .empty { text-align: center; padding: 60px 20px; color: var(--gray); background: var(--panel); border: 1px dashed var(--line); border-radius: 12px; }
+  .empty h3 { color: var(--white); font-size: 15px; margin-bottom: 6px; }
+
+  /* FAQ editor modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 9999; }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: rgba(0,38,58,0.98); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 60px); overflow-y: auto; }
+  .modal-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .modal-box .sub { font-size: 12px; color: var(--gray); margin-bottom: 16px; line-height: 1.5; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 10.5px; color: var(--gray); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 4px; }
+  .field input, .field select, .field textarea { width: 100%; background: rgba(255,255,255,0.06); color: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: inherit; }
+  .field textarea { min-height: 140px; resize: vertical; line-height: 1.5; font-family: 'SF Mono','Menlo','Consolas',monospace; font-size: 12.5px; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 0; border-color: var(--blue); background: rgba(255,255,255,0.1); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+  .btn { padding: 9px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; letter-spacing: 0.3px; }
+  .btn-primary { background: var(--blue); color: #001923; border: 0; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: transparent; color: var(--gray); border: 1px solid var(--line); }
+  .btn-secondary:hover { color: var(--white); border-color: var(--white); }
+  .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+
+  /* Login overlay */
+  .login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 99999; }
+  .login-overlay.open { display: flex; }
+  .login-box { background: rgba(0,38,58,0.98); border: 1px solid var(--line); border-radius: 14px; padding: 28px; width: min(360px, calc(100vw - 32px)); }
+  .login-box h2 { font-size: 18px; margin-bottom: 4px; }
+  .login-box p { font-size: 12px; color: var(--gray); margin-bottom: 16px; line-height: 1.5; }
+  .login-box input { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--line); border-radius: 8px; color: var(--white); font-size: 13px; font-family: inherit; margin-bottom: 8px; }
+  .login-box input:focus { outline: 0; border-color: var(--blue); }
+  .login-err { color: #ff7d8a; font-size: 11.5px; min-height: 16px; margin: 4px 0 8px; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(40px); background: rgba(0,38,58,0.98); border: 1px solid var(--line); padding: 10px 18px; border-radius: 8px; font-size: 12px; opacity: 0; transition: all 0.2s; pointer-events: none; z-index: 999; font-weight: 600; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.ok { border-left: 3px solid var(--green); }
+  .toast.err { border-left: 3px solid var(--red); }
+</style>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- Sign-in modal: locked to legacy admin (kking@conferenceusa.com) -->
+<div id="loginOverlay" class="login-overlay open">
+  <div class="login-box">
+    <h2>Chat Logs Admin</h2>
+    <p>Legacy admin only. Same credentials as the Production Compliance / WSC Portal admin login.</p>
+    <input id="loginEmail" type="email" placeholder="kking@conferenceusa.com" autocomplete="email">
+    <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()">
+    <div id="loginErr" class="login-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="window.location.href='hub.html'">Cancel</button>
+      <button class="btn btn-primary" id="loginBtn" onclick="submitLogin()">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <h1><small>Production Hub Admin</small>Chat Logs &amp; FAQ</h1>
+  <div class="grow"></div>
+  <span class="who" id="currentUser"></span>
+  <a href="hub.html">← Hub</a>
+  <button class="signout" onclick="signOut()">Sign Out</button>
+</div>
+
+<div class="tabs">
+  <button class="active" data-tab="logs" onclick="showTab('logs')">📋 Chat Logs</button>
+  <button data-tab="faq" onclick="showTab('faq')">📚 FAQ Manager</button>
+</div>
+
+<section class="tab active" id="tab-logs">
+  <div class="stat-strip">
+    <div class="stat"><div class="num" id="statTotal">—</div><div class="lbl">Total turns</div></div>
+    <div class="stat"><div class="num" id="statToday">—</div><div class="lbl">Last 24h</div></div>
+    <div class="stat"><div class="num" id="statUsers">—</div><div class="lbl">Unique users</div></div>
+    <div class="stat"><div class="num" id="statPromoted">—</div><div class="lbl">Promoted to FAQ</div></div>
+  </div>
+  <div class="toolbar">
+    <input id="logSearch" placeholder="Search prompt, reply, email…">
+    <select id="logUser"><option value="">All users</option></select>
+    <select id="logRole">
+      <option value="">All roles</option>
+      <option value="admin">Admin</option>
+      <option value="school">School</option>
+      <option value="anonymous">Anonymous</option>
+    </select>
+    <select id="logRange">
+      <option value="all">All time</option>
+      <option value="24h">Last 24h</option>
+      <option value="7d">Last 7 days</option>
+      <option value="30d" selected>Last 30 days</option>
+    </select>
+  </div>
+  <div id="logsTable"></div>
+</section>
+
+<section class="tab" id="tab-faq">
+  <div class="toolbar">
+    <input id="faqSearch" placeholder="Search question, answer, slug, keyword…">
+    <select id="faqAppFilter">
+      <option value="">Both apps</option>
+      <option value="production_hub">Production Hub</option>
+      <option value="creative_hub">Creative Hub</option>
+      <option value="both">Cross-hub</option>
+    </select>
+    <select id="faqStatus">
+      <option value="all">All</option>
+      <option value="active" selected>Active only</option>
+      <option value="inactive">Inactive</option>
+    </select>
+    <span class="grow" style="flex:1"></span>
+    <button class="btn btn-primary" onclick="openFaqEditor()">+ New FAQ</button>
+  </div>
+  <div id="faqTable"></div>
+</section>
+
+<!-- FAQ editor modal -->
+<div id="faqEditorOverlay" class="modal-overlay">
+  <div class="modal-box">
+    <h3 id="faqEditorTitle">New FAQ Entry</h3>
+    <div class="sub" id="faqEditorSubtitle">Promote a curated answer that schools can browse on faq.html.</div>
+    <div class="field">
+      <label>Slug · stable id used in URLs and Claude markers</label>
+      <input id="fSlug" placeholder="wsc-encoder-conflict">
+    </div>
+    <div class="field">
+      <label>Apps</label>
+      <select id="fApp">
+        <option value="production_hub">Production Hub only</option>
+        <option value="creative_hub">Creative Hub only</option>
+        <option value="both">Both hubs</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Category · groups entries on faq.html</label>
+      <input id="fCategory" placeholder="WSC Portal · Login · Schedule · …">
+    </div>
+    <div class="field">
+      <label>Question</label>
+      <input id="fQuestion" placeholder="Why isn't my encoder dropdown graying out a conflict?">
+    </div>
+    <div class="field">
+      <label>Answer · plain text + [text](url) markdown links</label>
+      <textarea id="fAnswer"></textarea>
+    </div>
+    <div class="field">
+      <label>Keywords · comma separated, used for fuzzy matching by Claude</label>
+      <input id="fKeywords" placeholder="encoder, conflict, gray, dropdown">
+    </div>
+    <div class="field">
+      <label>
+        <input type="checkbox" id="fActive" checked style="width:auto;margin-right:6px"> Active (visible on faq.html and to Claude)
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="faqDeleteBtn" onclick="deleteFaq()" style="display:none">Delete</button>
+      <span class="grow" style="flex:1"></span>
+      <button class="btn btn-secondary" onclick="closeFaqEditor()">Cancel</button>
+      <button class="btn btn-primary" id="faqSaveBtn" onclick="saveFaq()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ─────────────────────────────────────────────────────────────── */
+  var SUPER_EMAIL = 'kking@conferenceusa.com';
+  // Legacy admin password hash: same VW_PW_HASH used in wsc-portal.html.
+  var LEGACY_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  var SESSION_KEY = 'cusa_chatlogs_admin_user';
+
+  var _db = null;
+  var _user = null;
+  var _logs = [];
+  var _faq = [];
+  var _editingFaq = null;
+
+  function db() {
+    if (_db) return _db;
+    if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+    return _db;
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.className = 'toast show ' + (kind || 'ok');
+    t.textContent = msg;
+    setTimeout(function () { t.className = 'toast'; }, 2400);
+  }
+  async function hashPw(s) {
+    var buf = new TextEncoder().encode(s);
+    var h = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(h)).map(function (b) { return b.toString(16).padStart(2,'0'); }).join('');
+  }
+
+  /* ── AUTH ── */
+
+  async function submitLogin() {
+    var email = (document.getElementById('loginEmail').value || '').trim().toLowerCase();
+    var pw    = document.getElementById('loginPw').value;
+    var err   = document.getElementById('loginErr');
+    var btn   = document.getElementById('loginBtn');
+    err.textContent = '';
+    if (email !== SUPER_EMAIL) { err.textContent = 'Legacy admin email only.'; return; }
+    if (!pw) { err.textContent = 'Password required.'; return; }
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      var h = await hashPw(pw);
+      var ok = false;
+      // 1) admin_users — primary path if Keith ever gets a row.
+      var d = db();
+      if (d) {
+        try {
+          var a = await d.from('admin_users')
+            .select('email, pw_hash, is_active')
+            .eq('email', email).maybeSingle();
+          if (a.data && a.data.is_active && a.data.pw_hash === h) ok = true;
+        } catch (_) {}
+      }
+      // 2) Legacy fallback — same hash used by wsc-portal / compliance pages.
+      if (!ok && h === LEGACY_HASH) ok = true;
+      if (!ok) { err.textContent = 'Incorrect password.'; btn.disabled = false; btn.textContent = 'Sign in'; return; }
+      _user = { email: email, display_name: 'Keith King', role: 'super' };
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify(_user)); } catch (_) {}
+      btn.disabled = false; btn.textContent = 'Sign in';
+      onSignedIn();
+    } catch (e) {
+      err.textContent = 'Sign-in failed: ' + (e.message || e);
+      btn.disabled = false; btn.textContent = 'Sign in';
+    }
+  }
+
+  function signOut() {
+    try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+    location.reload();
+  }
+
+  function onSignedIn() {
+    document.getElementById('loginOverlay').classList.remove('open');
+    document.getElementById('currentUser').textContent = _user.display_name + ' · ' + _user.email;
+    loadLogs();
+    loadFaq();
+  }
+
+  function bootAuth() {
+    try {
+      var raw = localStorage.getItem(SESSION_KEY);
+      if (raw) {
+        var u = JSON.parse(raw);
+        if (u && u.email === SUPER_EMAIL) { _user = u; onSignedIn(); return; }
+      }
+    } catch (_) {}
+    setTimeout(function () { document.getElementById('loginEmail').focus(); }, 80);
+  }
+
+  /* ── TABS ── */
+
+  function showTab(name) {
+    document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === name); });
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === 'tab-' + name); });
+  }
+
+  /* ── LOGS ── */
+
+  async function loadLogs() {
+    var d = db(); if (!d) return;
+    try {
+      var resp = await d.from('chat_logs')
+        .select('*')
+        .eq('app', 'production_hub')
+        .order('created_at', { ascending: false })
+        .limit(2000);
+      if (resp.error) throw resp.error;
+      _logs = resp.data || [];
+      buildUserDropdown();
+      renderLogs();
+      renderLogStats();
+    } catch (e) {
+      showToast('Logs load failed: ' + (e.message || e), 'err');
+    }
+  }
+
+  function buildUserDropdown() {
+    var sel = document.getElementById('logUser');
+    var users = {};
+    _logs.forEach(function (l) { if (l.user_email) users[l.user_email] = (l.user_display_name || l.user_email); });
+    var keys = Object.keys(users).sort();
+    sel.innerHTML = '<option value="">All users</option>' +
+      keys.map(function (k) { return '<option value="' + escHtml(k) + '">' + escHtml(users[k]) + '</option>'; }).join('');
+  }
+
+  function renderLogStats() {
+    document.getElementById('statTotal').textContent = _logs.length;
+    var since = Date.now() - 24 * 3600 * 1000;
+    document.getElementById('statToday').textContent = _logs.filter(function (l) { return new Date(l.created_at).getTime() > since; }).length;
+    var seen = {};
+    _logs.forEach(function (l) { if (l.user_email) seen[l.user_email] = true; });
+    document.getElementById('statUsers').textContent = Object.keys(seen).length;
+    document.getElementById('statPromoted').textContent = _logs.filter(function (l) { return l.promoted_to_faq; }).length;
+  }
+
+  function filterLogs() {
+    var q   = (document.getElementById('logSearch').value || '').toLowerCase();
+    var u   = document.getElementById('logUser').value;
+    var rl  = document.getElementById('logRole').value;
+    var rng = document.getElementById('logRange').value;
+    var since = 0;
+    if (rng === '24h') since = Date.now() - 24 * 3600 * 1000;
+    else if (rng === '7d') since = Date.now() - 7 * 24 * 3600 * 1000;
+    else if (rng === '30d') since = Date.now() - 30 * 24 * 3600 * 1000;
+    return _logs.filter(function (l) {
+      if (since && new Date(l.created_at).getTime() < since) return false;
+      if (u  && l.user_email !== u) return false;
+      if (rl) {
+        if (rl === 'anonymous') { if (l.user_role && l.user_role !== 'anonymous') return false; }
+        else if (l.user_role !== rl) return false;
+      }
+      if (q) {
+        var hay = ((l.user_message || '') + ' ' + (l.assistant_reply || '') + ' ' + (l.user_email || '') + ' ' + (l.user_display_name || '')).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderLogs() {
+    var rows = filterLogs();
+    var root = document.getElementById('logsTable');
+    if (!rows.length) {
+      root.innerHTML = '<div class="empty"><h3>No chat logs match</h3><div>Try widening the date range or clearing filters.</div></div>';
+      return;
+    }
+    var head = '<table><thead><tr>' +
+                 '<th>When</th>' +
+                 '<th>User</th>' +
+                 '<th>Prompt</th>' +
+                 '<th>Reply</th>' +
+                 '<th></th>' +
+               '</tr></thead><tbody>';
+    var body = rows.map(function (l) {
+      var role = l.user_role || 'anonymous';
+      var rolePill = role === 'school' ? 'role-school' : (role === 'anonymous' ? 'role-anon' : 'role-admin');
+      var when = new Date(l.created_at);
+      var whenStr = when.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+                    when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      var promoted = l.promoted_to_faq ? '<span class="promoted-chip">FAQ</span>' : '';
+      var faqRefs = (l.faq_slugs_referenced && l.faq_slugs_referenced.length)
+        ? '<div style="font-size:10.5px;color:#A7D500;margin-top:6px">→ ' + l.faq_slugs_referenced.map(escHtml).join(', ') + '</div>'
+        : '';
+      return '<tr class="' + (l.promoted_to_faq ? 'promoted' : '') + '">' +
+        '<td class="col-when">' + whenStr + '</td>' +
+        '<td class="col-user">' +
+          '<span class="display">' + escHtml(l.user_display_name || l.user_email || '(anon)') + '</span>' +
+          (l.user_email ? '<span class="email">' + escHtml(l.user_email) + '</span>' : '') +
+          '<span class="role-pill ' + rolePill + '">' + escHtml(role) + '</span>' +
+          (promoted ? ' ' + promoted : '') +
+        '</td>' +
+        '<td class="col-msg"><span class="msg-snippet">' + escHtml(l.user_message || '') + '</span>' + faqRefs + '</td>' +
+        '<td class="col-reply"><span class="reply-snippet">' + escHtml(l.assistant_reply || '(no reply)') + '</span></td>' +
+        '<td class="col-actions"><button class="row-btn" onclick="promoteLog(\'' + l.id + '\')">Promote → FAQ</button></td>' +
+      '</tr>';
+    }).join('');
+    root.innerHTML = head + body + '</tbody></table>';
+  }
+
+  ['logSearch','logUser','logRole','logRange'].forEach(function (id) {
+    document.addEventListener('DOMContentLoaded', function () {
+      document.getElementById(id).addEventListener('input',  renderLogs);
+      document.getElementById(id).addEventListener('change', renderLogs);
+    });
+  });
+
+  function promoteLog(logId) {
+    var log = _logs.find(function (l) { return l.id === logId; });
+    if (!log) return;
+    _editingFaq = null;
+    document.getElementById('faqEditorTitle').textContent = 'Promote chat to FAQ';
+    document.getElementById('faqEditorSubtitle').textContent = 'Curate the question and answer; this entry will appear on faq.html and be available to the support chat.';
+    document.getElementById('fSlug').value = '';
+    document.getElementById('fApp').value = 'production_hub';
+    document.getElementById('fCategory').value = '';
+    document.getElementById('fQuestion').value = (log.user_message || '').slice(0, 200);
+    document.getElementById('fAnswer').value = log.assistant_reply || '';
+    document.getElementById('fKeywords').value = '';
+    document.getElementById('fActive').checked = true;
+    document.getElementById('faqDeleteBtn').style.display = 'none';
+    // Stash the source log id on the modal for save handler.
+    document.getElementById('faqEditorOverlay').dataset.sourceLogId = logId;
+    document.getElementById('faqEditorOverlay').classList.add('open');
+    setTimeout(function () { document.getElementById('fQuestion').focus(); }, 60);
+  }
+
+  /* ── FAQ ── */
+
+  async function loadFaq() {
+    var d = db(); if (!d) return;
+    try {
+      var resp = await d.from('chat_faq').select('*').order('updated_at', { ascending: false });
+      if (resp.error) throw resp.error;
+      _faq = resp.data || [];
+      renderFaq();
+    } catch (e) {
+      showToast('FAQ load failed: ' + (e.message || e), 'err');
+    }
+  }
+
+  function filterFaq() {
+    var q   = (document.getElementById('faqSearch').value || '').toLowerCase();
+    var ap  = document.getElementById('faqAppFilter').value;
+    var st  = document.getElementById('faqStatus').value;
+    return _faq.filter(function (f) {
+      if (ap && f.app !== ap) return false;
+      if (st === 'active' && !f.is_active) return false;
+      if (st === 'inactive' && f.is_active) return false;
+      if (q) {
+        var hay = ((f.question || '') + ' ' + (f.answer || '') + ' ' + (f.slug || '') + ' ' + ((f.keywords || []).join(' '))).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderFaq() {
+    var rows = filterFaq();
+    var root = document.getElementById('faqTable');
+    if (!rows.length) {
+      root.innerHTML = '<div class="empty"><h3>No FAQ entries yet</h3><div>Promote one from the Chat Logs tab, or click <em>+ New FAQ</em> above.</div></div>';
+      return;
+    }
+    var head = '<table><thead><tr><th>Question</th><th>Slug</th><th>App</th><th>Cat.</th><th>Active</th><th>Views</th><th></th></tr></thead><tbody>';
+    var body = rows.map(function (f) {
+      return '<tr>' +
+        '<td>' + escHtml(f.question) + '</td>' +
+        '<td><code style="font-size:11px;color:#A7D500">' + escHtml(f.slug) + '</code></td>' +
+        '<td>' + escHtml(f.app) + '</td>' +
+        '<td>' + escHtml(f.category || '') + '</td>' +
+        '<td>' + (f.is_active ? '✓' : '—') + '</td>' +
+        '<td>' + (f.view_count || 0) + '</td>' +
+        '<td class="col-actions"><button class="row-btn" onclick="editFaq(\'' + f.id + '\')">Edit</button></td>' +
+      '</tr>';
+    }).join('');
+    root.innerHTML = head + body + '</tbody></table>';
+  }
+
+  ['faqSearch','faqAppFilter','faqStatus'].forEach(function (id) {
+    document.addEventListener('DOMContentLoaded', function () {
+      document.getElementById(id).addEventListener('input',  renderFaq);
+      document.getElementById(id).addEventListener('change', renderFaq);
+    });
+  });
+
+  function openFaqEditor() {
+    _editingFaq = null;
+    document.getElementById('faqEditorTitle').textContent = 'New FAQ Entry';
+    document.getElementById('faqEditorSubtitle').textContent = 'Add a curated answer that schools can browse on faq.html and that the support chat can refer to.';
+    document.getElementById('fSlug').value = '';
+    document.getElementById('fApp').value = 'production_hub';
+    document.getElementById('fCategory').value = '';
+    document.getElementById('fQuestion').value = '';
+    document.getElementById('fAnswer').value = '';
+    document.getElementById('fKeywords').value = '';
+    document.getElementById('fActive').checked = true;
+    document.getElementById('faqDeleteBtn').style.display = 'none';
+    document.getElementById('faqEditorOverlay').dataset.sourceLogId = '';
+    document.getElementById('faqEditorOverlay').classList.add('open');
+    setTimeout(function () { document.getElementById('fSlug').focus(); }, 60);
+  }
+
+  function editFaq(id) {
+    var f = _faq.find(function (x) { return x.id === id; });
+    if (!f) return;
+    _editingFaq = f;
+    document.getElementById('faqEditorTitle').textContent = 'Edit FAQ Entry';
+    document.getElementById('faqEditorSubtitle').textContent = 'Updated entries are visible immediately on faq.html.';
+    document.getElementById('fSlug').value = f.slug || '';
+    document.getElementById('fApp').value = f.app || 'production_hub';
+    document.getElementById('fCategory').value = f.category || '';
+    document.getElementById('fQuestion').value = f.question || '';
+    document.getElementById('fAnswer').value = f.answer || '';
+    document.getElementById('fKeywords').value = (f.keywords || []).join(', ');
+    document.getElementById('fActive').checked = !!f.is_active;
+    document.getElementById('faqDeleteBtn').style.display = 'inline-block';
+    document.getElementById('faqEditorOverlay').dataset.sourceLogId = '';
+    document.getElementById('faqEditorOverlay').classList.add('open');
+    setTimeout(function () { document.getElementById('fQuestion').focus(); }, 60);
+  }
+
+  function closeFaqEditor() {
+    document.getElementById('faqEditorOverlay').classList.remove('open');
+  }
+
+  function slugify(s) {
+    return String(s || '').toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+  }
+
+  async function saveFaq() {
+    var d = db(); if (!d) { showToast('No database', 'err'); return; }
+    var slug = (document.getElementById('fSlug').value || '').trim();
+    if (!slug) slug = slugify(document.getElementById('fQuestion').value);
+    if (!slug) { showToast('Slug required', 'err'); return; }
+    var app = document.getElementById('fApp').value;
+    var question = (document.getElementById('fQuestion').value || '').trim();
+    var answer   = (document.getElementById('fAnswer').value || '').trim();
+    if (!question || !answer) { showToast('Question and answer required', 'err'); return; }
+    var category = (document.getElementById('fCategory').value || '').trim() || null;
+    var keywords = (document.getElementById('fKeywords').value || '')
+      .split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    var isActive = document.getElementById('fActive').checked;
+    var sourceLogId = document.getElementById('faqEditorOverlay').dataset.sourceLogId || null;
+
+    var btn = document.getElementById('faqSaveBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      var payload = {
+        slug: slug, app: app, category: category,
+        question: question, answer: answer,
+        keywords: keywords.length ? keywords : null,
+        is_active: isActive,
+        created_by: _user.email,
+        updated_at: new Date().toISOString()
+      };
+      if (sourceLogId) payload.source_chat_log_id = sourceLogId;
+      var resp;
+      if (_editingFaq) {
+        resp = await d.from('chat_faq').update(payload).eq('id', _editingFaq.id);
+      } else {
+        resp = await d.from('chat_faq').upsert(payload, { onConflict: 'slug' });
+      }
+      if (resp.error) throw resp.error;
+      // If promoted from a log, mark that log as promoted.
+      if (sourceLogId) {
+        try { await d.from('chat_logs').update({ promoted_to_faq: true }).eq('id', sourceLogId); } catch (_) {}
+      }
+      showToast(_editingFaq ? 'FAQ updated' : 'FAQ added', 'ok');
+      closeFaqEditor();
+      await loadFaq();
+      if (sourceLogId) await loadLogs();
+    } catch (e) {
+      showToast('Save failed: ' + (e.message || e), 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  }
+
+  async function deleteFaq() {
+    if (!_editingFaq) return;
+    if (!confirm('Delete FAQ entry "' + _editingFaq.slug + '"? This cannot be undone — consider deactivating instead.')) return;
+    var d = db(); if (!d) return;
+    try {
+      var resp = await d.from('chat_faq').delete().eq('id', _editingFaq.id);
+      if (resp.error) throw resp.error;
+      showToast('FAQ deleted', 'ok');
+      closeFaqEditor();
+      await loadFaq();
+    } catch (e) {
+      showToast('Delete failed: ' + (e.message || e), 'err');
+    }
+  }
+
+  bootAuth();
+</script>
+</body>
+</html>

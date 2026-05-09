@@ -2155,15 +2155,27 @@ async function setEncoder(eventId, encoder) {
   }
   if (isTestId(eventId)) {
     _testCaptureLocal.set(eventId, Object.assign({}, cur, patch));
+    // Immediate re-render so other rows' dropdowns reflect the new conflict.
+    renderManual();
     return;
   }
   if (!_db) return;
   _captureStatus.set(eventId, Object.assign({}, cur, patch));
+  // Re-render NOW so other rows on the same date+window grey out this
+  // encoder without waiting for the realtime echo round-trip.
+  renderManual();
   try {
     const { error } = await _db.from('wsc_capture_status').upsert(patch, { onConflict: 'schedule_event_id' });
     if (error) throw error;
   } catch (e) {
     console.error('encoder save:', e);
+    // Roll back the optimistic update and refresh the dropdowns.
+    if (cur && (cur.encoder !== undefined || cur.av_confirmed !== undefined)) {
+      _captureStatus.set(eventId, cur);
+    } else {
+      _captureStatus.delete(eventId);
+    }
+    renderManual();
     showToast('Encoder save failed', 'err');
   }
 }

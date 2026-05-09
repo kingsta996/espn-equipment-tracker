@@ -182,6 +182,29 @@
   }
   .encoder-cell select:focus { border-color: var(--wsc-green); outline: 0; }
   .encoder-cell select.set { border-color: var(--wsc-green); color: var(--wsc-green); }
+  .encoder-cell select option { background: #0e1012; color: var(--wsc-text); }
+  .encoder-cell select option:disabled { color: var(--wsc-mute); font-style: italic; }
+
+  /* Encoder availability (admin Settings tab) */
+  .encoder-tile {
+    background: #0e1012; border: 1px solid var(--wsc-line); border-radius: 8px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .encoder-tile.inactive { border-color: rgba(242,95,92,0.45); background: rgba(242,95,92,0.06); }
+  .encoder-tile-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .encoder-tile-head .id { font-size: 13px; font-weight: 800; color: var(--wsc-green); letter-spacing: 0.4px; }
+  .encoder-tile.inactive .encoder-tile-head .id { color: var(--err); }
+  .encoder-tile .toggle-switch {
+    background: var(--wsc-green); color: #000; border: 0; padding: 5px 12px; border-radius: 6px;
+    font-size: 10.5px; font-weight: 800; cursor: pointer; font-family: inherit; letter-spacing: 0.4px;
+  }
+  .encoder-tile.inactive .toggle-switch { background: transparent; color: var(--err); border: 1px solid var(--err); }
+  .encoder-tile .reason-input {
+    background: #14171a; color: var(--wsc-text); border: 1px solid var(--wsc-line);
+    border-radius: 5px; padding: 5px 8px; font-size: 11px; font-family: inherit;
+  }
+  .encoder-tile .reason-input:focus { border-color: var(--wsc-green); outline: 0; }
+  .encoder-tile .meta { font-size: 9.5px; color: var(--wsc-mute); letter-spacing: 0.3px; font-family: 'SF Mono','Menlo',monospace; }
   .copy-encoder-url {
     background: rgba(200,255,0,0.12); color: var(--wsc-green); border: 1px solid rgba(200,255,0,0.45);
     padding: 5px 10px; border-radius: 6px; font-size: 10.5px; font-weight: 800;
@@ -517,6 +540,18 @@
       <div id="extRefreshStatus" style="font-size:11px;color:var(--wsc-mute);margin-top:6px;font-family:'SF Mono',monospace"></div>
     </div>
     <button class="btn-save" type="button" onclick="refreshExternalSchedules()" id="extRefreshBtn">🔄 Refresh External Schedules</button>
+  </div>
+
+  <div style="background:var(--wsc-panel);border:1px solid var(--wsc-line);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:13px;font-weight:700;color:var(--wsc-text);margin-bottom:4px">Encoder Availability</div>
+        <div style="font-size:11.5px;color:var(--wsc-mute);line-height:1.5">
+          Deactivate an encoder when it's physically unavailable (offline, in repair, reserved). Inactive encoders are greyed out in every Manual Capture dropdown until you reactivate them. The <strong>4-hour conflict</strong> indicator is automatic — encoders booked to another event whose start time is within 4 hours of the row are also disabled, with the conflicting matchup shown.
+        </div>
+      </div>
+    </div>
+    <div id="encoderAvailabilityGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
   </div>
 
   <div id="settingsList" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -888,6 +923,8 @@ let _externalEvents = []; // wsc_external_events rows (school-site scrapes)
 let _testEvents = [];     // synthetic test events when test mode is active
 let _testCaptureLocal = new Map(); // schedule_event_id → { av_confirmed, encoder } (test-only, in-memory)
 let _captureStatus = new Map(); // schedule_event_id → wsc_capture_status row
+let _encoderStatus = new Map(); // encoder_id → wsc_encoder_status row (admin-managed active/inactive)
+const ENCODER_CONFLICT_WINDOW_MS = 4 * 60 * 60 * 1000; // 4-hour overlap window for same-encoder conflicts
 let _dismissals = new Map();    // event_id → { dismissed_by, dismissed_at, reason }
 let _showDismissed = false;     // Manual Capture toolbar toggle
 let _currentUser = null;
@@ -926,7 +963,7 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides()]);
+  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
   applyAdminVisibility();
@@ -970,9 +1007,104 @@ function renderSettings() {
   if (!root) return;
   if (!isSuperAdmin()) {
     root.innerHTML = `<div class="empty"><h3>Restricted</h3>Only super admins can edit reference data.</div>`;
+    const grid = document.getElementById('encoderAvailabilityGrid');
+    if (grid) grid.innerHTML = '';
     return;
   }
   root.innerHTML = (_config?.schools || []).map(renderSchoolCard).join('');
+  renderEncoderAvailability();
+}
+
+function renderEncoderAvailability() {
+  const grid = document.getElementById('encoderAvailabilityGrid');
+  if (!grid) return;
+  const encoders = _config?.encoders || [];
+  if (!encoders.length) {
+    grid.innerHTML = '<div style="color:var(--wsc-mute);font-size:11px">No encoders configured.</div>';
+    return;
+  }
+  grid.innerHTML = encoders.map(e => {
+    const row = _encoderStatus.get(e.id);
+    const active = !row || row.active !== false;
+    const reason = row?.inactive_reason || '';
+    const stamp = row?.updated_at
+      ? new Date(row.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+        (row.updated_by ? ' · ' + row.updated_by.split('@')[0] : '')
+      : '';
+    return `
+      <div class="encoder-tile ${active ? '' : 'inactive'}" id="enc-tile-${e.id}">
+        <div class="encoder-tile-head">
+          <span class="id">${escapeHtml(e.id)}</span>
+          <button class="toggle-switch" type="button" onclick="toggleEncoderActive('${e.id}')">
+            ${active ? '✓ Active' : '✕ Inactive'}
+          </button>
+        </div>
+        <input class="reason-input" type="text" id="enc-reason-${e.id}"
+               placeholder="${active ? 'Reason if you deactivate (optional)' : 'Inactive reason (optional)'}"
+               value="${escapeAttr(reason)}"
+               onchange="saveEncoderReason('${e.id}', this.value)">
+        ${stamp ? `<div class="meta">Updated ${escapeHtml(stamp)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+async function toggleEncoderActive(encoderId) {
+  if (!isSuperAdmin()) { showToast('Admin only', 'err'); return; }
+  if (!_db) { showToast('Database not connected', 'err'); return; }
+  const cur = _encoderStatus.get(encoderId);
+  const wasActive = !cur || cur.active !== false;
+  const next = !wasActive;
+  const reason = (document.getElementById('enc-reason-' + encoderId)?.value || cur?.inactive_reason || '').trim();
+  const patch = {
+    encoder_id: encoderId,
+    active: next,
+    inactive_reason: next ? null : (reason || null),
+    updated_by: _currentUser?.email || 'unknown',
+    updated_at: new Date().toISOString()
+  };
+  // Optimistic update
+  _encoderStatus.set(encoderId, Object.assign({}, cur, patch));
+  renderEncoderAvailability();
+  renderManual();
+  try {
+    const { error } = await _db.from('wsc_encoder_status').upsert(patch, { onConflict: 'encoder_id' });
+    if (error) throw error;
+    logActivity('encoder-' + (next ? 'activate' : 'deactivate'), 'encoder:' + encoderId, reason || null);
+    showToast(next ? `${encoderId} reactivated` : `${encoderId} marked inactive`, 'ok');
+  } catch (e) {
+    console.error('encoder status save:', e);
+    if (cur) _encoderStatus.set(encoderId, cur); else _encoderStatus.delete(encoderId);
+    renderEncoderAvailability();
+    renderManual();
+    showToast('Save failed: ' + (e.message || e), 'err');
+  }
+}
+
+async function saveEncoderReason(encoderId, reason) {
+  if (!isSuperAdmin()) return;
+  if (!_db) return;
+  const cur = _encoderStatus.get(encoderId);
+  // Only persist a reason when the encoder is currently inactive — for
+  // active encoders the input is just a pre-fill draft.
+  if (!cur || cur.active !== false) return;
+  const trimmed = (reason || '').trim();
+  if ((cur.inactive_reason || '') === trimmed) return;
+  const patch = {
+    encoder_id: encoderId,
+    active: false,
+    inactive_reason: trimmed || null,
+    updated_by: _currentUser?.email || 'unknown',
+    updated_at: new Date().toISOString()
+  };
+  _encoderStatus.set(encoderId, Object.assign({}, cur, patch));
+  try {
+    const { error } = await _db.from('wsc_encoder_status').upsert(patch, { onConflict: 'encoder_id' });
+    if (error) throw error;
+    renderManual(); // reason text shown in dropdown labels
+  } catch (e) {
+    console.error('encoder reason save:', e);
+    showToast('Save failed: ' + (e.message || e), 'err');
+  }
 }
 
 function renderSchoolCard(school) {
@@ -1344,6 +1476,102 @@ async function loadCaptureStatus() {
     console.warn('wsc_capture_status load:', e?.message || e);
     _captureStatus = new Map();
   }
+}
+
+async function loadEncoderStatus() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('wsc_encoder_status').select('*');
+    if (error) throw error;
+    _encoderStatus = new Map((data || []).map(r => [r.encoder_id, r]));
+  } catch (e) {
+    console.warn('wsc_encoder_status load:', e?.message || e);
+    _encoderStatus = new Map();
+  }
+}
+
+function isEncoderActive(encoderId) {
+  const row = _encoderStatus.get(encoderId);
+  return !row || row.active !== false;
+}
+
+/**
+ * Parse an event_time free-text string to a Date for the given event_date.
+ * Accepts "7:00 PM", "12:00 PM ET", "19:00", "7pm", etc. Returns null on
+ * failure — callers fall back to same-day-only conflict detection.
+ */
+function parseEventStart(eventDate, eventTime) {
+  if (!eventDate) return null;
+  const t = String(eventTime || '').trim();
+  if (!t) return null;
+  // Strip trailing timezone abbreviations (ET / CT / PT / EST / EDT / etc.)
+  const cleaned = t.replace(/\s*\b([A-Z]{2,4})\b\s*$/, '').trim();
+  const m = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)?$/);
+  if (!m) return null;
+  let hr = parseInt(m[1], 10);
+  const min = m[2] ? parseInt(m[2], 10) : 0;
+  const ap = (m[3] || '').toLowerCase();
+  if (ap === 'pm' && hr < 12) hr += 12;
+  if (ap === 'am' && hr === 12) hr = 0;
+  if (isNaN(hr) || hr < 0 || hr > 23 || isNaN(min) || min < 0 || min > 59) return null;
+  // Build the date in local time (event_date is YYYY-MM-DD).
+  const d = new Date(eventDate + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  d.setHours(hr, min, 0, 0);
+  return d;
+}
+
+/**
+ * For a given event, return Map<encoderId, conflictingEvent> describing
+ * which encoders are already booked to a different event whose start time
+ * falls within ENCODER_CONFLICT_WINDOW_MS of this event. If either event's
+ * time can't be parsed, falls back to same-day-only conflict.
+ */
+function encoderConflictsFor(targetEvent) {
+  const out = new Map();
+  if (!targetEvent) return out;
+  const targetStart = parseEventStart(targetEvent.event_date, targetEvent.event_time);
+  // _events + _externalEvents already merged into the rendered set, but for
+  // conflict-detection we need every event that holds an encoder, not just
+  // the current school's view. Iterate over _captureStatus directly so we
+  // catch encoder bookings on rows the current user wouldn't otherwise see.
+  for (const [eventId, status] of _captureStatus) {
+    if (!status?.encoder) continue;
+    if (eventId === targetEvent.id) continue;
+    // Resolve the event row for this booking (search across both lists +
+    // test rows so the dropdown reflects the full booking picture).
+    const ev = findEventById(eventId);
+    if (!ev) continue;
+    if (ev.event_date !== targetEvent.event_date) continue; // different day → no conflict
+    const otherStart = parseEventStart(ev.event_date, ev.event_time);
+    let conflict;
+    if (targetStart && otherStart) {
+      conflict = Math.abs(targetStart.getTime() - otherStart.getTime()) < ENCODER_CONFLICT_WINDOW_MS;
+    } else {
+      conflict = true; // unparseable time → fall back to same-day conflict
+    }
+    if (conflict && !out.has(status.encoder)) {
+      out.set(status.encoder, ev);
+    }
+  }
+  return out;
+}
+
+function findEventById(id) {
+  if (!id) return null;
+  if (Array.isArray(_events)) {
+    const r = _events.find(e => e.id === id);
+    if (r) return r;
+  }
+  if (Array.isArray(_externalEvents)) {
+    const r = _externalEvents.find(e => e.id === id);
+    if (r) return r;
+  }
+  if (Array.isArray(_testEvents)) {
+    const r = _testEvents.find(e => e.id === id);
+    if (r) return r;
+  }
+  return null;
 }
 
 async function loadDismissals() {
@@ -1756,9 +1984,30 @@ function renderTable(scope) {
     const splashtopBtn = isShsuRow
       ? `<button class="splashtop-btn" onclick="openSplashtop('${ev.id}')" title="Remote into the office capture computer">🖥 Splashtop</button>`
       : '';
-    const encOptsRow = (_config?.encoders || []).map(e =>
-      `<option value="${e.id}" ${status.encoder === e.id ? 'selected' : ''}>${e.id}</option>`
-    ).join('');
+    // Conflict map: encoder → other event already using it within the
+    // 4-hour window. Don't disable the encoder currently saved on this row,
+    // so the user can still see it as the chosen value.
+    const conflicts = encoderConflictsFor(ev);
+    const encOptsRow = (_config?.encoders || []).map(e => {
+      const isSelected = status.encoder === e.id;
+      const inactive   = !isEncoderActive(e.id);
+      const conflict   = conflicts.get(e.id);
+      const isMine     = isSelected;
+      const disable    = !isMine && (inactive || !!conflict);
+      let label = e.id;
+      if (inactive) {
+        const reason = _encoderStatus.get(e.id)?.inactive_reason;
+        label += reason ? ` — inactive (${reason})` : ' — inactive';
+      } else if (conflict) {
+        const matchup = `${conflict.away || '?'} @ ${conflict.home || '?'}`;
+        const when = conflict.event_time ? ` ${conflict.event_time}` : '';
+        label += ` — in use:${when} ${matchup}`;
+      }
+      const titleAttr = disable
+        ? ` title="${escapeAttr(label)}"`
+        : '';
+      return `<option value="${e.id}" ${isSelected ? 'selected' : ''} ${disable ? 'disabled' : ''}${titleAttr}>${escapeHtml(label)}</option>`;
+    }).join('');
     const copyBtnHtml = isShsuUser
       ? `<button class="copy-encoder-url" id="copy-enc-${cssId(ev.id)}" type="button"
                   style="display:${status.encoder ? '' : 'none'}"
@@ -1932,6 +2181,11 @@ function setupRealtime() {
      .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_event_dismissals' }, async () => {
        await loadDismissals();
        renderManual();
+     })
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_encoder_status' }, async () => {
+       await loadEncoderStatus();
+       renderManual();
+       if (isSuperAdmin()) renderSettings();
      })
      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_events' }, async () => {
        await loadEvents();

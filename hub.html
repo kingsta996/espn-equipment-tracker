@@ -354,7 +354,13 @@
   </a>
 </div>
 
-<div class="hub-footer">Conference USA &nbsp;·&nbsp; ESPN+ &nbsp;·&nbsp; 2025–26</div>
+<div class="hub-footer">
+  Conference USA &nbsp;·&nbsp; ESPN+ &nbsp;·&nbsp; 2025–26
+  <span id="hubAdminFooter" style="display:none">
+    &nbsp;·&nbsp; <a href="faq.html" style="color:rgba(255,255,255,0.45);text-decoration:none;letter-spacing:1.2px">FAQ</a>
+    &nbsp;·&nbsp; <a id="hubChatLogsLink" href="chatlogs.html" style="color:rgba(255,255,255,0.45);text-decoration:none;letter-spacing:1.2px;display:none">CHAT LOGS</a>
+  </span>
+</div>
 
 <!-- Support chat widget (always visible; sign-in required on first open) -->
 <button id="supportChatBtn" class="support-chat-btn" type="button" onclick="openSupportChat()" aria-label="Chat with Support">
@@ -432,20 +438,38 @@
     if (CHAT_ADMIN_KEYS.some(function (k) { return localStorage.getItem(k) === 'true'; })) return true;
     return !!chatStoredUser();
   }
+  // Legacy admin = Keith. Detect from any localStorage user blob the other
+  // tools may have set (WSC portal, chat widget, etc.) so we don't depend on
+  // him having signed into the chat widget specifically.
   function chatIsLegacyAdmin() {
-    var u = chatStoredUser();
-    return !!(u && u.email && u.email.toLowerCase() === 'kking@conferenceusa.com');
+    var KEITH = 'kking@conferenceusa.com';
+    var keys = ['cusa_chat_user', 'cusa_wsc_user'];
+    for (var i = 0; i < keys.length; i++) {
+      try {
+        var raw = localStorage.getItem(keys[i]);
+        if (raw) {
+          var u = JSON.parse(raw);
+          if (u && u.email && String(u.email).toLowerCase() === KEITH) return true;
+        }
+      } catch (_) {}
+    }
+    return false;
   }
 
-  // Unhide the Highlight tile + admin "Logs" link for already-signed-in users.
+  // Unhide tiles + admin-only entry points for already-signed-in users.
   (function () {
-    if (chatUserSignedIn()) {
+    var anyAdmin = chatUserSignedIn();
+    if (anyAdmin) {
       var t = document.getElementById('highlightTile');
       if (t) t.style.display = 'block';
+      var f = document.getElementById('hubAdminFooter');
+      if (f) f.style.display = 'inline';
     }
     if (chatIsLegacyAdmin()) {
       var l = document.getElementById('supportLogsLink');
       if (l) l.style.display = 'inline';
+      var lf = document.getElementById('hubChatLogsLink');
+      if (lf) lf.style.display = 'inline';
     }
   })();
 

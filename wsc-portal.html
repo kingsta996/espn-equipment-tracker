@@ -393,6 +393,101 @@
   .toast.ok { border-left: 3px solid var(--ok); }
   .toast.err { border-left: 3px solid var(--err); }
 
+  /* Roku Control tab */
+  .roku-agent-banner {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border-radius: 10px; margin-bottom: 14px; font-size: 12px;
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line);
+    color: var(--wsc-text);
+  }
+  .roku-agent-banner.online  { border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.08); }
+  .roku-agent-banner.offline { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); }
+  .roku-agent-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--wsc-mute);
+    box-shadow: 0 0 0 0 rgba(200,255,0,0);
+  }
+  .roku-agent-banner.online  .roku-agent-dot { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
+  .roku-agent-banner.offline .roku-agent-dot { background: #ef4444; }
+  .roku-mode-chip {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 999px; border: 1px solid var(--wsc-line);
+    background: rgba(255,255,255,0.04); color: var(--wsc-mute);
+  }
+  .roku-mode-chip.local  { border-color: rgba(34,197,94,0.4); color: #22c55e; background: rgba(34,197,94,0.10); }
+  .roku-mode-chip.remote { border-color: rgba(200,255,0,0.4); color: var(--wsc-green); background: rgba(200,255,0,0.10); }
+  .roku-pad-layout {
+    display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: start;
+  }
+  .roku-encoder-strip {
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line);
+    border-radius: 10px; padding: 10px;
+  }
+  .roku-encoder-pill {
+    display: flex; flex-direction: column; gap: 2px;
+    background: transparent; border: 1px solid var(--wsc-line);
+    color: var(--wsc-text); font-family: inherit; padding: 8px 12px;
+    border-radius: 8px; cursor: pointer; text-align: left;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .roku-encoder-pill:hover { background: rgba(200,255,0,0.06); }
+  .roku-encoder-pill.active {
+    background: rgba(200,255,0,0.12); border-color: var(--wsc-green);
+    color: var(--wsc-green);
+  }
+  .roku-encoder-pill .roku-enc-id  { font-size: 13px; font-weight: 800; letter-spacing: 0.4px; }
+  .roku-encoder-pill .roku-enc-ip  { font-size: 10px; color: var(--wsc-mute); font-family: 'SF Mono',monospace; }
+  .roku-encoder-pill.active .roku-enc-ip { color: rgba(200,255,0,0.7); }
+  .roku-pad-card {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line);
+    border-radius: 10px; padding: 18px;
+  }
+  .roku-pad {
+    display: grid; grid-template-columns: 1fr 200px 1fr; gap: 16px;
+    align-items: center; max-width: 580px; margin: 0 auto;
+  }
+  .roku-side { display: flex; flex-direction: column; gap: 8px; }
+  .roku-pill {
+    background: rgba(255,255,255,0.04); color: var(--wsc-text);
+    border: 1px solid var(--wsc-line); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; font-weight: 600;
+    font-family: inherit; cursor: pointer; transition: background 0.1s;
+  }
+  .roku-pill:hover:not(:disabled) { background: rgba(200,255,0,0.10); border-color: rgba(200,255,0,0.4); }
+  .roku-pill:active:not(:disabled) { background: rgba(200,255,0,0.20); }
+  .roku-pill:disabled { opacity: 0.35; cursor: not-allowed; }
+  .roku-dpad {
+    display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(3, 60px);
+    gap: 6px; justify-content: center;
+  }
+  .roku-arrow {
+    background: rgba(255,255,255,0.04); color: var(--wsc-text);
+    border: 1px solid var(--wsc-line); border-radius: 10px;
+    font-size: 18px; font-weight: 700; font-family: inherit; cursor: pointer;
+    transition: background 0.1s;
+  }
+  .roku-arrow:hover:not(:disabled) { background: rgba(200,255,0,0.10); border-color: rgba(200,255,0,0.4); }
+  .roku-arrow:active:not(:disabled) { background: rgba(200,255,0,0.25); }
+  .roku-arrow:disabled { opacity: 0.35; cursor: not-allowed; }
+  .roku-ok { background: rgba(200,255,0,0.10); color: var(--wsc-green); font-size: 14px; letter-spacing: 0.5px; }
+  .roku-vol-row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+  .roku-vol-row .roku-pill { flex: 1; max-width: 160px; text-align: center; }
+  .roku-log {
+    margin-top: 14px; max-height: 140px; overflow-y: auto;
+    font-family: 'SF Mono',monospace; font-size: 11px; line-height: 1.6;
+    background: rgba(0,0,0,0.3); border: 1px solid var(--wsc-line);
+    border-radius: 8px; padding: 10px;
+  }
+  .roku-log .row { padding: 2px 0; }
+  .roku-log .row.ok  { color: #22c55e; }
+  .roku-log .row.err { color: #ef4444; }
+  .roku-log .row .ts { color: var(--wsc-mute); margin-right: 8px; }
+  @media (max-width: 720px) {
+    .roku-pad-layout { grid-template-columns: 1fr; }
+    .roku-encoder-strip { flex-direction: row; flex-wrap: wrap; }
+    .roku-encoder-pill { flex: 1; min-width: 90px; }
+  }
+
   /* Stats strip */
   .stats-strip {
     display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px;
@@ -452,6 +547,7 @@
   <button data-tab="past">🗄 Past Events</button>
   <button data-tab="streamsheet">📊 WSC Stream Sheet</button>
   <button data-tab="multi"    data-multiviewer-only>📺 Multiviewer</button>
+  <button data-tab="roku"     data-super-admin-only>🎮 Roku Control <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
   <button data-tab="settings" data-super-admin-only>🔧 Settings <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
 </div>
 
@@ -549,6 +645,65 @@
       loading="lazy"
       title="WSC Stream Sheet"
       referrerpolicy="no-referrer-when-downgrade"></iframe>
+  </div>
+</section>
+
+<!-- Roku Control (super admin only) -->
+<section class="tab-content" id="tab-roku" data-super-admin-only>
+  <div class="support-note">
+    <span><strong>Two paths, one set of buttons.</strong> When you're on the MC workstation with <code>cusa_backend.py</code> running, commands go through <code>http://localhost:5050</code> (no internet involved). When off-network, commands flow through the <code>cusa_relay.py</code> agent via Supabase — outbound-only from the broadcast LAN, gated by your super-admin login + paired agent key. Either way, no inbound port on the broadcast network ever opens.</span>
+  </div>
+  <div id="rokuAgentBanner" class="roku-agent-banner offline">
+    <span class="roku-agent-dot"></span>
+    <span id="rokuAgentMsg">Checking agents…</span>
+    <span class="grow" style="flex:1"></span>
+    <span id="rokuModeChip" class="roku-mode-chip">—</span>
+    <button class="toggle" type="button" onclick="pairRokuAgent()">🔑 Pair Agent</button>
+    <button class="toggle" type="button" onclick="checkRokuAgent(true)">↻ Retry</button>
+  </div>
+  <div class="roku-pad-layout">
+    <div class="roku-encoder-strip" id="rokuEncoderStrip"></div>
+    <div class="roku-pad-card">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+        <div>
+          <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">Active Encoder</div>
+          <div id="rokuActiveLabel" style="font-size:18px;font-weight:800;color:var(--wsc-green)">—</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">Roku IP</div>
+          <div id="rokuActiveIp" style="font-size:13px;font-family:'SF Mono',monospace;color:var(--wsc-text)">—</div>
+        </div>
+      </div>
+      <div class="roku-pad">
+        <div class="roku-side">
+          <button class="roku-pill" data-key="Home">🏠 Home</button>
+          <button class="roku-pill" data-key="Back">← Back</button>
+          <button class="roku-pill" data-key="Info">★ Info</button>
+        </div>
+        <div class="roku-dpad">
+          <div></div>
+          <button class="roku-arrow" data-key="Up">▲</button>
+          <div></div>
+          <button class="roku-arrow" data-key="Left">◀</button>
+          <button class="roku-arrow roku-ok" data-key="Select">OK</button>
+          <button class="roku-arrow" data-key="Right">▶</button>
+          <div></div>
+          <button class="roku-arrow" data-key="Down">▼</button>
+          <div></div>
+        </div>
+        <div class="roku-side">
+          <button class="roku-pill" data-key="Play">▶ Play/Pause</button>
+          <button class="roku-pill" data-key="Rev">⏪ Rev</button>
+          <button class="roku-pill" data-key="Fwd">⏩ Fwd</button>
+        </div>
+      </div>
+      <div class="roku-vol-row">
+        <button class="roku-pill" data-key="VolumeDown">🔉 Vol −</button>
+        <button class="roku-pill" data-key="VolumeMute">🔇 Mute</button>
+        <button class="roku-pill" data-key="VolumeUp">🔊 Vol +</button>
+      </div>
+      <div class="roku-log" id="rokuLog"></div>
+    </div>
   </div>
 </section>
 
@@ -973,6 +1128,18 @@ let _filters = {
   past:   { search: '', sport: '', school: '', from: '', to: '', hideConf: false }
 };
 let _pastView = 'master';     // Past Events tab sub-view: 'master' | 'manual'
+
+// Roku Control tab state — local agent at http://localhost:5050,
+// or remote relay via Supabase when local agent isn't reachable.
+const ROKU_AGENT_BASE = 'http://localhost:5050';
+const ROKU_PING_INTERVAL_MS = 30_000;
+const ROKU_AGENT_KEY_LS = 'wsc_roku_agent_key';
+const ROKU_REMOTE_TIMEOUT_MS = 8_000;
+let _rokuLocalOnline = false;
+let _rokuMode = 'unknown';           // 'local' | 'remote' | 'unpaired' | 'unknown'
+let _rokuActiveEncoder = null;       // CUSA id currently selected
+let _rokuPingTimer = null;
+let _rokuPadWired = false;
 let _mvScope = 'all';
 let _mvSection = 'football';     // 'football' | 'basketball'
 let _mvOnlyLive = false;
@@ -1803,6 +1970,15 @@ async function submitPw() {
   localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
   _adminUnlocked = true;
   localStorage.setItem(UNLOCK_KEY, 'true');
+  // Cache the pw_hash only for super admins — needed by the Roku relay RPC
+  // (wsc_roku_enqueue) to authenticate without re-prompting on every keypress.
+  // The same hash is already publicly readable from admin_users via the anon
+  // RLS policy, so this localStorage entry adds no real exposure.
+  if (SUPER_ADMINS.has(String(user.email || '').toLowerCase())) {
+    localStorage.setItem('cusa_wsc_super_pw', h);
+  } else {
+    localStorage.removeItem('cusa_wsc_super_pw');
+  }
   closePwModal();
   logActivity('login', user.school ? 'school:' + user.school : null, user.role || 'admin');
   await initPortal();
@@ -1812,6 +1988,7 @@ async function signOut() {
   try { await logActivity('sign-out', null, userRole() || 'unknown'); } catch {}
   localStorage.removeItem(UNLOCK_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
+  localStorage.removeItem('cusa_wsc_super_pw');
   stopAllMv();
   destroyAllRowHls();
   window.location.href = 'hub.html';
@@ -1837,6 +2014,8 @@ function wireTabs() {
       if (tab === 'manual')   renderManual();
       if (tab === 'past')     renderPast();
       if (tab === 'settings') renderSettings();
+      if (tab === 'roku')     enterRokuTab();
+      else                    leaveRokuTab();
     });
   });
 }
@@ -2606,6 +2785,262 @@ function stopAllMv() {
   _hlsInstances.clear();
   document.querySelectorAll('#mvGrid video').forEach(v => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch {} });
   if (_mvRefreshTimer) { clearInterval(_mvRefreshTimer); _mvRefreshTimer = null; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  ROKU CONTROL — talks to the local cusa_backend.py agent on
+ *  http://localhost:5050. The agent binds to loopback only, allowlists
+ *  outbound IPs to the CUSA Roku/HELO/router pool, and refuses requests
+ *  without an X-Cusa-Agent header (forces a CORS preflight that pins
+ *  the caller's Origin to the portal). UI is super-admin gated.
+ * ══════════════════════════════════════════════════════════════════ */
+function enterRokuTab() {
+  buildRokuEncoderStrip();
+  if (!_rokuActiveEncoder) {
+    const first = (_config?.encoders || [])[0];
+    if (first) selectRokuEncoder(first.id);
+  } else {
+    // Re-render labels in case _config changed since last visit.
+    selectRokuEncoder(_rokuActiveEncoder);
+  }
+  if (!_rokuPadWired) {
+    document.querySelectorAll('#tab-roku .roku-pill, #tab-roku .roku-arrow').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.key;
+        if (k) sendRokuKey(k);
+      });
+    });
+    _rokuPadWired = true;
+  }
+  checkRokuAgent(false);
+  if (_rokuPingTimer) clearInterval(_rokuPingTimer);
+  _rokuPingTimer = setInterval(() => checkRokuAgent(false), ROKU_PING_INTERVAL_MS);
+}
+
+function leaveRokuTab() {
+  if (_rokuPingTimer) { clearInterval(_rokuPingTimer); _rokuPingTimer = null; }
+}
+
+function buildRokuEncoderStrip() {
+  const strip = document.getElementById('rokuEncoderStrip');
+  if (!strip) return;
+  const encs = _config?.encoders || [];
+  strip.innerHTML = encs.map(e => `
+    <button class="roku-encoder-pill" data-enc="${escapeAttr(e.id)}" type="button"
+            onclick="selectRokuEncoder('${escapeAttr(e.id)}')">
+      <span class="roku-enc-id">${escapeHtml(e.id)}</span>
+      <span class="roku-enc-ip">${escapeHtml(e.roku_ip || '—')}</span>
+    </button>
+  `).join('');
+}
+
+function selectRokuEncoder(id) {
+  _rokuActiveEncoder = id;
+  const enc = (_config?.encoders || []).find(e => e.id === id);
+  document.querySelectorAll('#rokuEncoderStrip .roku-encoder-pill').forEach(b => {
+    b.classList.toggle('active', b.dataset.enc === id);
+  });
+  document.getElementById('rokuActiveLabel').textContent = id || '—';
+  document.getElementById('rokuActiveIp').textContent    = enc?.roku_ip || '—';
+}
+
+function setRokuPadEnabled(enabled) {
+  document.querySelectorAll('#tab-roku .roku-pill, #tab-roku .roku-arrow').forEach(btn => {
+    btn.disabled = !enabled;
+  });
+}
+
+function rokuAgentKey() {
+  return localStorage.getItem(ROKU_AGENT_KEY_LS) || '';
+}
+
+function pairRokuAgent() {
+  const cur = rokuAgentKey();
+  const next = window.prompt(
+    'Paste the pairing key printed by cusa_relay.py on the MC workstation.\n' +
+    '(It\'s also stored at ~/.cusa-agent-key on that machine.)\n\n' +
+    'Leave blank to clear the saved key.',
+    cur
+  );
+  if (next === null) return;
+  const trimmed = next.trim();
+  if (!trimmed) {
+    localStorage.removeItem(ROKU_AGENT_KEY_LS);
+    rokuLog('Pairing key cleared.', 'err');
+  } else if (trimmed.length < 16) {
+    rokuLog('Pairing key too short — paste the full value.', 'err');
+    return;
+  } else {
+    localStorage.setItem(ROKU_AGENT_KEY_LS, trimmed);
+    rokuLog('Pairing key saved.', 'ok');
+  }
+  checkRokuAgent(false);
+}
+
+function _setRokuMode(mode, msgText, online) {
+  _rokuMode = mode;
+  const banner = document.getElementById('rokuAgentBanner');
+  const msg    = document.getElementById('rokuAgentMsg');
+  const chip   = document.getElementById('rokuModeChip');
+  if (!banner || !msg || !chip) return;
+  banner.classList.toggle('online',  !!online);
+  banner.classList.toggle('offline', !online);
+  msg.textContent = msgText;
+  chip.classList.remove('local', 'remote');
+  if (mode === 'local') {
+    chip.textContent = 'LOCAL · LAN';
+    chip.classList.add('local');
+  } else if (mode === 'remote') {
+    chip.textContent = 'REMOTE · RELAY';
+    chip.classList.add('remote');
+  } else if (mode === 'unpaired') {
+    chip.textContent = 'NOT PAIRED';
+  } else {
+    chip.textContent = '—';
+  }
+  setRokuPadEnabled(mode === 'local' || mode === 'remote');
+}
+
+async function checkRokuAgent(showToastOnRetry) {
+  // Try the local agent first — fastest, zero internet round-trip.
+  let local = null;
+  try {
+    const res = await fetch(`${ROKU_AGENT_BASE}/api/roku/ping`, {
+      method: 'GET',
+      headers: { 'X-Cusa-Agent': '1' },
+      cache: 'no-store',
+    });
+    if (res.ok) local = await res.json();
+  } catch { /* swallow — fall through to remote */ }
+
+  _rokuLocalOnline = !!(local && local.status === 'ok');
+
+  if (_rokuLocalOnline) {
+    _setRokuMode('local',
+      `Local agent online · ${local.roku_count || 0} Rokus · ${ROKU_AGENT_BASE}`,
+      true);
+    if (showToastOnRetry) showToast('Local agent online', 'ok');
+    return;
+  }
+
+  // No local agent — fall back to remote relay if paired.
+  const paired = !!rokuAgentKey();
+  const haveSuper = !!localStorage.getItem('cusa_wsc_super_pw');
+  if (paired && haveSuper && _db) {
+    _setRokuMode('remote',
+      'Remote relay paired — commands routed through Supabase to the MC workstation.',
+      true);
+    if (showToastOnRetry) showToast('Using remote relay', 'ok');
+    return;
+  }
+
+  if (!paired) {
+    _setRokuMode('unpaired',
+      'Local agent offline and no remote pairing key saved — click 🔑 Pair Agent to enable remote control.',
+      false);
+  } else if (!haveSuper) {
+    _setRokuMode('unpaired',
+      'Sign out and back in as a super admin to refresh the cached credential needed for remote relay.',
+      false);
+  } else {
+    _setRokuMode('unpaired',
+      'Local agent offline and Supabase not configured.',
+      false);
+  }
+  if (showToastOnRetry) showToast('No agent reachable', 'err');
+}
+
+async function sendRokuKey(key) {
+  if (!_rokuActiveEncoder) { rokuLog('No encoder selected', 'err'); return; }
+  const enc = _rokuActiveEncoder;
+  if (_rokuMode === 'local') return _sendRokuKeyLocal(enc, key);
+  if (_rokuMode === 'remote') return _sendRokuKeyRemote(enc, key);
+  rokuLog('No agent reachable — pair the relay or start the local agent.', 'err');
+}
+
+async function _sendRokuKeyLocal(enc, key) {
+  rokuLog(`${enc} → ${key}  [local]`);
+  try {
+    const res = await fetch(`${ROKU_AGENT_BASE}/api/roku/${encodeURIComponent(enc)}/keypress/${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'X-Cusa-Agent': '1' },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.status !== 'ok') {
+      rokuLog(`✗ ${enc} ${key}: ${json.error || 'HTTP ' + res.status}`, 'err');
+    } else {
+      rokuLog(`✓ ${enc} ${key} (Roku ${json.rokuIp})`, 'ok');
+      logActivity('roku-key', 'encoder:' + enc, key + ' [local]');
+    }
+  } catch (e) {
+    rokuLog(`✗ ${enc} ${key}: ${e.message || e}`, 'err');
+  }
+}
+
+async function _sendRokuKeyRemote(enc, key) {
+  if (!_db) { rokuLog('Supabase not initialized', 'err'); return; }
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  const akey  = rokuAgentKey();
+  if (!email || !pw || !akey) {
+    rokuLog('Missing super-admin credential or pairing key — pair the agent first.', 'err');
+    return;
+  }
+  rokuLog(`${enc} → ${key}  [remote]`);
+  let cmdId = null;
+  try {
+    const { data, error } = await _db.rpc('wsc_roku_enqueue', {
+      p_email: email,
+      p_pw_hash: pw,
+      p_agent_key: akey,
+      p_encoder_id: enc,
+      p_kind: 'keypress',
+      p_payload: key,
+    });
+    if (error) throw error;
+    cmdId = data;
+  } catch (e) {
+    rokuLog(`✗ enqueue failed: ${e.message || e}`, 'err');
+    return;
+  }
+  // Poll for result. The relay agent picks it up within ~POLL_INTERVAL_S.
+  const t0 = Date.now();
+  while (Date.now() - t0 < ROKU_REMOTE_TIMEOUT_MS) {
+    await new Promise(r => setTimeout(r, 600));
+    try {
+      const { data: rows, error } = await _db.from('roku_commands')
+        .select('status,result,agent_id')
+        .eq('id', cmdId).limit(1);
+      if (error) throw error;
+      const row = (rows || [])[0];
+      if (!row) continue;
+      if (row.status === 'ok' || row.status === 'error') {
+        const r = row.result || {};
+        if (row.status === 'ok') {
+          rokuLog(`✓ ${enc} ${key} (Roku ${r.rokuIp || '?'} via ${row.agent_id || 'agent'})`, 'ok');
+          logActivity('roku-key', 'encoder:' + enc, key + ' [remote]');
+        } else {
+          rokuLog(`✗ ${enc} ${key}: ${r.error || 'agent reported error'}`, 'err');
+        }
+        return;
+      }
+    } catch (e) {
+      rokuLog(`✗ poll error: ${e.message || e}`, 'err');
+      return;
+    }
+  }
+  rokuLog(`✗ ${enc} ${key}: timed out — is cusa_relay.py running on the MC workstation?`, 'err');
+}
+
+function rokuLog(msg, kind) {
+  const log = document.getElementById('rokuLog');
+  if (!log) return;
+  const ts = new Date().toLocaleTimeString();
+  const row = document.createElement('div');
+  row.className = 'row' + (kind ? ' ' + kind : '');
+  row.innerHTML = `<span class="ts">${ts}</span>${escapeHtml(msg)}`;
+  log.prepend(row);
+  while (log.children.length > 60) log.lastChild.remove();
 }
 
 /* ════════════════════════════════════════════════════════════════════

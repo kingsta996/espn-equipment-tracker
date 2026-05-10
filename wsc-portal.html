@@ -142,6 +142,31 @@
   td.col-matchup .sub { display: block; color: var(--wsc-mute); font-size: 10.5px; font-weight: 500; margin-top: 2px; }
   td.col-sport span { font-size: 10px; padding: 3px 8px; border-radius: 4px; background: #2a2f33; color: var(--wsc-text); white-space: nowrap; font-weight: 600; }
   td.col-network { color: var(--wsc-mute); font-weight: 600; }
+  td.col-network.net-editable {
+    cursor: pointer; transition: background 0.1s, color 0.1s;
+  }
+  td.col-network.net-editable:hover {
+    background: rgba(200,255,0,0.06); color: var(--wsc-text);
+  }
+  td.col-network.net-empty .net-value {
+    color: var(--wsc-mute); font-style: italic; font-weight: 400; opacity: 0.7;
+  }
+  .net-override-pill {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--wsc-green); margin-left: 6px; vertical-align: middle;
+    box-shadow: 0 0 4px rgba(200,255,0,0.7);
+  }
+  .net-edit-input {
+    width: calc(100% - 22px); padding: 3px 6px; font-size: 11px;
+    background: rgba(0,0,0,0.4); color: var(--wsc-green); border: 1px solid var(--wsc-green);
+    border-radius: 4px; font-family: inherit; font-weight: 700;
+  }
+  .net-clear-btn {
+    width: 18px; height: 18px; padding: 0; margin-left: 2px;
+    background: transparent; color: var(--wsc-mute); border: 1px solid var(--wsc-line);
+    border-radius: 4px; font-size: 10px; cursor: pointer; vertical-align: middle;
+  }
+  .net-clear-btn:hover { color: var(--err); border-color: var(--err); }
   td.col-host { font-weight: 600; }
   td.col-contact .name { display: block; font-weight: 600; }
   td.col-contact .meta { display: block; color: var(--wsc-mute); font-size: 10.5px; }
@@ -815,6 +840,7 @@
 </section>
 
 <div class="toast" id="toast"></div>
+<datalist id="wscNetworkOptions"></datalist>
 
 <script>
 /* ════════════════════════════════════════════════════════════════════
@@ -1226,6 +1252,7 @@ let _baseConfig = null;   // raw wsc_data.json
 let _config = null;       // base + overrides merged
 let _overrides = new Map(); // canonical school → override data object
 let _encoderOverrides = new Map(); // encoder id (CUSA1..CUSA10) → { roku_ip?, helo_ip?, label?, notes?, updated_by?, updated_at? }
+let _networkOverrides = new Map(); // event_key → { network, updated_by, updated_at }
 let _aliasMap = new Map(); // lowercase alias → canonical
 let _events = [];         // schedule_events rows (deduped, master+manual scope)
 let _externalEvents = []; // wsc_external_events rows (school-site scrapes)
@@ -1294,13 +1321,14 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus(), loadEncoderOverrides()]);
+  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus(), loadEncoderOverrides(), loadNetworkOverrides()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
   applyAdminVisibility();
   bindFilterControls();
   populateFilterDropdowns();
   populatePastDropdowns();
+  populateNetworkDatalist();
   wireTabs();
   renderMaster();
   renderManual();
@@ -1880,6 +1908,141 @@ async function loadEncoderOverrides() {
   applyOverrides();
 }
 
+async function loadNetworkOverrides() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('wsc_event_network_overrides')
+      .select('event_key, network, updated_by, updated_at');
+    if (error) throw error;
+    _networkOverrides = new Map((data || []).map(r => [r.event_key, r]));
+  } catch (e) {
+    // Migration not applied yet — graceful degrade.
+    console.warn('network overrides load:', e?.message || e);
+    _networkOverrides = new Map();
+  }
+}
+
+// Stable natural key for an event — survives re-ingestion under different
+// surrogate ids. Same shape used by dedupEvents() so keys line up between
+// the override layer and the in-memory event store.
+function eventKeyFor(ev) {
+  if (!ev) return '';
+  return [ev.event_date || '', String(ev.sport || ''), normalize(ev.home), normalize(ev.away)].join('|');
+}
+
+function networkForEvent(ev) {
+  const o = _networkOverrides.get(eventKeyFor(ev));
+  if (o && o.network) return { value: o.network, overridden: true, by: o.updated_by, at: o.updated_at };
+  return { value: ev?.network || '', overridden: false };
+}
+
+const COMMON_NETWORKS = [
+  'ESPN', 'ESPN+', 'ESPN2', 'ESPNU', 'ABC',
+  'FS1', 'FS2', 'FOX',
+  'CBS', 'CBSSN', 'Paramount+',
+  'NBC', 'Peacock',
+  'ACCN', 'BTN', 'SECN', 'PAC12N',
+  'NFL Network', 'CW',
+  'FloFootball', 'FloHoops', 'FloVolleyball', 'FloBaseball',
+  'WatchESPN', 'TBA'
+];
+
+function networkCellHtml(ev) {
+  const info = networkForEvent(ev);
+  const k = eventKeyFor(ev);
+  const valueDisplay = info.value || '';
+  const empty = !valueDisplay;
+  const pill = info.overridden
+    ? `<span class="net-override-pill" title="Override · ${escapeAttr((info.by || '').split('@')[0])}${info.at ? ' · ' + escapeAttr(String(info.at).slice(0,10)) : ''}">●</span>`
+    : '';
+  if (!isSuperAdmin()) {
+    return `<td class="col-network">${escapeHtml(valueDisplay)}${pill}</td>`;
+  }
+  return `
+    <td class="col-network net-editable${empty ? ' net-empty' : ''}" data-event-key="${escapeAttr(k)}" onclick="beginNetworkEdit(this)" title="Click to ${empty ? 'set' : 'edit'} network">
+      <span class="net-value">${escapeHtml(valueDisplay || '— set —')}</span>${pill}
+    </td>`;
+}
+
+function beginNetworkEdit(cellEl) {
+  if (!isSuperAdmin()) return;
+  if (cellEl.dataset.editing === '1') return;
+  const key = cellEl.dataset.eventKey;
+  if (!key) return;
+  const cur = (_networkOverrides.get(key)?.network) ?? '';
+  cellEl.dataset.editing = '1';
+  cellEl.innerHTML = `
+    <input type="text" class="net-edit-input" list="wscNetworkOptions" value="${escapeAttr(cur)}" placeholder="ESPN, ESPN+, …"
+           onblur="commitNetworkEdit(this)" onkeydown="handleNetEditKey(event)">
+    <button type="button" class="net-clear-btn" onmousedown="event.preventDefault()" onclick="clearNetworkEdit(event, this)" title="Clear override (revert to source)">✕</button>`;
+  const input = cellEl.querySelector('input');
+  input.focus();
+  input.select();
+}
+
+function handleNetEditKey(e) {
+  if (e.key === 'Enter')  { e.preventDefault(); e.target.blur(); }
+  if (e.key === 'Escape') {
+    const cell = e.target.closest('td');
+    if (cell) { cell.dataset.editing = ''; refreshNetworkCells(); }
+  }
+}
+
+async function commitNetworkEdit(input) {
+  const cell = input.closest('td');
+  if (!cell || cell.dataset.committing === '1') return;
+  cell.dataset.committing = '1';
+  const key = cell.dataset.eventKey;
+  const value = (input.value || '').trim();
+  await _saveNetworkOverride(key, value);
+}
+
+async function clearNetworkEdit(e, btn) {
+  e.preventDefault();
+  e.stopPropagation();
+  const cell = btn.closest('td');
+  if (!cell) return;
+  cell.dataset.committing = '1';
+  await _saveNetworkOverride(cell.dataset.eventKey, '');
+}
+
+async function _saveNetworkOverride(key, value) {
+  if (!_db) return showToast('Database not connected', 'err');
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  if (!email || !pw) return showToast('Sign out + back in to refresh credentials', 'err');
+  try {
+    const { error } = await _db.rpc('wsc_event_network_set', {
+      p_email:     email,
+      p_pw_hash:   pw,
+      p_event_key: key,
+      p_network:   value || null,
+    });
+    if (error) throw error;
+    await loadNetworkOverrides();
+    logActivity('network-override', 'event:' + key, value || '(cleared)');
+    showToast(value ? `Network → ${value}` : 'Override cleared', 'ok');
+  } catch (e) {
+    console.error('network override save:', e);
+    showToast('Save failed: ' + (e.message || e), 'err');
+  }
+  refreshNetworkCells();
+}
+
+function refreshNetworkCells() {
+  // Re-render the active schedule view so override changes show up in
+  // Master / Manual / Past simultaneously.
+  if (document.getElementById('tab-master')?.classList.contains('active')) renderMaster();
+  else if (document.getElementById('tab-manual')?.classList.contains('active')) renderManual();
+  else if (document.getElementById('tab-past')?.classList.contains('active'))   renderPast();
+}
+
+function populateNetworkDatalist() {
+  const dl = document.getElementById('wscNetworkOptions');
+  if (!dl) return;
+  dl.innerHTML = COMMON_NETWORKS.map(n => `<option value="${escapeAttr(n)}"></option>`).join('');
+}
+
 function applyOverrides() {
   if (!_baseConfig) { _config = { schools: [], encoders: [] }; return; }
   const merged = (_baseConfig.schools || []).map(s => {
@@ -2373,7 +2536,7 @@ function applyFilters(events, scope) {
     if (t < fromTs || t > toTs) return false;
     if (f.hideConf && getCaptureFor(ev.id)?.av_confirmed) return false;
     if (q) {
-      const hay = [ev.home, ev.away, ev.sport, ev.network, ev._host, ev.notes].join(' ').toLowerCase();
+      const hay = [ev.home, ev.away, ev.sport, networkForEvent(ev).value, ev._host, ev.notes].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -2487,7 +2650,7 @@ function renderTable(scope, opts = {}) {
         <td class="col-date">${formatDate(ev.event_date)}</td>
         ${sportCell}
         <td class="col-matchup">${matchup}${sub ? `<span class="sub">${sub}</span>` : ''}</td>
-        <td class="col-network">${escapeHtml(ev.network || '')}</td>`;
+        ${networkCellHtml(ev)}`;
 
     if (isMaster) {
       const contacts = (school?.contacts || []);
@@ -2762,6 +2925,10 @@ function setupRealtime() {
        populatePastDropdowns();
        renderAllSchedules();
        if (document.getElementById('tab-multi').classList.contains('active')) rebuildMv();
+     })
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_event_network_overrides' }, async () => {
+       await loadNetworkOverrides();
+       renderAllSchedules();
      })
      .subscribe();
 }
@@ -3539,7 +3706,7 @@ function exportScope(scope, opts = {}) {
     const sc = schoolByName(ev._host);
     const c = sc?.contacts?.[0] || {};
     const srt = sc?.srt?.[ev.sport] || sc?.srt?.[primarySportKey(ev.sport)] || {};
-    const cells = [ev.event_date, ev.sport, ev.away, ev.home, ev.network, ev._host, c.name || '', c.email || '', c.phone || '', st.av_confirmed ? 'YES' : 'NO', st.encoder || ''];
+    const cells = [ev.event_date, ev.sport, ev.away, ev.home, networkForEvent(ev).value, ev._host, c.name || '', c.email || '', c.phone || '', st.av_confirmed ? 'YES' : 'NO', st.encoder || ''];
     if (isMaster) cells.push(srt.wsc || '', srt.sportradar || '');
     lines.push(cells.map(csvCell).join(','));
   }

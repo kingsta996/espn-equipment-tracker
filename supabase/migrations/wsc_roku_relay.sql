@@ -20,7 +20,7 @@
 -- Safe to re-run.
 -- ─────────────────────────────────────────────────────────────────────────
 
-create extension if not exists pgcrypto;
+-- Hashing uses Postgres's built-in sha256() (no pgcrypto dependency).
 
 -- ─── Table ───────────────────────────────────────────────────────────────
 create table if not exists roku_commands (
@@ -135,7 +135,7 @@ begin
   insert into roku_commands(created_by_email, agent_key_hash, encoder_id, kind, payload)
   values (
     v_email_lc,
-    encode(digest(p_agent_key, 'sha256'), 'hex'),
+    encode(sha256(p_agent_key::bytea), 'hex'),
     p_encoder_id,
     p_kind,
     p_payload
@@ -165,7 +165,7 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_hash text := encode(digest(p_agent_key, 'sha256'), 'hex');
+  v_hash text := encode(sha256(p_agent_key::bytea), 'hex');
   v_rows int;
 begin
   if p_status not in ('running', 'ok', 'error') then

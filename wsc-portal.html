@@ -442,6 +442,29 @@
     background: var(--wsc-panel); border: 1px solid var(--wsc-line);
     border-radius: 10px; padding: 18px;
   }
+  /* Live HLS preview of the selected encoder's Roku output. */
+  .roku-preview-cell {
+    width: 100%; max-width: 720px; margin: 0 auto 16px;
+    aspect-ratio: 16 / 9; background: #000;
+    border: 1px solid var(--wsc-line); border-radius: 10px;
+    overflow: hidden; position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .roku-preview-cell .hls-preview-empty {
+    border: none; padding: 0; background: transparent;
+    color: var(--wsc-mute); font-size: 12px; text-align: center;
+  }
+  /* Override the inline player's default 240px sizing inside this card. */
+  .roku-preview-cell .hls-preview-wrap { width: 100%; height: 100%; gap: 0; }
+  .roku-preview-cell .hls-preview-wrap video {
+    width: 100%; height: 100%; aspect-ratio: auto;
+    border: none; border-radius: 0; object-fit: contain; background: #000;
+  }
+  .roku-preview-cell .hls-preview-meta {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 6px 10px; background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));
+    font-size: 11px; color: #fff;
+  }
   .roku-pad {
     display: grid; grid-template-columns: 1fr 200px 1fr; gap: 16px;
     align-items: center; max-width: 580px; margin: 0 auto;
@@ -673,6 +696,11 @@
           <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">Roku IP</div>
           <div id="rokuActiveIp" style="font-size:13px;font-family:'SF Mono',monospace;color:var(--wsc-text)">—</div>
         </div>
+        <span style="flex:1"></span>
+        <button class="toggle" type="button" onclick="reloadRokuPreview()" title="Reconnect the live preview">↻ Reload Preview</button>
+      </div>
+      <div class="roku-preview-cell" id="enc-cell-roku-active">
+        <div class="hls-preview-empty">Select an encoder to view its Roku output…</div>
       </div>
       <div class="roku-pad">
         <div class="roku-side">
@@ -2977,6 +3005,7 @@ function enterRokuTab() {
 
 function leaveRokuTab() {
   if (_rokuPingTimer) { clearInterval(_rokuPingTimer); _rokuPingTimer = null; }
+  if (_rokuPreviewWatchdog) { clearInterval(_rokuPreviewWatchdog); _rokuPreviewWatchdog = null; }
 }
 
 function buildRokuEncoderStrip() {
@@ -3000,6 +3029,39 @@ function selectRokuEncoder(id) {
   });
   document.getElementById('rokuActiveLabel').textContent = id || '—';
   document.getElementById('rokuActiveIp').textContent    = enc?.roku_ip || '—';
+  mountRokuPreview(id);
+}
+
+// Mount the live HLS preview of the selected encoder's Roku output above
+// the remote pad. The agent + this preview share the same `enc-cell-roku-active`
+// cell, so the existing destroyAllRowHls() in wireTabs cleans it up too.
+let _rokuPreviewWatchdog = null;
+function mountRokuPreview(encoderId) {
+  if (_rokuPreviewWatchdog) { clearInterval(_rokuPreviewWatchdog); _rokuPreviewWatchdog = null; }
+  destroyRowHls('roku-active');
+  if (!encoderId) {
+    const cell = document.getElementById('enc-cell-roku-active');
+    if (cell) cell.innerHTML = '<div class="hls-preview-empty">Select an encoder to view its Roku output…</div>';
+    return;
+  }
+  attachEncoderPreview('roku-active', encoderId);
+  // Watchdog: if HLS.js drops the stream (Roku rebooted, brief Wowza
+  // hiccup), remount every 12 s on a fatal-error sentinel. The element
+  // text 'offline' is set by attachInlineHls when a fatal HLS error
+  // fires — that's our signal.
+  _rokuPreviewWatchdog = setInterval(() => {
+    if (_rokuMode === 'unknown') return;
+    if (_rokuActiveEncoder !== encoderId) return;
+    const stEl = document.getElementById('enchls-st-roku-active');
+    if (!stEl) return;
+    if (/offline|error/i.test(stEl.textContent || '')) {
+      attachEncoderPreview('roku-active', encoderId);
+    }
+  }, 12_000);
+}
+
+function reloadRokuPreview() {
+  if (_rokuActiveEncoder) mountRokuPreview(_rokuActiveEncoder);
 }
 
 function setRokuPadEnabled(enabled) {

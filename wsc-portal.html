@@ -449,6 +449,7 @@
 <div class="tab-bar">
   <button class="active" data-tab="master" data-school-hidden>📡 Master Schedule <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Tata SRT)</span></button>
   <button data-tab="manual">🎯 Manual Capture</button>
+  <button data-tab="past">🗄 Past Events</button>
   <button data-tab="streamsheet">📊 WSC Stream Sheet</button>
   <button data-tab="multi"    data-multiviewer-only>📺 Multiviewer</button>
   <button data-tab="settings" data-super-admin-only>🔧 Settings <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
@@ -508,6 +509,32 @@
     <button class="toggle" type="button" onclick="exportManual()">⇣ CSV</button>
   </div>
   <div id="manualTable"></div>
+</section>
+
+<!-- Past Events archive -->
+<section class="tab-content" id="tab-past">
+  <div class="support-note">
+    <span>Archive of events whose game date has already passed. Use the toggle to switch between past Master Schedule (Tata SRT) and past Manual Capture events.</span>
+  </div>
+  <div class="toolbar" style="margin-bottom:10px">
+    <button class="toggle active" id="pastViewMaster" type="button" onclick="setPastView('master')" data-school-hidden>📡 Master Schedule</button>
+    <button class="toggle" id="pastViewManual" type="button" onclick="setPastView('manual')">🎯 Manual Capture</button>
+  </div>
+  <div class="stats-strip">
+    <div class="stat"><div class="num" id="pastCount">—</div><div class="lbl">Past Events</div></div>
+    <div class="stat" id="pastConfirmedStat"><div class="num" id="pastConfirmed">—</div><div class="lbl">A/V Confirmed</div></div>
+  </div>
+  <div class="toolbar">
+    <span class="pill" id="pastViewLabel">TATA COMMUNICATIONS</span>
+    <input id="pastSearch"   placeholder="Search matchup, school, network…">
+    <select id="pastSport"><option value="">All Sports</option></select>
+    <select id="pastSchool"><option value="">All Schools</option></select>
+    <input id="pastFrom" type="date" title="From">
+    <input id="pastTo"   type="date" title="To">
+    <span class="grow"></span>
+    <button class="toggle" type="button" onclick="exportPast()">⇣ CSV</button>
+  </div>
+  <div id="pastTable"></div>
 </section>
 
 <!-- WSC Stream Sheet (Google Sheets embed) -->
@@ -942,8 +969,10 @@ let _testMode = localStorage.getItem(TEST_MODE_KEY) === '1';
 
 let _filters = {
   master: { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
-  manual: { search: '', sport: '', school: '', from: '', to: '', hideConf: false }
+  manual: { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
+  past:   { search: '', sport: '', school: '', from: '', to: '', hideConf: false }
 };
+let _pastView = 'master';     // Past Events tab sub-view: 'master' | 'manual'
 let _mvScope = 'all';
 let _mvSection = 'football';     // 'football' | 'basketball'
 let _mvOnlyLive = false;
@@ -978,6 +1007,7 @@ async function initPortal() {
   applyAdminVisibility();
   bindFilterControls();
   populateFilterDropdowns();
+  populatePastDropdowns();
   wireTabs();
   renderMaster();
   renderManual();
@@ -1006,6 +1036,16 @@ function applyAdminVisibility() {
     const manualSec = document.getElementById('tab-manual');
     if (manualBtn) manualBtn.classList.add('active');
     if (manualSec) manualSec.classList.add('active');
+    // Past Events sub-view: default to Manual since the Master sub-toggle is hidden.
+    _pastView = 'manual';
+    const pvm = document.getElementById('pastViewMaster');
+    const pvn = document.getElementById('pastViewManual');
+    if (pvm) pvm.classList.remove('active');
+    if (pvn) pvn.classList.add('active');
+    const pcs = document.getElementById('pastConfirmedStat');
+    if (pcs) pcs.style.display = 'none';
+    const pvl = document.getElementById('pastViewLabel');
+    if (pvl) pvl.textContent = 'CONFERENCE PROVIDED · HLS';
   }
 }
 
@@ -1239,7 +1279,8 @@ async function saveSchoolOverride(school) {
     _overrides.set(school, data);
     applyOverrides();
     populateFilterDropdowns();
-    renderMaster(); renderManual(); renderSettings();
+    populatePastDropdowns();
+    renderAllSchedules(); renderSettings();
     showToast(`Saved override for ${school}`, 'ok');
   } catch (e) {
     console.error('save override:', e);
@@ -1258,7 +1299,8 @@ async function refreshExternalSchedules() {
     if (!res.ok) throw new Error(json?.errors?.[0]?.error || `HTTP ${res.status}`);
     await loadExternalEvents();
     populateFilterDropdowns();
-    renderMaster(); renderManual();
+    populatePastDropdowns();
+    renderAllSchedules();
     const summary = (json.sources || []).map(s => `${s.source}: ${s.upserted}`).join(' · ') || 'no rows';
     const errs = (json.errors || []).length;
     if (stEl) {
@@ -1286,7 +1328,8 @@ async function resetSchoolOverride(school) {
     _overrides.delete(school);
     applyOverrides();
     populateFilterDropdowns();
-    renderMaster(); renderManual(); renderSettings();
+    populatePastDropdowns();
+    renderAllSchedules(); renderSettings();
     showToast(`${school} reset to defaults`, 'ok');
   } catch (e) {
     console.error('reset override:', e);
@@ -1306,7 +1349,8 @@ async function loadTestMode() {
   await loadTestEvents();
   refreshTestBanner();
   populateFilterDropdowns();
-  renderMaster(); renderManual();
+  populatePastDropdowns();
+  renderAllSchedules();
 }
 async function clearTestMode() {
   _testMode = false;
@@ -1315,7 +1359,8 @@ async function clearTestMode() {
   localStorage.removeItem(TEST_MODE_KEY);
   refreshTestBanner();
   populateFilterDropdowns();
-  renderMaster(); renderManual();
+  populatePastDropdowns();
+  renderAllSchedules();
 }
 function refreshTestBanner() {
   document.getElementById('testBanner').style.display  = _testMode ? 'flex' : 'none';
@@ -1790,6 +1835,7 @@ function wireTabs() {
       if (tab === 'multi')    rebuildMv();
       if (tab === 'master')   renderMaster();
       if (tab === 'manual')   renderManual();
+      if (tab === 'past')     renderPast();
       if (tab === 'settings') renderSettings();
     });
   });
@@ -1799,22 +1845,48 @@ function wireTabs() {
  *  FILTERS
  * ══════════════════════════════════════════════════════════════════ */
 function bindFilterControls() {
-  ['master', 'manual'].forEach(scope => {
+  ['master', 'manual', 'past'].forEach(scope => {
     const f = _filters[scope];
-    document.getElementById(scope + 'Search').addEventListener('input', e => { f.search = e.target.value; renderTable(scope); });
-    document.getElementById(scope + 'Sport').addEventListener('change',  e => { f.sport  = e.target.value; renderTable(scope); });
-    document.getElementById(scope + 'School').addEventListener('change', e => { f.school = e.target.value; renderTable(scope); });
-    document.getElementById(scope + 'From').addEventListener('change',   e => { f.from   = e.target.value; renderTable(scope); });
-    document.getElementById(scope + 'To').addEventListener('change',     e => { f.to     = e.target.value; renderTable(scope); });
+    const reRender = scope === 'past' ? renderPast : () => renderTable(scope);
+    document.getElementById(scope + 'Search').addEventListener('input', e => { f.search = e.target.value; reRender(); });
+    document.getElementById(scope + 'Sport').addEventListener('change',  e => { f.sport  = e.target.value; reRender(); });
+    document.getElementById(scope + 'School').addEventListener('change', e => { f.school = e.target.value; reRender(); });
+    document.getElementById(scope + 'From').addEventListener('change',   e => { f.from   = e.target.value; reRender(); });
+    document.getElementById(scope + 'To').addEventListener('change',     e => { f.to     = e.target.value; reRender(); });
     const conf = document.getElementById(scope + 'Unconf');
     if (conf) {
       conf.addEventListener('click', () => {
         f.hideConf = !f.hideConf;
         conf.classList.toggle('active', f.hideConf);
-        renderTable(scope);
+        reRender();
       });
     }
   });
+}
+
+function setPastView(v) {
+  if (v !== 'master' && v !== 'manual') return;
+  _pastView = v;
+  document.getElementById('pastViewMaster').classList.toggle('active', v === 'master');
+  document.getElementById('pastViewManual').classList.toggle('active', v === 'manual');
+  // A/V Confirmed stat only applies to Tata (Master) events.
+  document.getElementById('pastConfirmedStat').style.display = v === 'master' ? '' : 'none';
+  document.getElementById('pastViewLabel').textContent = v === 'master' ? 'TATA COMMUNICATIONS' : 'CONFERENCE PROVIDED · HLS';
+  populatePastDropdowns();
+  renderPast();
+}
+
+function populatePastDropdowns() {
+  const sports = new Set(), schools = new Set();
+  for (const ev of allEvents()) {
+    const cat = categorize(ev);
+    if (cat !== _pastView) continue;
+    if (ev.sport) sports.add(ev.sport);
+    const host = hostSchoolFor(ev, cat);
+    if (host) schools.add(host);
+  }
+  fillSelect('pastSport',  Array.from(sports).sort());
+  fillSelect('pastSchool', Array.from(schools).sort());
 }
 
 function populateFilterDropdowns() {
@@ -1863,46 +1935,68 @@ function applyFilters(events, scope) {
  * ══════════════════════════════════════════════════════════════════ */
 function renderMaster() { renderTable('master'); }
 function renderManual() { renderTable('manual'); }
+function renderPast()   { renderTable(_pastView, { past: true }); }
+// Re-render all three schedule views — used after any data load that may shift
+// events between current and past, or change A/V / encoder state.
+function renderAllSchedules() { renderMaster(); renderManual(); renderPast(); }
 
-function renderTable(scope) {
-  const tableEl = document.getElementById(scope + 'Table');
-  const isMaster = scope === 'master';
+function renderTable(scope, opts = {}) {
+  const { past = false } = opts;
+  const isMaster  = scope === 'master';
+  const domPrefix = past ? 'past' : scope;
+  const filterKey = past ? 'past' : scope;
+  const tableEl   = document.getElementById(domPrefix + 'Table');
 
   // Tear down inline previews from a previous render — both tabs use them now.
   destroyAllRowHls();
 
+  // Date cutoff: events on/after today are "current", strictly before today are "past".
+  // Events with no event_date are treated as current (don't lose them in the archive).
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dateMatchesView = (iso) => {
+    if (!iso) return !past;
+    const d = new Date(iso + 'T12:00:00'); d.setHours(0,0,0,0);
+    return past ? d < today : d >= today;
+  };
+
   let all = allEvents()
     .map(e => Object.assign({ _cat: categorize(e) }, e))
     .filter(e => e._cat === scope)
+    .filter(e => dateMatchesView(e.event_date))
     .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
 
   // School-role users only see their own events.
   if (userRole() === 'school' && _currentUser?.school) {
     all = all.filter(e => e._host === _currentUser.school);
   }
-  // Manual Capture: hide dismissed events unless the toggle is on.
-  if (!isMaster && !_showDismissed) {
+  // Manual Capture: hide dismissed events unless the toggle is on. (Skip for past view.)
+  if (!isMaster && !past && !_showDismissed) {
     all = all.filter(e => !_dismissals.has(e.id));
   }
 
+  // Past Events tab: newest game first.
+  if (past) {
+    all.sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''));
+  }
+
   // stats
-  const today = new Date(); today.setHours(0,0,0,0);
   const weekOut = new Date(today); weekOut.setDate(weekOut.getDate() + 7);
   const upcoming = all.filter(e => {
     const t = e.event_date ? new Date(e.event_date) : null;
     return t && t >= today && t <= weekOut;
   }).length;
-  document.getElementById(scope + 'Count').textContent    = all.length;
-  document.getElementById(scope + 'Upcoming').textContent = upcoming;
+  document.getElementById(domPrefix + 'Count').textContent = all.length;
+  const upcomingEl = document.getElementById(domPrefix + 'Upcoming');
+  if (upcomingEl) upcomingEl.textContent = upcoming;
   if (isMaster) {
     const confirmed = all.filter(e => getCaptureFor(e.id)?.av_confirmed).length;
-    const cEl = document.getElementById('masterConfirmed');
+    const cEl = document.getElementById(domPrefix + 'Confirmed');
     if (cEl) cEl.textContent = confirmed;
   }
 
-  const rows = applyFilters(all, scope);
+  const rows = applyFilters(all, filterKey);
   if (rows.length === 0) {
-    tableEl.innerHTML = `<div class="empty"><h3>No events match</h3>Adjust filters or wait for the schedule submission to populate.</div>`;
+    tableEl.innerHTML = `<div class="empty"><h3>No events match</h3>${past ? 'No past events for this view yet.' : 'Adjust filters or wait for the schedule submission to populate.'}</div>`;
     return;
   }
 
@@ -2133,13 +2227,13 @@ async function toggleAvConfirmed(eventId) {
   };
   if (isTestId(eventId)) {
     _testCaptureLocal.set(eventId, Object.assign({}, cur, patch));
-    renderMaster(); renderManual();
+    renderAllSchedules();
     showToast(next ? 'Marked A/V confirmed (test)' : 'Cleared A/V confirmation (test)', 'ok');
     return;
   }
   if (!_db) return showToast('Database not connected', 'err');
   _captureStatus.set(eventId, Object.assign({}, cur, patch));
-  renderMaster(); renderManual();
+  renderAllSchedules();
   try {
     const { error } = await _db.from('wsc_capture_status').upsert(patch, { onConflict: 'schedule_event_id' });
     if (error) throw error;
@@ -2147,7 +2241,7 @@ async function toggleAvConfirmed(eventId) {
   } catch (e) {
     console.error('toggle av:', e);
     _captureStatus.set(eventId, cur);
-    renderMaster(); renderManual();
+    renderAllSchedules();
     showToast('Save failed: ' + (e.message || e), 'err');
   }
 }
@@ -2201,7 +2295,7 @@ function setupRealtime() {
   _db.channel('wsc-portal')
      .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_capture_status' }, async () => {
        await loadCaptureStatus();
-       renderMaster(); renderManual();
+       renderAllSchedules();
      })
      .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_event_dismissals' }, async () => {
        await loadDismissals();
@@ -2215,7 +2309,8 @@ function setupRealtime() {
      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_events' }, async () => {
        await loadEvents();
        populateFilterDropdowns();
-       renderMaster(); renderManual();
+       populatePastDropdowns();
+       renderAllSchedules();
        if (document.getElementById('tab-multi').classList.contains('active')) rebuildMv();
      })
      .subscribe();
@@ -2518,12 +2613,22 @@ function stopAllMv() {
  * ══════════════════════════════════════════════════════════════════ */
 function exportMaster() { exportScope('master'); }
 function exportManual() { exportScope('manual'); }
-function exportScope(scope) {
+function exportPast()   { exportScope(_pastView, { past: true }); }
+function exportScope(scope, opts = {}) {
+  const { past = false } = opts;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dateMatchesView = (iso) => {
+    if (!iso) return !past;
+    const d = new Date(iso + 'T12:00:00'); d.setHours(0,0,0,0);
+    return past ? d < today : d >= today;
+  };
+  const filterKey = past ? 'past' : scope;
   const all = allEvents()
     .map(e => Object.assign({ _cat: categorize(e) }, e))
     .filter(e => e._cat === scope)
+    .filter(e => dateMatchesView(e.event_date))
     .map(e => Object.assign({ _host: hostSchoolFor(e, e._cat) }, e));
-  const rows = applyFilters(all, scope);
+  const rows = applyFilters(all, filterKey);
   const isMaster = scope === 'master';
   const headers = ['Date', 'Sport', 'Away', 'Home', 'Network', 'Host', 'Contact', 'Email', 'Phone', 'A/V Confirmed', 'Encoder'];
   if (isMaster) headers.push('SRT WSC', 'SRT SportRadar');
@@ -2540,7 +2645,7 @@ function exportScope(scope) {
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `wsc-${scope}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.href = url; a.download = `wsc-${past ? 'past-' : ''}${scope}-${new Date().toISOString().slice(0,10)}.csv`;
   a.click(); URL.revokeObjectURL(url);
 }
 function csvCell(v) {

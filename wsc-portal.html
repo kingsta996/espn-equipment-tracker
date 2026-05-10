@@ -3171,7 +3171,14 @@ function setRokuPreviewMode(mode) {
 /* ────────────────────────────────────────────────────────────────────
  *  Snapshot mode — sub-second JPEG feed via the relay agent.
  * ──────────────────────────────────────────────────────────────────*/
-function startRokuSnapshotMode(encoderId) {
+async function _agentKeyHash16(akey) {
+  const buf = new TextEncoder().encode(akey);
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  const hex = Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('');
+  return hex.slice(0, 16);
+}
+
+async function startRokuSnapshotMode(encoderId) {
   if (!_db) {
     rokuSnapRender(null, 'Snapshot mode needs Supabase — switch to HLS or check config.');
     return;
@@ -3188,40 +3195,40 @@ function startRokuSnapshotMode(encoderId) {
   // Fire the watch heartbeat immediately so the agent starts capturing right away.
   rokuSnapHeartbeat(encoderId, email, pw, akey);
 
-  // Subscribe to Realtime UPDATEs on the snapshot row — frames render the
-  // moment Postgres receives them from the agent, no poll-interval delay.
-  // The fallback poll below handles the case where Realtime isn't enabled
-  // for the table or the websocket can't connect.
+  // Subscribe to a Realtime broadcast channel — the agent pushes JPEGs
+  // directly to this channel via Supabase's broadcast HTTP endpoint, no
+  // database row UPDATE required. Channel name embeds the agent key
+  // hash prefix so other tabs / leaked anon credentials can't snoop
+  // without also having the pairing key.
+  let hash16;
+  try { hash16 = await _agentKeyHash16(akey); }
+  catch (e) {
+    rokuSnapRender(null, 'Couldn\'t hash pairing key: ' + (e.message || e));
+    return;
+  }
+  // Bail if user navigated away while we were hashing.
+  if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
+
+  const channelName = `roku-snap-${encoderId.toLowerCase()}-${hash16}`;
   try {
-    _rokuSnapChannel = _db.channel('roku-snapshot-' + encoderId)
-      .on('postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'wsc_roku_snapshots', filter: `encoder_id=eq.${encoderId}` },
-          payload => {
-            if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
-            const row = payload?.new;
-            if (!row || !row.jpeg_b64) return;
-            if (row.captured_at === _rokuSnapLastCapturedAt) return;
-            _rokuSnapLastCapturedAt = row.captured_at;
-            rokuSnapRender(row, null);
-          })
+    _rokuSnapChannel = _db.channel(channelName, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'frame' }, payload => {
+        if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
+        const frame = payload?.payload;
+        if (!frame || !frame.jpeg_b64) return;
+        if (frame.captured_at === _rokuSnapLastCapturedAt) return;
+        _rokuSnapLastCapturedAt = frame.captured_at;
+        rokuSnapRender(frame, null);
+      })
       .subscribe();
   } catch (e) {
-    console.warn('[snapshot] realtime subscribe failed:', e?.message || e);
+    console.warn('[snapshot] broadcast subscribe failed:', e?.message || e);
   }
-
-  // Initial fetch so the first frame shows even before the first UPDATE
-  // event arrives — and serves as a fallback if Realtime isn't reaching us.
-  rokuSnapPollOnce(encoderId);
 
   _rokuSnapHeartbeatTimer = setInterval(() => {
     if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
     rokuSnapHeartbeat(encoderId, email, pw, akey);
   }, ROKU_SNAP_HEARTBEAT_MS);
-
-  _rokuSnapPollTimer = setInterval(() => {
-    if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
-    rokuSnapPollOnce(encoderId);
-  }, ROKU_SNAP_POLL_MS);
 }
 
 function stopRokuSnapshotMode() {

@@ -146,6 +146,11 @@ async function masterSheetRefresh() {
   for (const k of Object.keys(c)) {
     if (c[k] < 0) throw new Error(`Sheet missing required column: ${k}`);
   }
+  // Optional column — populated by the per-school sheets once the Network
+  // column has been added (apps-script/add-network-column.gs). When absent
+  // we just upsert empty strings, which the portal's override layer can
+  // overwrite per-event.
+  c.network = idx('Network');
 
   const out = [];
   const seen = new Set();
@@ -184,6 +189,7 @@ async function masterSheetRefresh() {
       // via simple substring — rare for opponent column, but defensive.
       oppo.toLowerCase().includes(n.toLowerCase())
     );
+    const networkCell = c.network >= 0 ? (r[c.network] || '').trim() : '';
     out.push({
       id: `master-${slugify(sport)}-${isoDate}-${slugify(away)}-at-${slugify(home)}`,
       source:     'master-sheet',
@@ -193,7 +199,7 @@ async function masterSheetRefresh() {
       event_time: (r[c.time] || '').trim(),
       home, away,
       conference: otherIsCusa ? 'Conference USA' : 'Non-Conference',
-      network:    '',
+      network:    networkCell,
       notes:      (r[c.loc] || '').trim()
     });
   }

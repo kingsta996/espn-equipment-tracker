@@ -1253,7 +1253,7 @@ const ROKU_AGENT_BASE = 'http://localhost:5050';
 const ROKU_PING_INTERVAL_MS = 30_000;
 const ROKU_AGENT_KEY_LS = 'wsc_roku_agent_key';
 const ROKU_REMOTE_TIMEOUT_MS = 8_000;
-const ROKU_SNAP_POLL_MS = 400;        // how often the portal polls for a fresh JPEG
+const ROKU_SNAP_POLL_MS = 800;        // fallback poll cadence if Realtime isn't connected
 const ROKU_SNAP_HEARTBEAT_MS = 5_000; // how often the portal extends the watch window
 const ROKU_SNAP_WATCH_S = 12;         // requested watch window per heartbeat
 let _rokuLocalOnline = false;
@@ -1265,6 +1265,7 @@ let _rokuPreviewMode = 'hls';        // 'hls' | 'snapshot'
 let _rokuSnapPollTimer = null;
 let _rokuSnapHeartbeatTimer = null;
 let _rokuSnapLastCapturedAt = null;  // for staleness detection in the meta line
+let _rokuSnapChannel = null;         // Supabase Realtime subscription handle
 let _mvScope = 'all';
 let _mvSection = 'football';     // 'football' | 'basketball'
 let _mvOnlyLive = false;
@@ -3186,6 +3187,30 @@ function startRokuSnapshotMode(encoderId) {
   rokuSnapRender(null, 'Asking the relay for the first frame…');
   // Fire the watch heartbeat immediately so the agent starts capturing right away.
   rokuSnapHeartbeat(encoderId, email, pw, akey);
+
+  // Subscribe to Realtime UPDATEs on the snapshot row — frames render the
+  // moment Postgres receives them from the agent, no poll-interval delay.
+  // The fallback poll below handles the case where Realtime isn't enabled
+  // for the table or the websocket can't connect.
+  try {
+    _rokuSnapChannel = _db.channel('roku-snapshot-' + encoderId)
+      .on('postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'wsc_roku_snapshots', filter: `encoder_id=eq.${encoderId}` },
+          payload => {
+            if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
+            const row = payload?.new;
+            if (!row || !row.jpeg_b64) return;
+            if (row.captured_at === _rokuSnapLastCapturedAt) return;
+            _rokuSnapLastCapturedAt = row.captured_at;
+            rokuSnapRender(row, null);
+          })
+      .subscribe();
+  } catch (e) {
+    console.warn('[snapshot] realtime subscribe failed:', e?.message || e);
+  }
+
+  // Initial fetch so the first frame shows even before the first UPDATE
+  // event arrives — and serves as a fallback if Realtime isn't reaching us.
   rokuSnapPollOnce(encoderId);
 
   _rokuSnapHeartbeatTimer = setInterval(() => {
@@ -3202,6 +3227,10 @@ function startRokuSnapshotMode(encoderId) {
 function stopRokuSnapshotMode() {
   if (_rokuSnapHeartbeatTimer) { clearInterval(_rokuSnapHeartbeatTimer); _rokuSnapHeartbeatTimer = null; }
   if (_rokuSnapPollTimer)      { clearInterval(_rokuSnapPollTimer);      _rokuSnapPollTimer      = null; }
+  if (_rokuSnapChannel) {
+    try { _db?.removeChannel(_rokuSnapChannel); } catch {}
+    _rokuSnapChannel = null;
+  }
   _rokuSnapLastCapturedAt = null;
 }
 

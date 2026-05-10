@@ -156,6 +156,19 @@ revoke all on function wsc_roku_snapshot_publish(text, text, text, int, text) fr
 grant execute on function wsc_roku_snapshot_publish(text, text, text, int, text) to anon;
 
 
+-- Realtime: enable change events on this table so the WSC portal can
+-- subscribe to UPDATE events instead of polling. Idempotent — adding a
+-- table that's already in the publication raises duplicate_object,
+-- which we swallow.
+do $$
+begin
+  alter publication supabase_realtime add table wsc_roku_snapshots;
+exception
+  when duplicate_object then null;
+  when others           then null;  -- publication may not exist on self-hosted Postgres; non-fatal
+end$$;
+
+
 notify pgrst, 'reload schema';
 
 -- Sanity check

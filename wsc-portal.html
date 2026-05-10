@@ -736,6 +736,18 @@
     <div id="encoderAvailabilityGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
   </div>
 
+  <div style="background:var(--wsc-panel);border:1px solid var(--wsc-line);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:13px;font-weight:700;color:var(--wsc-text);margin-bottom:4px">CUSA Encoder IPs</div>
+        <div style="font-size:11.5px;color:var(--wsc-mute);line-height:1.5">
+          Update the Roku and HELO IP for each encoder when a device is replaced or its DHCP lease changes. Saved values overlay the static defaults baked into <code>cusa_backend.py</code> + <code>wsc_data.json</code>; the relay agent picks them up within ~10 seconds with no restart needed. Click <strong>Reset</strong> on a row to revert that encoder back to the file default.
+        </div>
+      </div>
+    </div>
+    <div id="encoderIpsTable"></div>
+  </div>
+
   <div id="settingsList" style="display:flex;flex-direction:column;gap:10px"></div>
 </section>
 
@@ -1108,6 +1120,7 @@ let _db = null;
 let _baseConfig = null;   // raw wsc_data.json
 let _config = null;       // base + overrides merged
 let _overrides = new Map(); // canonical school → override data object
+let _encoderOverrides = new Map(); // encoder id (CUSA1..CUSA10) → { roku_ip?, helo_ip?, label?, notes?, updated_by?, updated_at? }
 let _aliasMap = new Map(); // lowercase alias → canonical
 let _events = [];         // schedule_events rows (deduped, master+manual scope)
 let _externalEvents = []; // wsc_external_events rows (school-site scrapes)
@@ -1168,7 +1181,7 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus()]);
+  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus(), loadEncoderOverrides()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
   applyAdminVisibility();
@@ -1229,10 +1242,13 @@ function renderSettings() {
     root.innerHTML = `<div class="empty"><h3>Restricted</h3>Only super admins can edit reference data.</div>`;
     const grid = document.getElementById('encoderAvailabilityGrid');
     if (grid) grid.innerHTML = '';
+    const tbl = document.getElementById('encoderIpsTable');
+    if (tbl) tbl.innerHTML = '';
     return;
   }
   root.innerHTML = (_config?.schools || []).map(renderSchoolCard).join('');
   renderEncoderAvailability();
+  renderEncoderIpsTable();
 }
 
 function renderEncoderAvailability() {
@@ -1324,6 +1340,121 @@ async function saveEncoderReason(encoderId, reason) {
   } catch (e) {
     console.error('encoder reason save:', e);
     showToast('Save failed: ' + (e.message || e), 'err');
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ *  Encoder IP overrides (Settings tab)
+ * ──────────────────────────────────────────────────────────────────*/
+function renderEncoderIpsTable() {
+  const root = document.getElementById('encoderIpsTable');
+  if (!root) return;
+  const baseEncs = _baseConfig?.encoders || [];
+  if (!baseEncs.length) {
+    root.innerHTML = '<div style="color:var(--wsc-mute);font-size:11px">No encoders configured.</div>';
+    return;
+  }
+  const head = `
+    <thead><tr>
+      <th style="text-align:left">Encoder</th>
+      <th style="text-align:left">Roku IP</th>
+      <th style="text-align:left">HELO IP</th>
+      <th style="text-align:left">Label</th>
+      <th style="text-align:left">Status</th>
+      <th></th>
+    </tr></thead>`;
+  const body = baseEncs.map(e => {
+    const id = e.id;
+    const sk = cssId(id);
+    const o  = _encoderOverrides.get(id) || {};
+    const hasOverride = !!(o.roku_ip || o.helo_ip || o.label);
+    const stamp = o.updated_at
+      ? new Date(o.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+        (o.updated_by ? ' · ' + String(o.updated_by).split('@')[0] : '')
+      : '';
+    return `
+      <tr>
+        <td style="white-space:nowrap;font-weight:700">${escapeHtml(id)}<br><small style="color:var(--wsc-mute);font-weight:400">default ${escapeHtml(e.roku_ip || '')}</small></td>
+        <td><input id="enc-ip-roku-${sk}" type="text" placeholder="${escapeAttr(e.roku_ip || '')}" value="${escapeAttr(o.roku_ip || '')}" style="width:130px;padding:6px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:11px"></td>
+        <td><input id="enc-ip-helo-${sk}" type="text" placeholder="${escapeAttr(e.aja_ip || '')}" value="${escapeAttr(o.helo_ip || '')}" style="width:130px;padding:6px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:11px"></td>
+        <td><input id="enc-ip-label-${sk}" type="text" placeholder="${escapeAttr(e.label || id)}" value="${escapeAttr(o.label || '')}" style="width:140px;padding:6px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-size:11px"></td>
+        <td style="font-size:10.5px;color:var(--wsc-mute)">${hasOverride ? `<span style="color:var(--wsc-green);font-weight:700">overridden</span>${stamp ? '<br><span>'+escapeHtml(stamp)+'</span>' : ''}` : '<span>default</span>'}</td>
+        <td style="white-space:nowrap;text-align:right">
+          <button class="toggle" type="button" onclick="saveEncoderIpOverride('${escapeAttr(id)}')">💾 Save</button>
+          ${hasOverride ? `<button class="toggle" type="button" onclick="resetEncoderIpOverride('${escapeAttr(id)}')" style="margin-left:4px">↺ Reset</button>` : ''}
+        </td>
+      </tr>`;
+  }).join('');
+  root.innerHTML = `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
+}
+
+async function saveEncoderIpOverride(encoderId) {
+  if (!isSuperAdmin()) return showToast('Super admin only', 'err');
+  if (!_db) return showToast('Database not connected', 'err');
+  const sk = cssId(encoderId);
+  const roku  = (document.getElementById('enc-ip-roku-'  + sk)?.value || '').trim();
+  const helo  = (document.getElementById('enc-ip-helo-'  + sk)?.value || '').trim();
+  const label = (document.getElementById('enc-ip-label-' + sk)?.value || '').trim();
+
+  const ipRe = /^\d{1,3}(\.\d{1,3}){3}$/;
+  if (roku && !ipRe.test(roku)) return showToast(`Roku IP "${roku}" isn't a valid IPv4`, 'err');
+  if (helo && !ipRe.test(helo)) return showToast(`HELO IP "${helo}" isn't a valid IPv4`, 'err');
+
+  // If everything is blank, treat Save as Reset.
+  if (!roku && !helo && !label) {
+    return resetEncoderIpOverride(encoderId);
+  }
+
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  if (!email || !pw) return showToast('Sign out + back in to refresh credentials', 'err');
+
+  try {
+    const { error } = await _db.rpc('wsc_encoder_update', {
+      p_email:      email,
+      p_pw_hash:    pw,
+      p_encoder_id: encoderId,
+      p_roku_ip:    roku || null,
+      p_helo_ip:    helo || null,
+      p_label:      label || null,
+      p_notes:      null,
+    });
+    if (error) throw error;
+    await loadEncoderOverrides();
+    renderEncoderIpsTable();
+    if (typeof buildRokuEncoderStrip === 'function') buildRokuEncoderStrip();
+    if (_rokuActiveEncoder === encoderId && typeof selectRokuEncoder === 'function') selectRokuEncoder(encoderId);
+    showToast(`${encoderId} updated`, 'ok');
+    logActivity('encoder-ip-update', 'encoder:' + encoderId, [roku && 'roku', helo && 'helo', label && 'label'].filter(Boolean).join(','));
+  } catch (e) {
+    console.error('encoder ip save:', e);
+    showToast('Save failed: ' + (e.message || e), 'err');
+  }
+}
+
+async function resetEncoderIpOverride(encoderId) {
+  if (!isSuperAdmin()) return;
+  if (!_db) return;
+  if (!confirm(`Reset ${encoderId} IPs to file defaults?`)) return;
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  if (!email || !pw) return showToast('Sign out + back in to refresh credentials', 'err');
+  try {
+    const { error } = await _db.rpc('wsc_encoder_reset', {
+      p_email:      email,
+      p_pw_hash:    pw,
+      p_encoder_id: encoderId,
+    });
+    if (error) throw error;
+    await loadEncoderOverrides();
+    renderEncoderIpsTable();
+    if (typeof buildRokuEncoderStrip === 'function') buildRokuEncoderStrip();
+    if (_rokuActiveEncoder === encoderId && typeof selectRokuEncoder === 'function') selectRokuEncoder(encoderId);
+    showToast(`${encoderId} reset to defaults`, 'ok');
+    logActivity('encoder-ip-reset', 'encoder:' + encoderId, null);
+  } catch (e) {
+    console.error('encoder ip reset:', e);
+    showToast('Reset failed: ' + (e.message || e), 'err');
   }
 }
 
@@ -1621,6 +1752,21 @@ async function loadOverrides() {
   applyOverrides();
 }
 
+async function loadEncoderOverrides() {
+  if (!_db) return;
+  try {
+    const { data, error } = await _db.from('wsc_encoder_overrides')
+      .select('encoder_id, roku_ip, helo_ip, label, notes, updated_by, updated_at');
+    if (error) throw error;
+    _encoderOverrides = new Map((data || []).map(r => [String(r.encoder_id || '').toUpperCase(), r]));
+  } catch (e) {
+    // Most likely the table hasn't been migrated yet — fall back gracefully.
+    console.warn('encoder overrides load:', e?.message || e);
+    _encoderOverrides = new Map();
+  }
+  applyOverrides();
+}
+
 function applyOverrides() {
   if (!_baseConfig) { _config = { schools: [], encoders: [] }; return; }
   const merged = (_baseConfig.schools || []).map(s => {
@@ -1633,7 +1779,19 @@ function applyOverrides() {
       contacts: Array.isArray(o.contacts) ? o.contacts : s.contacts
     });
   });
-  _config = Object.assign({}, _baseConfig, { schools: merged });
+  // Overlay encoder IP overrides — Settings tab edits land in
+  // wsc_encoder_overrides and should be reflected everywhere _config.encoders
+  // is consumed (Roku Control encoder strip, agent IP lookups, etc.).
+  const encs = (_baseConfig.encoders || []).map(e => {
+    const o = _encoderOverrides.get(String(e.id).toUpperCase());
+    if (!o) return e;
+    return Object.assign({}, e, {
+      roku_ip: o.roku_ip || e.roku_ip,
+      aja_ip:  o.helo_ip || e.aja_ip,
+      label:   o.label   || e.label
+    });
+  });
+  _config = Object.assign({}, _baseConfig, { schools: merged, encoders: encs });
   rebuildAliasMap();
 }
 

@@ -442,6 +442,17 @@
     background: var(--wsc-panel); border: 1px solid var(--wsc-line);
     border-radius: 10px; padding: 18px;
   }
+  .roku-preview-mode { display: inline-flex; gap: 4px; }
+  .roku-snap-img {
+    width: 100%; height: 100%; object-fit: contain; background: #000;
+    display: block;
+  }
+  .roku-snap-meta {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 6px 10px; background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));
+    font-size: 11px; color: #fff; display: flex; justify-content: space-between;
+    font-family: 'SF Mono', 'Menlo', monospace;
+  }
   /* Live HLS preview of the selected encoder's Roku output. */
   .roku-preview-cell {
     width: 100%; max-width: 720px; margin: 0 auto 16px;
@@ -697,7 +708,11 @@
           <div id="rokuActiveIp" style="font-size:13px;font-family:'SF Mono',monospace;color:var(--wsc-text)">—</div>
         </div>
         <span style="flex:1"></span>
-        <button class="toggle" type="button" onclick="reloadRokuPreview()" title="Reconnect the live preview">↻ Reload Preview</button>
+        <div class="roku-preview-mode" role="tablist" aria-label="Preview mode">
+          <button class="toggle active" id="rokuModeHls"  type="button" onclick="setRokuPreviewMode('hls')"  title="Full-resolution HLS video (~5–7s latency)">🎬 HLS</button>
+          <button class="toggle"        id="rokuModeSnap" type="button" onclick="setRokuPreviewMode('snapshot')" title="Sub-second JPEG snapshots, lower fidelity">⚡ Snapshot</button>
+        </div>
+        <button class="toggle" type="button" onclick="reloadRokuPreview()" title="Reconnect the live preview">↻ Reload</button>
       </div>
       <div class="roku-preview-cell" id="enc-cell-roku-active">
         <div class="hls-preview-empty">Select an encoder to view its Roku output…</div>
@@ -1238,11 +1253,18 @@ const ROKU_AGENT_BASE = 'http://localhost:5050';
 const ROKU_PING_INTERVAL_MS = 30_000;
 const ROKU_AGENT_KEY_LS = 'wsc_roku_agent_key';
 const ROKU_REMOTE_TIMEOUT_MS = 8_000;
+const ROKU_SNAP_POLL_MS = 400;        // how often the portal polls for a fresh JPEG
+const ROKU_SNAP_HEARTBEAT_MS = 5_000; // how often the portal extends the watch window
+const ROKU_SNAP_WATCH_S = 12;         // requested watch window per heartbeat
 let _rokuLocalOnline = false;
 let _rokuMode = 'unknown';           // 'local' | 'remote' | 'unpaired' | 'unknown'
 let _rokuActiveEncoder = null;       // CUSA id currently selected
 let _rokuPingTimer = null;
 let _rokuPadWired = false;
+let _rokuPreviewMode = 'hls';        // 'hls' | 'snapshot'
+let _rokuSnapPollTimer = null;
+let _rokuSnapHeartbeatTimer = null;
+let _rokuSnapLastCapturedAt = null;  // for staleness detection in the meta line
 let _mvScope = 'all';
 let _mvSection = 'football';     // 'football' | 'basketball'
 let _mvOnlyLive = false;
@@ -3068,6 +3090,7 @@ function enterRokuTab() {
 function leaveRokuTab() {
   if (_rokuPingTimer) { clearInterval(_rokuPingTimer); _rokuPingTimer = null; }
   if (_rokuPreviewWatchdog) { clearInterval(_rokuPreviewWatchdog); _rokuPreviewWatchdog = null; }
+  stopRokuSnapshotMode();
 }
 
 function buildRokuEncoderStrip() {
@@ -3094,26 +3117,35 @@ function selectRokuEncoder(id) {
   mountRokuPreview(id);
 }
 
-// Mount the live HLS preview of the selected encoder's Roku output above
-// the remote pad. The agent + this preview share the same `enc-cell-roku-active`
-// cell, so the existing destroyAllRowHls() in wireTabs cleans it up too.
+// Mount whichever preview mode the operator has selected for the given
+// encoder. Snapshot mode polls a Supabase table; HLS mode mounts the
+// low-latency hls.js player.
 let _rokuPreviewWatchdog = null;
 function mountRokuPreview(encoderId) {
+  // Tear down everything from the previous mount before deciding mode.
   if (_rokuPreviewWatchdog) { clearInterval(_rokuPreviewWatchdog); _rokuPreviewWatchdog = null; }
+  stopRokuSnapshotMode();
   destroyRowHls('roku-active');
+
+  const cell = document.getElementById('enc-cell-roku-active');
   if (!encoderId) {
-    const cell = document.getElementById('enc-cell-roku-active');
     if (cell) cell.innerHTML = '<div class="hls-preview-empty">Select an encoder to view its Roku output…</div>';
     return;
   }
+
+  if (_rokuPreviewMode === 'snapshot') {
+    startRokuSnapshotMode(encoderId);
+    return;
+  }
+
+  // HLS mode (default)
   attachEncoderPreview('roku-active', encoderId, { lowLatency: true });
-  // Watchdog: if HLS.js drops the stream (Roku rebooted, brief Wowza
-  // hiccup), remount every 12 s on a fatal-error sentinel. The element
-  // text 'offline' is set by attachInlineHls when a fatal HLS error
-  // fires — that's our signal.
+  // Watchdog: if hls.js drops the stream (Roku rebooted, brief Wowza
+  // hiccup), remount every 12 s on a fatal-error sentinel.
   _rokuPreviewWatchdog = setInterval(() => {
     if (_rokuMode === 'unknown') return;
     if (_rokuActiveEncoder !== encoderId) return;
+    if (_rokuPreviewMode !== 'hls') return;
     const stEl = document.getElementById('enchls-st-roku-active');
     if (!stEl) return;
     if (/offline|error/i.test(stEl.textContent || '')) {
@@ -3124,6 +3156,122 @@ function mountRokuPreview(encoderId) {
 
 function reloadRokuPreview() {
   if (_rokuActiveEncoder) mountRokuPreview(_rokuActiveEncoder);
+}
+
+function setRokuPreviewMode(mode) {
+  if (mode !== 'hls' && mode !== 'snapshot') return;
+  if (_rokuPreviewMode === mode) return;
+  _rokuPreviewMode = mode;
+  document.getElementById('rokuModeHls')?.classList.toggle('active', mode === 'hls');
+  document.getElementById('rokuModeSnap')?.classList.toggle('active', mode === 'snapshot');
+  if (_rokuActiveEncoder) mountRokuPreview(_rokuActiveEncoder);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ *  Snapshot mode — sub-second JPEG feed via the relay agent.
+ * ──────────────────────────────────────────────────────────────────*/
+function startRokuSnapshotMode(encoderId) {
+  if (!_db) {
+    rokuSnapRender(null, 'Snapshot mode needs Supabase — switch to HLS or check config.');
+    return;
+  }
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  const akey  = rokuAgentKey();
+  if (!email || !pw || !akey) {
+    rokuSnapRender(null, 'Snapshot mode needs the same pairing key + super-admin login as remote relay. Pair the agent first.');
+    return;
+  }
+
+  rokuSnapRender(null, 'Asking the relay for the first frame…');
+  // Fire the watch heartbeat immediately so the agent starts capturing right away.
+  rokuSnapHeartbeat(encoderId, email, pw, akey);
+  rokuSnapPollOnce(encoderId);
+
+  _rokuSnapHeartbeatTimer = setInterval(() => {
+    if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
+    rokuSnapHeartbeat(encoderId, email, pw, akey);
+  }, ROKU_SNAP_HEARTBEAT_MS);
+
+  _rokuSnapPollTimer = setInterval(() => {
+    if (_rokuActiveEncoder !== encoderId || _rokuPreviewMode !== 'snapshot') return;
+    rokuSnapPollOnce(encoderId);
+  }, ROKU_SNAP_POLL_MS);
+}
+
+function stopRokuSnapshotMode() {
+  if (_rokuSnapHeartbeatTimer) { clearInterval(_rokuSnapHeartbeatTimer); _rokuSnapHeartbeatTimer = null; }
+  if (_rokuSnapPollTimer)      { clearInterval(_rokuSnapPollTimer);      _rokuSnapPollTimer      = null; }
+  _rokuSnapLastCapturedAt = null;
+}
+
+async function rokuSnapHeartbeat(encoderId, email, pw, akey) {
+  try {
+    await _db.rpc('wsc_roku_snapshot_watch', {
+      p_email:      email,
+      p_pw_hash:    pw,
+      p_agent_key:  akey,
+      p_encoder_id: encoderId,
+      p_seconds:    ROKU_SNAP_WATCH_S,
+    });
+  } catch (e) {
+    console.warn('[snapshot] watch failed:', e?.message || e);
+  }
+}
+
+async function rokuSnapPollOnce(encoderId) {
+  try {
+    const { data, error } = await _db.from('wsc_roku_snapshots')
+      .select('jpeg_b64, bytes, captured_at, agent_id')
+      .eq('encoder_id', encoderId)
+      .limit(1);
+    if (error) throw error;
+    const row = (data || [])[0];
+    if (!row || !row.jpeg_b64) {
+      if (!_rokuSnapLastCapturedAt) {
+        rokuSnapRender(null, 'Waiting for the relay agent to capture the first frame…');
+      }
+      return;
+    }
+    if (row.captured_at === _rokuSnapLastCapturedAt) return; // no new frame yet
+    _rokuSnapLastCapturedAt = row.captured_at;
+    rokuSnapRender(row, null);
+  } catch (e) {
+    console.warn('[snapshot] poll failed:', e?.message || e);
+  }
+}
+
+function rokuSnapRender(row, emptyMsg) {
+  const cell = document.getElementById('enc-cell-roku-active');
+  if (!cell) return;
+  if (!row) {
+    cell.innerHTML = `<div class="hls-preview-empty">${escapeHtml(emptyMsg || 'No snapshot available.')}</div>`;
+    return;
+  }
+  const ageMs = row.captured_at ? Math.max(0, Date.now() - new Date(row.captured_at).getTime()) : null;
+  const stale = ageMs != null && ageMs > 3000;
+  const sizeKb = row.bytes ? Math.round(row.bytes / 1024) : null;
+  // Use innerHTML once on first render, then patch the src on subsequent
+  // frames to avoid <img> flicker.
+  let img = cell.querySelector('img.roku-snap-img');
+  let meta = cell.querySelector('.roku-snap-meta');
+  if (!img) {
+    cell.innerHTML = `
+      <img class="roku-snap-img" alt="Roku snapshot">
+      <div class="roku-snap-meta">
+        <span class="left"></span>
+        <span class="right"></span>
+      </div>`;
+    img = cell.querySelector('img.roku-snap-img');
+    meta = cell.querySelector('.roku-snap-meta');
+  }
+  img.src = `data:image/jpeg;base64,${row.jpeg_b64}`;
+  if (meta) {
+    meta.querySelector('.left').textContent  = `via ${row.agent_id || 'agent'}`;
+    meta.querySelector('.right').textContent = (sizeKb != null ? `${sizeKb} KB` : '') +
+      (ageMs != null ? `  ·  ${stale ? 'stale' : 'live'} (${(ageMs/1000).toFixed(1)}s)` : '');
+    meta.querySelector('.right').style.color = stale ? '#f9c74f' : '#34d058';
+  }
 }
 
 function setRokuPadEnabled(enabled) {

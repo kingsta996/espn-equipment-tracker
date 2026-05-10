@@ -966,33 +966,43 @@ function attachInlineHls(eventId, url, label, opts) {
       if (stEl) { stEl.textContent = '● live'; stEl.style.color = '#34d058'; }
       const lvl = (hls.levels || [])[0];
       if (lvl) writeFormat(lvl.width, lvl.height);
-      // Diagnostic log so we can see exactly what the Wowza manifest is
-      // advertising — segment duration, LL-HLS partials, level count.
-      if (opts?.lowLatency) {
-        const det = hls.levels?.[0]?.details;
-        console.log('[hls-preview] manifest', label, {
-          levels: (hls.levels || []).map(l => `${l.width}x${l.height}@${Math.round((l.bitrate||0)/1000)}k`),
-          targetDurationS: det?.targetduration,
-          partTargetS:     det?.partTarget,
-          partsInLast:     det?.partList?.length || 0,
-          live:            !!det?.live,
-        });
-        if ((hls.levels || []).length) { hls.currentLevel = 0; hls.loadLevel = 0; }
+      if (opts?.lowLatency && (hls.levels || []).length) {
+        hls.currentLevel = 0;
+        hls.loadLevel    = 0;
       }
     });
 
     // Active "skip to live edge" handler — if the player drifts more than
-    // ~6s behind live (common after a stall), seek forward to within 1s
-    // of the live edge instead of patiently catching up via the buffer.
+    // ~3s behind live, seek forward to within 1s of the live edge instead
+    // of patiently catching up via buffered playback. Without this, hls.js
+    // often starts playback at the *beginning* of the buffered window
+    // (3 segments back), which on a single-bitrate 6s-segment Wowza
+    // stream alone accounts for ~12–18s of perceived latency.
     if (opts?.lowLatency) {
       const skipToLive = () => {
         if (!video.seekable.length) return;
         const liveEnd = video.seekable.end(video.seekable.length - 1);
-        if (liveEnd - video.currentTime > 6) {
+        if (liveEnd - video.currentTime > 3) {
           video.currentTime = Math.max(0, liveEnd - 1.0);
         }
       };
-      hls.on(Hls.Events.LEVEL_UPDATED, skipToLive);
+      // Diagnostic log fires once the variant playlist is loaded — that's
+      // when targetduration / part-target / live flag are actually known.
+      hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+        const det = data?.details || hls.levels?.[hls.currentLevel || 0]?.details;
+        if (!det || hls.__diagLogged) { skipToLive(); return; }
+        hls.__diagLogged = true;
+        console.log('[hls-preview] level loaded', label, {
+          levels: (hls.levels || []).map(l => `${l.width}x${l.height}@${Math.round((l.bitrate||0)/1000)}k`),
+          targetDurationS: det.targetduration,
+          partTargetS:     det.partTarget,
+          partsInLast:     det.partList?.length || 0,
+          fragmentsInPlaylist: det.fragments?.length || 0,
+          live:            !!det.live,
+          totalDurationS:  det.totalduration,
+        });
+        skipToLive();
+      });
       hls.on(Hls.Events.FRAG_BUFFERED, skipToLive);
     }
     hls.on(Hls.Events.LEVEL_LOADED, () => {

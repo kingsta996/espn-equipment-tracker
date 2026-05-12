@@ -18,11 +18,13 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 
 const HOST_SCHOOLS = {
+  'Dallas Baptist':     'https://dbupatriots.com',
   'Delaware':           'https://bluehens.com',
   'FIU':                'https://fiusports.com',
   'Jacksonville State': 'https://jaxstatesports.com',
   'Kennesaw State':     'https://ksuowls.com',
   'Liberty':            'https://libertyflames.com',
+  'Louisiana Tech':     'https://latechsports.com',
   'Middle Tennessee':   'https://goblueraiders.com',
   'Missouri State':     'https://missouristatebears.com',
   'New Mexico State':   'https://nmstatesports.com',
@@ -48,7 +50,17 @@ const SPORT_PATHS = {
   'Beach Volleyball':   'sports/beach-volleyball/roster',
 };
 
+// Dallas Baptist and Louisiana Tech are CUSA baseball-only affiliates — every
+// non-baseball sport is nulled so the nightly matrix run skips them.
+const BASEBALL_ONLY_NULLS = {
+  'Football': null, 'Womens Soccer': null, 'Volleyball': null,
+  'Womens Track': null, 'Mens Track': null, 'Womens XC': null, 'Mens XC': null,
+  'Bowling': null, 'Mens Golf': null, 'Womens Golf': null,
+  'Mens Basketball': null, 'Womens Basketball': null,
+  'Softball': null, 'Beach Volleyball': null,
+};
 const SCHOOL_OVERRIDES = {
+  'Dallas Baptist':     { ...BASEBALL_ONLY_NULLS },
   'Delaware': {
     'Womens Track': 'sports/track-and-field/roster',
     'Mens Track':   'sports/track-and-field/roster',
@@ -64,8 +76,9 @@ const SCHOOL_OVERRIDES = {
   'Jacksonville State': { 'Beach Volleyball': null, 'Bowling': null },
   'Kennesaw State':     { 'Beach Volleyball': null, 'Bowling': null, 'Baseball': null, 'Softball': null },
   'Liberty':            { 'Beach Volleyball': null, 'Bowling': null },
+  'Louisiana Tech':     { ...BASEBALL_ONLY_NULLS },
   'Middle Tennessee':   { 'Beach Volleyball': null, 'Bowling': null },
-  'Missouri State':     { 'Beach Volleyball': null, 'Bowling': null, 'Baseball': null },
+  'Missouri State':     { 'Beach Volleyball': null, 'Bowling': null },
   'New Mexico State':   { 'Beach Volleyball': null, 'Bowling': null },
   'Sam Houston':        { 'Beach Volleyball': null, 'Bowling': null },
   'Western Kentucky':   { 'Beach Volleyball': null, 'Bowling': 'sports/womens-bowling/roster' },
@@ -79,6 +92,7 @@ const CARD_SELECTORS = [
   '.roster__item',
   '.athlete-card',
   "li[class*='roster']",
+  '.sidearm-roster-player',
 ];
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';

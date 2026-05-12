@@ -268,7 +268,10 @@
     { name: 'corsproxy.io',  build: u => 'https://corsproxy.io/?' + encodeURIComponent(u) },
   ];
 
-  // Sidearm CSS selectors that have historically held a player card.
+  // Sidearm CSS selectors that have historically held a player card. The
+  // last entry catches legacy Sidearm classic sites (e.g. dbupatriots.com,
+  // latechsports.com) — these still ship server-side HTML so they don't
+  // need the JS-rendered cache.
   const CARD_SELECTORS = [
     '.s-person-card',
     '.roster-player',
@@ -277,6 +280,7 @@
     '.roster__item',
     '.athlete-card',
     "li[class*='roster']",
+    '.sidearm-roster-player',
   ];
 
   /* ── State ── */

@@ -379,6 +379,21 @@
     return m ? m[1].replace(/\/$/, '') : '';
   }
 
+  // SideArm pages embed window.client_hostname = "..." identifying which
+  // tenant the response was served for. If a proxy ever cross-fires (e.g.
+  // codetabs returning missouristatebears.com HTML for a dbupatriots.com
+  // request — observed in the wild), we want to catch it BEFORE saving
+  // the wrong school's roster under the requested school's folder.
+  function extractSidearmClientHostname(html) {
+    if (!html) return '';
+    const m = html.match(/window\.client_hostname\s*=\s*['"]([^'"]+)['"]/);
+    return m ? m[1].toLowerCase() : '';
+  }
+  function hostFromUrl(u) {
+    try { return new URL(u).hostname.toLowerCase().replace(/^www\./, ''); }
+    catch (_) { return ''; }
+  }
+
   /* ── Card field extraction (port of parse_card) ── */
   const BIO_KW = ['Position', 'Academic Year', 'Hometown', 'Height', 'Full Bio', 'Last School', 'Major'];
   function hasBioKw(t) { return BIO_KW.some(k => t.includes(k)); }
@@ -685,6 +700,21 @@
       return [];
     }
     if (source === 'static') logRow('info', `  source: static fetch`);
+
+    // Sanity check: the response must be for the school we asked for. One of
+    // the CORS proxies has been observed cross-firing and returning a different
+    // SideArm tenant's HTML (e.g. dbupatriots.com → missouristatebears.com
+    // content), which silently produced manifests of the wrong school's
+    // roster. Abort the scrape if the served tenant doesn't match.
+    if (!urlOverride) {
+      const servedHost = extractSidearmClientHostname(rawHtml);
+      const expectedHost = hostFromUrl(baseUrl);
+      if (servedHost && expectedHost && servedHost !== expectedHost) {
+        logRow('err', `  ✗ aborted: response is for ${servedHost} but we requested ${expectedHost}. ` +
+                      `A CORS proxy cross-fired — re-run the scrape, or trigger the nightly cache workflow.`);
+        return [];
+      }
+    }
 
     const imageHost = extractSidearmS3Origin(rawHtml);
     if (imageHost) logRow('info', `  image host: ${imageHost}`);

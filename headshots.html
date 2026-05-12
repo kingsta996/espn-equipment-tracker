@@ -397,6 +397,13 @@
     return '';
   }
 
+  // Legacy SideArm nests the jersey number INSIDE the .sidearm-roster-player-name
+  // div, so the class-based name extraction picks up "14 Adyn Schell" as the
+  // player name. Strip a leading digit-run before splitName runs on it.
+  function stripLeadingJersey(s) {
+    return String(s || '').replace(/^#?\d+\s+/, '').trim();
+  }
+
   function parseCard(card, baseUrl, school, sport) {
     const p = { school, sport, name: '', number: '', position: '', year: '', hometown: '', headshot_url: '' };
     const fullText = normalizeText(card.textContent);
@@ -405,7 +412,7 @@
     for (const re of [/name|title/i, /person/i]) {
       const el = findClassRe(card, re);
       if (el) {
-        const t = normalizeText(el.textContent);
+        const t = stripLeadingJersey(normalizeText(el.textContent));
         if (t && t.length < 60 && !hasBioKw(t)) { p.name = t; break; }
       }
     }
@@ -414,7 +421,7 @@
       for (const tag of ['h2','h3','h4','strong']) {
         const el = card.querySelector(tag);
         if (el) {
-          const t = normalizeText(el.textContent);
+          const t = stripLeadingJersey(normalizeText(el.textContent));
           if (t && t.length < 60 && !hasBioKw(t)) { p.name = t; break; }
         }
       }
@@ -422,7 +429,7 @@
     // Strategy 3: regex on full text — name precedes first bio keyword
     if (!p.name) {
       const m = fullText.match(/^(.+?)(?=Position|Academic Year|Hometown|Height|\d{1,3}\s)/);
-      if (m) p.name = m[1].trim();
+      if (m) p.name = stripLeadingJersey(m[1].trim());
     }
 
     // Jersey
@@ -543,6 +550,25 @@
     throw new Error('All CORS proxies failed: ' + failures.join('; '));
   }
 
+  // A response is only acceptable as a headshot if it actually looks like an
+  // image. Some sites (notably dbupatriots.com legacy SideArm) redirect image
+  // URLs through a CDN that may return HTML — saving that as .jpg yielded the
+  // 1.2 MB "corrupted JPEG" bug. Validate both the MIME and the binary magic
+  // bytes so a runaway HTML response never survives the proxy chain.
+  async function isImageBlob(blob) {
+    if (!blob || blob.size < 1000) return false;
+    if (blob.type && blob.type.startsWith('image/')) return true;
+    // type may be empty when the proxy strips Content-Type — sniff magic bytes.
+    const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+    if (head.length < 4) return false;
+    if (head[0] === 0xFF && head[1] === 0xD8) return true;                  // JPEG
+    if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4E && head[3] === 0x47) return true;  // PNG
+    if (head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46) return true;                       // GIF
+    if (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 &&
+        head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50) return true; // WEBP (RIFF…WEBP)
+    return false;
+  }
+
   // Try direct image fetch first (most CDN images allow CORS), fall back to
   // the proxy chain for ones that don't.
   async function fetchImageBlob(url) {
@@ -550,7 +576,7 @@
       const res = await fetch(url, { mode: 'cors' });
       if (res.ok) {
         const blob = await res.blob();
-        if (blob && blob.size > 1000) return blob;
+        if (await isImageBlob(blob)) return blob;
       }
     } catch (_) { /* fall through to proxies */ }
     const failures = [];
@@ -560,6 +586,10 @@
         if (!res.ok) { failures.push(`${proxy.name}: HTTP ${res.status}`); continue; }
         const blob = await res.blob();
         if (!blob || blob.size < 1000) { failures.push(`${proxy.name}: blob too small (${blob?.size||0}b)`); continue; }
+        if (!(await isImageBlob(blob))) {
+          failures.push(`${proxy.name}: non-image response (${blob.type || 'no type'}, ${blob.size}b)`);
+          continue;
+        }
         return blob;
       } catch (err) {
         failures.push(`${proxy.name}: ${err.message || 'fetch failed'}`);

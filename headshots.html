@@ -561,6 +561,15 @@
   // pasted URL. Repo + workflow file are stable.
   const CACHE_WORKFLOW_URL = 'https://github.com/kingsta996/espn-equipment-tracker/actions/workflows/headshot-cache.yml';
 
+  // Wired by the cache-miss warning so the user can jump straight from a
+  // failed School+Sport run to Pull-from-URL mode with the URL pre-filled.
+  function switchToUrlMode(url) {
+    const modeSel = document.getElementById('modeSel');
+    const urlInp  = document.getElementById('customUrl');
+    if (modeSel) { modeSel.value = 'url'; modeSel.dispatchEvent(new Event('change')); }
+    if (urlInp && url) { urlInp.value = url; urlInp.focus(); }
+  }
+
   /* ── Fetchers ── */
   async function fetchHtmlViaProxies(url, onProgress) {
     const failures = [];
@@ -666,14 +675,17 @@
     // dbupatriots.com → missouristatebears.com), which produced manifests
     // of the wrong school's roster. Discard the proxy response so the
     // nightly Playwright cache fallback below gets a chance.
+    let crossFired = false;
     if (cards.length) {
       const servedHost = extractSidearmClientHostname(rawHtml);
       const expectedHost = hostFromUrl(url);
       if (servedHost && expectedHost && servedHost !== expectedHost) {
-        logRow('warn', `  ⚠ proxy cross-fire: served ${servedHost} for a ${expectedHost} request — falling through to cache.`);
+        logRow('warn', `  ⚠ proxy cross-fire: a CORS proxy returned ${servedHost}'s page when we asked for ${expectedHost}.`);
+        logRow('info', `    Discarding it and trying the nightly Playwright cache instead. If the cache also misses, switch Mode → "Pull from URL" and paste ${url} — that bypasses the unreliable proxy by rendering a one-off cache file for this exact URL.`);
         doc = null;
         cards = [];
         rawHtml = null;
+        crossFired = true;
       }
     }
 
@@ -712,7 +724,30 @@
             window.open(CACHE_WORKFLOW_URL, '_blank', 'noopener');
           });
       } else {
-        logRow('warn', `  ⚠ no cards found — page needs JS rendering and isn't in the cache yet. Tonight's run will pick it up.`);
+        // School+Sport mode with no cache hit. If we got here because of a
+        // proxy cross-fire, the user's quickest path forward is to switch to
+        // Pull-from-URL mode (which targets a per-URL cache file and is what
+        // worked for Dallas Baptist). Otherwise the page just needs JS
+        // rendering and tonight's nightly cache run will pick it up.
+        if (crossFired) {
+          logActionRow('warn',
+            `  ⚠ proxy returned the wrong school AND no cache file exists yet for ${school} / ${sport}. ` +
+            `Switch to "Pull from URL" mode with this URL — it'll trigger a per-URL cache render.`,
+            '🔀 Switch to Pull from URL',
+            () => switchToUrlMode(url));
+          logActionRow('info',
+            `    Or trigger the nightly render now: copy the URL above, open the workflow, paste into "urls", Run workflow, then re-run in ~3 min.`,
+            '📋 Copy URL & Open Workflow',
+            async () => {
+              try { await navigator.clipboard.writeText(url); } catch (_) {}
+              window.open(CACHE_WORKFLOW_URL, '_blank', 'noopener');
+            });
+        } else {
+          logActionRow('warn',
+            `  ⚠ no cards found — page needs JS rendering and isn't in the cache yet. Tonight's run will pick it up, or switch to "Pull from URL" to render this URL on-demand.`,
+            '🔀 Switch to Pull from URL',
+            () => switchToUrlMode(url));
+        }
       }
       return [];
     }

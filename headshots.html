@@ -661,7 +661,24 @@
     let cards = doc ? findCards(doc) : [];
     let rawHtml = html;  // tracked so we can extract SideArm CDN origin from whichever fetch won
 
-    // Static fetch returned 0 cards (page likely React-rendered).
+    // Cross-tenant guard on the static fetch: one of the CORS proxies has
+    // been observed returning a DIFFERENT SideArm tenant's HTML (notably
+    // dbupatriots.com → missouristatebears.com), which produced manifests
+    // of the wrong school's roster. Discard the proxy response so the
+    // nightly Playwright cache fallback below gets a chance.
+    if (cards.length) {
+      const servedHost = extractSidearmClientHostname(rawHtml);
+      const expectedHost = hostFromUrl(url);
+      if (servedHost && expectedHost && servedHost !== expectedHost) {
+        logRow('warn', `  ⚠ proxy cross-fire: served ${servedHost} for a ${expectedHost} request — falling through to cache.`);
+        doc = null;
+        cards = [];
+        rawHtml = null;
+      }
+    }
+
+    // Static fetch returned 0 cards (page likely React-rendered, or we
+    // just discarded a cross-tenant proxy response).
     // Fall back to the nightly Playwright cache committed to the repo.
     if (!cards.length) {
       updateParseStatus(`${school} ${sport} — checking nightly cache…`);
@@ -700,21 +717,6 @@
       return [];
     }
     if (source === 'static') logRow('info', `  source: static fetch`);
-
-    // Sanity check: the response must be for the school we asked for. One of
-    // the CORS proxies has been observed cross-firing and returning a different
-    // SideArm tenant's HTML (e.g. dbupatriots.com → missouristatebears.com
-    // content), which silently produced manifests of the wrong school's
-    // roster. Abort the scrape if the served tenant doesn't match.
-    if (!urlOverride) {
-      const servedHost = extractSidearmClientHostname(rawHtml);
-      const expectedHost = hostFromUrl(baseUrl);
-      if (servedHost && expectedHost && servedHost !== expectedHost) {
-        logRow('err', `  ✗ aborted: response is for ${servedHost} but we requested ${expectedHost}. ` +
-                      `A CORS proxy cross-fired — re-run the scrape, or trigger the nightly cache workflow.`);
-        return [];
-      }
-    }
 
     const imageHost = extractSidearmS3Origin(rawHtml);
     if (imageHost) logRow('info', `  image host: ${imageHost}`);

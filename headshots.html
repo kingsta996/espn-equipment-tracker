@@ -367,6 +367,18 @@
     return base.replace(/\/$/, '') + '/' + url;
   }
 
+  // Some legacy SideArm host names (notably dbupatriots.com) block AWS Lambda
+  // IP ranges, so the netlify-proxy can't fetch /images/* from the school
+  // domain. Every legacy SideArm page exposes
+  //   window.s3_bucket_path = 'https://<hash>.cloudfront.net/sidearm.nextgen.sites/<domain>'
+  // — the same CloudFront origin the school uses. Routing image fetches there
+  // bypasses the rate-limited host entirely.
+  function extractSidearmS3Origin(html) {
+    if (!html) return '';
+    const m = html.match(/window\.s3_bucket_path\s*=\s*['"]([^'"]+)['"]/);
+    return m ? m[1].replace(/\/$/, '') : '';
+  }
+
   /* ── Card field extraction (port of parse_card) ── */
   const BIO_KW = ['Position', 'Academic Year', 'Hometown', 'Height', 'Full Bio', 'Last School', 'Major'];
   function hasBioKw(t) { return BIO_KW.some(k => t.includes(k)); }
@@ -378,13 +390,16 @@
     }) || null;
   }
 
-  function extractHeadshot(card, baseUrl) {
+  function extractHeadshot(card, baseUrl, imageHost) {
+    // Prefer the SideArm CloudFront origin for /-relative image paths when one
+    // is available — the school domain itself often rejects Lambda fetches.
+    const imgBase = imageHost || baseUrl;
     for (const img of card.querySelectorAll('img')) {
       const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
       if (src && !src.toLowerCase().includes('placeholder')
               && !src.toLowerCase().includes('logo')
               && src.length > 10) {
-        return unwrapSidearmCrop(abs(src, baseUrl));
+        return unwrapSidearmCrop(abs(src, imgBase));
       }
     }
     for (const el of card.querySelectorAll('[style]')) {
@@ -404,7 +419,7 @@
     return String(s || '').replace(/^#?\d+\s+/, '').trim();
   }
 
-  function parseCard(card, baseUrl, school, sport) {
+  function parseCard(card, baseUrl, school, sport, imageHost) {
     const p = { school, sport, name: '', number: '', position: '', year: '', hometown: '', headshot_url: '' };
     const fullText = normalizeText(card.textContent);
 
@@ -474,7 +489,7 @@
       if (m) p.hometown = m[1].trim();
     }
 
-    p.headshot_url = extractHeadshot(card, baseUrl) || '';
+    p.headshot_url = extractHeadshot(card, baseUrl, imageHost) || '';
     return p;
   }
 
@@ -629,6 +644,7 @@
 
     let doc = html ? new DOMParser().parseFromString(html, 'text/html') : null;
     let cards = doc ? findCards(doc) : [];
+    let rawHtml = html;  // tracked so we can extract SideArm CDN origin from whichever fetch won
 
     // Static fetch returned 0 cards (page likely React-rendered).
     // Fall back to the nightly Playwright cache committed to the repo.
@@ -645,6 +661,7 @@
             logRow('info', `  ↪ using nightly cache (${cachedCards.length} cards)`);
             doc = cachedDoc;
             cards = cachedCards;
+            rawHtml = cachedHtml;
             source = 'cache';
           } else {
             logRow('warn', `  ⚠ cache exists but no card selector matched — page may not have a roster yet`);
@@ -669,7 +686,9 @@
     }
     if (source === 'static') logRow('info', `  source: static fetch`);
 
-    const parsed = cards.map(c => parseCard(c, baseUrl, school, sport)).filter(p => p.name);
+    const imageHost = extractSidearmS3Origin(rawHtml);
+    if (imageHost) logRow('info', `  image host: ${imageHost}`);
+    const parsed = cards.map(c => parseCard(c, baseUrl, school, sport, imageHost)).filter(p => p.name);
     logRow('ok', `  ${parsed.length} athletes parsed`);
 
     const sportDir = sportFolder(sport);

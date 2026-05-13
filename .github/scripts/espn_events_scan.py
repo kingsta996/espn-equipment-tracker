@@ -161,18 +161,37 @@ def normalize_event(raw: dict, sport_key: str, league_slug: str, season: int) ->
     }
 
 
+UPSERT_BATCH_SIZE = 100  # ≤8s PostgREST anon-role statement_timeout per call
+
 def upsert(supabase_url: str, anon_key: str, token: str, events: list[dict]) -> dict:
+    """Bulk upsert in batches. Supabase's anon role has an 8-second
+    statement_timeout; even the set-based ON CONFLICT form can exceed
+    that for 600+ events when the table is empty (first-time inserts +
+    index updates). Batching keeps each RPC call well under the cap and
+    gives us per-batch progress visibility in the action log."""
     url = f"{supabase_url.rstrip('/')}/rest/v1/rpc/wsc_espn_events_upsert"
     headers = {
         "apikey": anon_key,
         "Authorization": f"Bearer {anon_key}",
         "Content-Type": "application/json",
     }
-    body = {"p_token": token, "p_events": events}
-    r = requests.post(url, headers=headers, data=json.dumps(body), timeout=30)
-    if not r.ok:
-        raise RuntimeError(f"upsert RPC {r.status_code}: {r.text[:400]}")
-    return r.json()
+    totals = {"inserted": 0, "updated": 0, "total": 0, "batches": 0}
+    for start in range(0, len(events), UPSERT_BATCH_SIZE):
+        chunk = events[start:start + UPSERT_BATCH_SIZE]
+        body = {"p_token": token, "p_events": chunk}
+        r = requests.post(url, headers=headers, data=json.dumps(body), timeout=30)
+        if not r.ok:
+            raise RuntimeError(
+                f"upsert RPC {r.status_code} on batch {totals['batches']+1} "
+                f"({start}..{start+len(chunk)}): {r.text[:400]}"
+            )
+        res = r.json() or {}
+        totals["inserted"] += int(res.get("inserted") or 0)
+        totals["updated"]  += int(res.get("updated") or 0)
+        totals["total"]    += int(res.get("total") or len(chunk))
+        totals["batches"] += 1
+        print(f"  batch {totals['batches']}: {res}")
+    return totals
 
 
 def scan(sport_keys: Iterable[str], season_override: int | None, dry_run: bool) -> int:

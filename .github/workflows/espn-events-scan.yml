@@ -45,6 +45,11 @@ jobs:
       SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       ESPN_SCAN_TOKEN: ${{ secrets.ESPN_SCAN_TOKEN }}
+      # Opt in to Node 24 for actions/* JS actions. Node 20 is being
+      # retired from GitHub-hosted runners on Sep 16, 2026; default
+      # flips on June 2, 2026. Setting this now silences the warning
+      # and tests Node 24 compatibility ahead of the cutover.
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
       - name: Checkout

@@ -583,16 +583,27 @@ begin
      for update skip locked
   loop
     -- Build the macro JSON. result_index controls the number of Down
-    -- presses after Right×6 lands focus on the first result tile.
+    -- presses after Right×7 lands focus on the first result tile.
+    --
+    -- inter_ms=200 spaces individual keypresses inside a repeat so Roku
+    -- ECP doesn't throttle/drop rapid-fire presses (without it, only
+    -- ~5 of 6 Rights registered and focus stalled inside the keyboard,
+    -- causing subsequent Selects to type the focused letter).
+    -- Right count is 7 (was 6) for headroom — empirically observed that
+    -- 6 leaves focus on the rightmost column instead of escaping.
     v_macro_json := jsonb_build_array(
       jsonb_build_object('action','keypress','payload','Home',   'wait_ms', 3000),
       jsonb_build_object('action','launch',  'payload','34376',  'wait_ms', 15000),
       jsonb_build_object('action','keypress','payload','Left',   'wait_ms', 1500),
       jsonb_build_object('action','keypress','payload','Up',     'wait_ms', 1500),
       jsonb_build_object('action','keypress','payload','Select', 'wait_ms', 6000),
-      jsonb_build_object('action','text',    'payload', r.search_query, 'wait_ms', 2000),
-      jsonb_build_object('action','keypress','payload','Right',  'wait_ms', 400, 'repeat', 6),
-      jsonb_build_object('action','keypress','payload','Down',   'wait_ms', 400, 'repeat', coalesce(r.result_index, 0)),
+      -- 4s post-text wait: ESPN's autocomplete is asynchronous (~2-3s lag on
+      -- a populated query). If Rights start before the result tiles render,
+      -- the keyboard's escape target doesn't exist yet and presses get
+      -- absorbed at the edge instead of jumping focus to the first result.
+      jsonb_build_object('action','text',    'payload', r.search_query, 'wait_ms', 4000),
+      jsonb_build_object('action','keypress','payload','Right',  'wait_ms', 800, 'repeat', 7, 'inter_ms', 200),
+      jsonb_build_object('action','keypress','payload','Down',   'wait_ms', 600, 'repeat', coalesce(r.result_index, 0), 'inter_ms', 200),
       jsonb_build_object('action','keypress','payload','Select', 'wait_ms', 10000),
       jsonb_build_object('action','keypress','payload','Select', 'wait_ms', 2000)
     );

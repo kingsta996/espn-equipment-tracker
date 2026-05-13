@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="claude-audit-ui.js"></script>
 <style>
   :root {
     --navy: #00263A;
@@ -474,6 +475,7 @@
   <button data-tab="activity">📋 Activity Log</button>
   <button data-tab="schools">🏫 Schools</button>
   <button data-tab="creative-hub">🎨 Creative Hub Override</button>
+  <button data-tab="claude-audit">🛡 Claude Audit</button>
 </div>
 
 <!-- Tab content -->
@@ -498,6 +500,7 @@
   <div id="activity"      class="tab-content" style="display:none"></div>
   <div id="schools"       class="tab-content" style="display:none"></div>
   <div id="creative-hub"  class="tab-content" style="display:none"></div>
+  <div id="claude-audit"  class="tab-content" style="display:none"></div>
 
 </div>
 
@@ -2012,6 +2015,23 @@
     if (name === 'activity') renderActivityLog();
     if (name === 'schools') renderSchoolsTab();
     if (name === 'creative-hub') renderCreativeHubOverride();
+    if (name === 'claude-audit') renderClaudeAuditTab();
+  }
+
+  function renderClaudeAuditTab() {
+    if (typeof ClaudeAudit === 'undefined' || !ClaudeAudit.init) {
+      document.getElementById('claude-audit').innerHTML = '<div style="padding:24px;opacity:0.6">Claude Audit module not loaded.</div>';
+      return;
+    }
+    ClaudeAudit.init({
+      db:            _db,
+      container:     document.getElementById('claude-audit'),
+      hubLabel:      'Production Hub',
+      repoLabel:     'espn-equipment-tracker',
+      repoFilter:    '%/ESPN Equipment Tracker%',
+      getUser:       () => _currentUser,
+      requiredEmail: 'kking@conferenceusa.com'
+    });
   }
 
   function renderAllTabs() {

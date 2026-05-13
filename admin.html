@@ -1541,6 +1541,14 @@
       return;
     }
     await initAdminPortal();
+    // Honor deep links like admin.html#claude-audit (used by the Production
+    // Hub "Admin Audit" tile to drop the user straight into the audit tab).
+    if (location.hash) {
+      const target = location.hash.replace(/^#/, '');
+      if (document.querySelector('.tab-bar button[data-tab="' + target + '"]')) {
+        switchTab(target);
+      }
+    }
   });
 
   async function initAdminPortal() {

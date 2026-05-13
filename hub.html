@@ -352,6 +352,12 @@
     <div class="card-desc">Master Schedule (Tata SRT) + Manual Capture for WSC AI clipping ingest. Admins and member schools can sign in.</div>
     <div class="card-arrow">Open →</div>
   </a>
+  <a class="hub-card" href="javascript:void(0)" onclick="openAdminAuditLogin();return false;">
+    <div class="card-icon" style="background:rgba(255,215,0,0.18);border:1px solid rgba(255,215,0,0.5);color:#FFD700;">🛡</div>
+    <div class="card-title">Admin Audit <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
+    <div class="card-desc">Claude Code activity log + risk assessment. Legacy admin password required.</div>
+    <div class="card-arrow">Open →</div>
+  </a>
 </div>
 
 <div class="hub-footer">
@@ -401,6 +407,20 @@
     <a href="faq.html" target="_blank" rel="noopener">📚 Browse FAQ</a>
     <span class="grow"></span>
     <span>Powered by Claude · <a href="mailto:kking@conferenceusa.com">Email Keith</a></span>
+  </div>
+</div>
+
+<!-- Admin Audit sign-in modal (legacy admin password gate for admin.html → Claude Audit tab) -->
+<div id="adminAuditLoginOverlay" class="chat-login-overlay" role="dialog" aria-label="Admin Audit sign-in">
+  <div class="chat-login-box">
+    <h3>🛡 Admin Audit Sign-in</h3>
+    <p>Enter the legacy admin password to open the Claude Audit dashboard.</p>
+    <input id="adminAuditPw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAdminAuditLogin()">
+    <div class="chat-login-err" id="adminAuditErr"></div>
+    <div class="chat-login-actions">
+      <button class="secondary" type="button" onclick="closeAdminAuditLogin()">Cancel</button>
+      <button class="primary" type="button" id="adminAuditSubmit" onclick="submitAdminAuditLogin()">Sign in</button>
+    </div>
   </div>
 </div>
 
@@ -663,6 +683,57 @@
       }
     }
   });
+
+  /* ── Admin Audit gate (legacy admin password → admin.html#claude-audit) ── */
+  var ADMIN_AUDIT_LEGACY_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+
+  function openAdminAuditLogin() {
+    var pwEl = document.getElementById('adminAuditPw');
+    var errEl = document.getElementById('adminAuditErr');
+    if (pwEl) pwEl.value = '';
+    if (errEl) errEl.textContent = '';
+    var overlay = document.getElementById('adminAuditLoginOverlay');
+    if (overlay) overlay.classList.add('open');
+    setTimeout(function () { if (pwEl) pwEl.focus(); }, 60);
+  }
+  function closeAdminAuditLogin() {
+    var overlay = document.getElementById('adminAuditLoginOverlay');
+    if (overlay) overlay.classList.remove('open');
+  }
+  async function adminAuditHashPw(s) {
+    var buf = new TextEncoder().encode(s);
+    var h = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(h)).map(function (b) { return b.toString(16).padStart(2,'0'); }).join('');
+  }
+  async function submitAdminAuditLogin() {
+    var pw  = document.getElementById('adminAuditPw').value;
+    var err = document.getElementById('adminAuditErr');
+    var btn = document.getElementById('adminAuditSubmit');
+    err.textContent = '';
+    if (!pw) { err.textContent = 'Password required.'; return; }
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      var h = await adminAuditHashPw(pw);
+      if (h !== ADMIN_AUDIT_LEGACY_HASH) {
+        err.textContent = 'Incorrect password.';
+        btn.disabled = false; btn.textContent = 'Sign in';
+        return;
+      }
+      // Pre-seed the admin.html session so it skips its own modal and
+      // boots straight into the Claude Audit tab via the URL hash.
+      try {
+        localStorage.setItem('cusa_viewer_unlocked', 'true');
+        localStorage.setItem('cusa_admin_current_user', JSON.stringify({
+          email: 'kking@conferenceusa.com',
+          display_name: 'Legacy Admin'
+        }));
+      } catch (_) {}
+      window.location.href = 'admin.html#claude-audit';
+    } catch (e) {
+      err.textContent = 'Sign-in failed: ' + (e.message || e);
+      btn.disabled = false; btn.textContent = 'Sign in';
+    }
+  }
 </script>
 
 </body>

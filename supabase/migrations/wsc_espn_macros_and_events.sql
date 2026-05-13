@@ -416,24 +416,23 @@ alter table wsc_app_secrets enable row level security;
 --   insert into wsc_app_secrets(key, value)
 --   values ('espn_scan_token', '<long-random-secret>')
 --   on conflict (key) do update set value = excluded.value, updated_at = now();
+-- Set-based upsert. Earlier row-by-row PL/pgSQL version timed out at
+-- ~620 events (~1500 sequential queries trips PostgREST's 8s timeout).
+-- Single ON CONFLICT DO UPDATE runs the whole batch in one statement
+-- and finishes in well under a second.
 create or replace function wsc_espn_events_upsert(
   p_token   text,
-  p_events  jsonb                    -- array of event objects
+  p_events  jsonb
 ) returns jsonb
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $FN$
 declare
   v_token text;
-  v_evt   jsonb;
-  v_existing wsc_espn_events%rowtype;
+  v_now timestamptz := now();
   v_inserted int := 0;
   v_updated  int := 0;
-  v_unchanged int := 0;
-  v_now timestamptz := now();
-  v_changes jsonb;
-  v_change_log jsonb;
 begin
   select value into v_token from wsc_app_secrets where key = 'espn_scan_token' limit 1;
   if v_token is null or length(v_token) < 16 or v_token <> p_token then
@@ -443,88 +442,87 @@ begin
     raise exception 'p_events must be a JSON array';
   end if;
 
-  for v_evt in select jsonb_array_elements(p_events) loop
-    select * into v_existing from wsc_espn_events
-      where espn_event_id = v_evt->>'espn_event_id' limit 1;
-
-    if not found then
-      insert into wsc_espn_events(
-        espn_event_id, sport, league_slug, season_year, season_type,
-        name, short_name, home_team, home_team_id, home_is_cusa,
-        away_team, away_team_id, away_is_cusa,
-        kickoff_at, status, broadcast, raw
-      ) values (
-        v_evt->>'espn_event_id',
-        v_evt->>'sport',
-        v_evt->>'league_slug',
-        (v_evt->>'season_year')::int,
-        coalesce((v_evt->>'season_type')::int, 2),
-        coalesce(v_evt->>'name', v_evt->>'short_name'),
-        v_evt->>'short_name',
-        v_evt->>'home_team',
-        v_evt->>'home_team_id',
-        coalesce((v_evt->>'home_is_cusa')::boolean, false),
-        v_evt->>'away_team',
-        v_evt->>'away_team_id',
-        coalesce((v_evt->>'away_is_cusa')::boolean, false),
-        (v_evt->>'kickoff_at')::timestamptz,
-        coalesce(v_evt->>'status', 'scheduled'),
-        case when v_evt ? 'broadcast' then
-          (select array_agg(value::text)::text[] from jsonb_array_elements_text(v_evt->'broadcast'))
-        else null end,
-        v_evt->'raw'
-      );
-      v_inserted := v_inserted + 1;
-    else
-      v_changes := '[]'::jsonb;
-      if v_existing.kickoff_at <> (v_evt->>'kickoff_at')::timestamptz then
-        v_changes := v_changes || jsonb_build_object(
-          'field', 'kickoff_at',
-          'old',   v_existing.kickoff_at,
-          'new',   (v_evt->>'kickoff_at')::timestamptz,
-          'at',    v_now
-        );
-      end if;
-      if v_existing.status <> coalesce(v_evt->>'status', 'scheduled') then
-        v_changes := v_changes || jsonb_build_object(
-          'field', 'status',
-          'old',   v_existing.status,
-          'new',   coalesce(v_evt->>'status', 'scheduled'),
-          'at',    v_now
-        );
-      end if;
-
-      if jsonb_array_length(v_changes) > 0 then
-        v_change_log := v_existing.change_log || v_changes;
-        update wsc_espn_events set
-          kickoff_at     = (v_evt->>'kickoff_at')::timestamptz,
-          status         = coalesce(v_evt->>'status', 'scheduled'),
-          broadcast      = case when v_evt ? 'broadcast' then
-                             (select array_agg(value::text)::text[] from jsonb_array_elements_text(v_evt->'broadcast'))
-                           else broadcast end,
-          raw            = v_evt->'raw',
-          last_seen_at   = v_now,
-          last_changed_at= v_now,
-          change_log     = v_change_log
-        where espn_event_id = v_existing.espn_event_id;
-        v_updated := v_updated + 1;
-      else
-        update wsc_espn_events set last_seen_at = v_now
-         where espn_event_id = v_existing.espn_event_id;
-        v_unchanged := v_unchanged + 1;
-      end if;
-    end if;
-  end loop;
+  with input as (
+    select * from jsonb_to_recordset(p_events) as x(
+      espn_event_id text,
+      sport text,
+      league_slug text,
+      season_year int,
+      season_type int,
+      name text,
+      short_name text,
+      home_team text,
+      home_team_id text,
+      home_is_cusa boolean,
+      away_team text,
+      away_team_id text,
+      away_is_cusa boolean,
+      kickoff_at timestamptz,
+      status text,
+      broadcast text[],
+      raw jsonb
+    )
+  ),
+  result as (
+    insert into wsc_espn_events (
+      espn_event_id, sport, league_slug, season_year, season_type,
+      name, short_name, home_team, home_team_id, home_is_cusa,
+      away_team, away_team_id, away_is_cusa,
+      kickoff_at, status, broadcast, raw,
+      first_seen_at, last_seen_at, last_changed_at
+    )
+    select
+      espn_event_id, sport, league_slug, season_year, coalesce(season_type, 2),
+      name, short_name, home_team, home_team_id, coalesce(home_is_cusa, false),
+      away_team, away_team_id, coalesce(away_is_cusa, false),
+      kickoff_at, coalesce(status, 'scheduled'), broadcast, raw,
+      v_now, v_now, v_now
+    from input
+    on conflict (espn_event_id) do update set
+      last_seen_at = v_now,
+      kickoff_at  = excluded.kickoff_at,
+      status      = excluded.status,
+      broadcast   = excluded.broadcast,
+      raw         = excluded.raw,
+      last_changed_at = case
+        when wsc_espn_events.kickoff_at <> excluded.kickoff_at
+          or wsc_espn_events.status     <> excluded.status
+        then v_now
+        else wsc_espn_events.last_changed_at
+      end,
+      change_log = wsc_espn_events.change_log
+        || case when wsc_espn_events.kickoff_at <> excluded.kickoff_at then
+             jsonb_build_array(jsonb_build_object(
+               'field','kickoff_at',
+               'old', to_jsonb(wsc_espn_events.kickoff_at),
+               'new', to_jsonb(excluded.kickoff_at),
+               'at',  to_jsonb(v_now)
+             ))
+           else '[]'::jsonb end
+        || case when wsc_espn_events.status <> excluded.status then
+             jsonb_build_array(jsonb_build_object(
+               'field','status',
+               'old', to_jsonb(wsc_espn_events.status),
+               'new', to_jsonb(excluded.status),
+               'at',  to_jsonb(v_now)
+             ))
+           else '[]'::jsonb end
+    returning (xmax = 0) as was_inserted
+  )
+  select
+    count(*) filter (where was_inserted),
+    count(*) filter (where not was_inserted)
+  into v_inserted, v_updated
+  from result;
 
   return jsonb_build_object(
-    'inserted',  v_inserted,
-    'updated',   v_updated,
-    'unchanged', v_unchanged,
-    'total',     v_inserted + v_updated + v_unchanged,
-    'at',        v_now
+    'inserted', v_inserted,
+    'updated',  v_updated,
+    'total',    v_inserted + v_updated,
+    'at',       v_now
   );
 end;
-$$;
+$FN$;
 revoke all on function wsc_espn_events_upsert(text, jsonb) from public;
 -- Note: this RPC is anon-callable, but token-gated. The scanner posts the
 -- shared secret in p_token; without a match the function raises.

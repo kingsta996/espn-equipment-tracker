@@ -1,0 +1,66 @@
+name: ESPN CUSA Events Scan
+
+# Polls ESPN's public API every 15 minutes for the current schedules of
+# all CUSA member schools (football + MBB + WBB), dedupes events, and
+# upserts them into the wsc_espn_events Supabase table via the
+# wsc_espn_events_upsert RPC. The Master Events tab in the WSC Portal
+# reads from that table.
+#
+# Auth: a shared token stored in wsc_app_secrets.espn_scan_token must
+# match the value posted by this workflow as ESPN_SCAN_TOKEN.
+
+on:
+  schedule:
+    # Every 15 minutes. Adjust by changing the cron expression.
+    # GitHub may skew schedule cron by a few minutes under load.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      sport:
+        description: 'Sport to scan (default: all). Options: all | football | mens-basketball | womens-basketball'
+        required: false
+        default: 'all'
+      season:
+        description: 'Optional season year override (e.g. 2025 for fall 2025 / FB; 2026 for 2025-26 hoops). Leave empty for current.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'If true, fetch + log but do NOT call the upsert RPC. Useful for spot-checking changes.'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: espn-events-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      ESPN_SCAN_TOKEN: ${{ secrets.ESPN_SCAN_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Run scanner
+        run: |
+          python .github/scripts/espn_events_scan.py \
+            --sport "${{ github.event.inputs.sport || 'all' }}" \
+            --season "${{ github.event.inputs.season }}" \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}

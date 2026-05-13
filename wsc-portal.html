@@ -1522,7 +1522,9 @@ function renderEncoderIpsTable() {
         <td style="font-size:10.5px;color:var(--wsc-mute)">${hasOverride ? `<span style="color:var(--wsc-green);font-weight:700">overridden</span>${stamp ? '<br><span>'+escapeHtml(stamp)+'</span>' : ''}` : '<span>default</span>'}</td>
         <td style="white-space:nowrap;text-align:right">
           <button class="toggle" type="button" onclick="saveEncoderIpOverride('${escapeAttr(id)}')">💾 Save</button>
+          <button class="toggle" type="button" onclick="testEncoderIpRoku('${escapeAttr(id)}')" style="margin-left:4px" title="Send a Home keypress through the relay to verify the saved Roku IP is reachable">🧪 Test</button>
           ${hasOverride ? `<button class="toggle" type="button" onclick="resetEncoderIpOverride('${escapeAttr(id)}')" style="margin-left:4px">↺ Reset</button>` : ''}
+          <div id="enc-ip-test-${sk}" style="margin-top:4px;font-size:10.5px;color:var(--wsc-mute);min-height:14px"></div>
         </td>
       </tr>`;
   }).join('');
@@ -1597,6 +1599,85 @@ async function resetEncoderIpOverride(encoderId) {
     console.error('encoder ip reset:', e);
     showToast('Reset failed: ' + (e.message || e), 'err');
   }
+}
+
+// Sends a Home keypress through the relay to verify the encoder's
+// currently-saved Roku IP is reachable. Common use case: after a power
+// outage when DHCP reassigns a Roku to a new IP — admin updates the
+// override, clicks Save, then Test to confirm.
+async function testEncoderIpRoku(encoderId) {
+  if (!isSuperAdmin()) return showToast('Super admin only', 'err');
+  if (!_db) return showToast('Database not connected', 'err');
+  const sk = cssId(encoderId);
+  const out = document.getElementById('enc-ip-test-' + sk);
+  const setMsg = (text, color) => { if (out) { out.style.color = color || 'var(--wsc-mute)'; out.textContent = text; } };
+
+  // If the input has unsaved changes, we can't test it — the relay
+  // resolves IPs from wsc_encoder_overrides, which still has the old
+  // value. Require the admin to Save first.
+  const inputEl = document.getElementById('enc-ip-roku-' + sk);
+  const inputVal = (inputEl?.value || '').trim();
+  const o = _encoderOverrides.get(encoderId) || {};
+  const savedIp = o.roku_ip || '';
+  if (inputVal && inputVal !== savedIp) {
+    setMsg('⚠ Save the new IP first, then Test.', '#ffb14a');
+    return;
+  }
+
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  const akey  = (typeof rokuAgentKey === 'function') ? rokuAgentKey() : '';
+  if (!email || !pw) { setMsg('✗ Sign out + back in to refresh credentials.', '#ff7d8a'); return; }
+  if (!akey)         { setMsg('✗ No agent pairing key — pair the relay first.', '#ff7d8a'); return; }
+
+  setMsg('… enqueuing Home keypress…', 'var(--wsc-mute)');
+  let cmdId = null;
+  try {
+    const { data, error } = await _db.rpc('wsc_roku_enqueue', {
+      p_email:      email,
+      p_pw_hash:    pw,
+      p_agent_key:  akey,
+      p_encoder_id: encoderId,
+      p_kind:       'keypress',
+      p_payload:    'Home',
+    });
+    if (error) throw error;
+    cmdId = data;
+  } catch (e) {
+    setMsg('✗ Enqueue failed: ' + (e.message || e), '#ff7d8a');
+    return;
+  }
+
+  // Poll until the relay reports back. Same pattern as _sendRokuKeyRemote.
+  const POLL_MS = 600, MAX_MS = (typeof ROKU_REMOTE_TIMEOUT_MS === 'number' ? ROKU_REMOTE_TIMEOUT_MS : 12000);
+  const t0 = Date.now();
+  setMsg('… waiting for relay…', 'var(--wsc-mute)');
+  while (Date.now() - t0 < MAX_MS) {
+    await new Promise(r => setTimeout(r, POLL_MS));
+    try {
+      const { data: rows, error } = await _db.from('roku_commands')
+        .select('status,result,agent_id').eq('id', cmdId).limit(1);
+      if (error) throw error;
+      const row = (rows || [])[0];
+      if (!row) continue;
+      if (row.status === 'ok') {
+        const r = row.result || {};
+        setMsg(`✓ Home reached Roku ${r.rokuIp || savedIp || '(default)'} via ${row.agent_id || 'agent'}`, 'var(--wsc-green)');
+        logActivity('encoder-ip-test', 'encoder:' + encoderId, 'ok');
+        return;
+      }
+      if (row.status === 'error') {
+        const r = row.result || {};
+        setMsg('✗ ' + (r.error || 'relay reported error'), '#ff7d8a');
+        logActivity('encoder-ip-test', 'encoder:' + encoderId, 'error: ' + (r.error || ''));
+        return;
+      }
+    } catch (e) {
+      setMsg('✗ Poll error: ' + (e.message || e), '#ff7d8a');
+      return;
+    }
+  }
+  setMsg('✗ Timed out — is cusa_relay.py running on the MC workstation?', '#ff7d8a');
 }
 
 function renderSchoolCard(school) {

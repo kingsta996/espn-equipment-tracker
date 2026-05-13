@@ -582,6 +582,44 @@
   </div>
 </div>
 
+<!-- ESPN Macro scheduler modal (D1) -->
+<div class="pw-overlay" id="espnMacroOverlay">
+  <div class="pw-box" style="max-width:480px;text-align:left">
+    <h2 id="espnMacroModalTitle" style="text-align:left">Schedule ESPN Macro</h2>
+    <p style="text-align:left;font-size:11.5px;color:rgba(255,255,255,0.55);margin-bottom:14px">
+      Kickoff: <strong id="espnMacroKickoffLabel" style="color:var(--wsc-text)">—</strong>.
+      Macro fires at <em>trigger</em> time; default is kickoff − 4 minutes
+      (the window in which ESPN's app shows the tile as live-ready).
+    </p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Encoder</label>
+        <select id="espnMacroEncoder" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px"></select>
+      </div>
+      <div>
+        <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Search query <small style="text-transform:none;letter-spacing:0;color:var(--wsc-mute);font-weight:400">(typed into ESPN's Roku search via Lit_)</small></label>
+        <input id="espnMacroQuery" type="text" maxlength="100" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:13px">
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:0 0 90px">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Result idx</label>
+          <input id="espnMacroResultIndex" type="number" min="0" max="20" value="0" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:13px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Trigger at <small style="text-transform:none;letter-spacing:0;color:var(--wsc-mute);font-weight:400">(local time)</small></label>
+          <input id="espnMacroTrigger" type="datetime-local" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:13px">
+        </div>
+      </div>
+      <div id="espnMacroMatchHint" style="font-size:11px;line-height:1.4;padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid var(--wsc-line);border-radius:6px"></div>
+    </div>
+    <div id="espnMacroErr" style="color:#ff7d8a;font-size:12px;min-height:18px;margin-top:8px"></div>
+    <div class="pw-actions" style="margin-top:6px">
+      <button class="secondary" type="button" onclick="closeEspnMacroModal()">Cancel</button>
+      <button id="espnMacroSubmit" type="button" onclick="submitEspnMacro()">Schedule Macro</button>
+    </div>
+  </div>
+</div>
+
 <!-- Header -->
 <div class="header">
   <div class="logos">
@@ -732,12 +770,26 @@
           <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">Roku IP</div>
           <div id="rokuActiveIp" style="font-size:13px;font-family:'SF Mono',monospace;color:var(--wsc-text)">—</div>
         </div>
+        <div>
+          <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">HELO IP</div>
+          <div id="rokuActiveHeloIp" style="font-size:13px;font-family:'SF Mono',monospace;color:var(--wsc-text)">—</div>
+        </div>
         <span style="flex:1"></span>
         <div class="roku-preview-mode" role="tablist" aria-label="Preview mode">
           <button class="toggle active" id="rokuModeHls"  type="button" onclick="setRokuPreviewMode('hls')"  title="Full-resolution HLS video (~5–7s latency)">🎬 HLS</button>
           <button class="toggle"        id="rokuModeSnap" type="button" onclick="setRokuPreviewMode('snapshot')" title="Sub-second JPEG snapshots, lower fidelity">⚡ Snapshot</button>
         </div>
         <button class="toggle" type="button" onclick="reloadRokuPreview()" title="Reconnect the live preview">↻ Reload</button>
+      </div>
+      <!-- HELO encoder controls: manual fallback when ESPN macro automation isn't appropriate. -->
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:rgba(0,181,226,0.08);border:1px solid rgba(0,181,226,0.25);border-radius:8px">
+        <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">📡 HELO Plus</div>
+        <button class="toggle" type="button" id="heloOpenWebBtn"   onclick="openHeloWebUi()"  title="Open the HELO Plus web UI in a new tab — Stream 1 Output and Stream 2 Output tabs live there. Only works from the MC broadcast LAN.">🌐 Web UI</button>
+        <button class="toggle" type="button" id="heloStream1Btn"   onclick="openHeloStream(1)" title="Deep-link to Stream 1 Output tab (same root URL — admin navigates to the tab once loaded)">📺 Stream 1 Output</button>
+        <button class="toggle" type="button" id="heloStream2Btn"   onclick="openHeloStream(2)" title="Deep-link to Stream 2 Output tab">📺 Stream 2 Output</button>
+        <span style="flex:1"></span>
+        <button class="toggle" type="button" id="heloStartBtn"     onclick="heloStreaming('start')" disabled title="Coming soon — needs AJA REST API endpoint (run the HELO's Start button while DevTools Network panel is recording, copy the cURL, share it back)">▶ Start Streaming</button>
+        <button class="toggle" type="button" id="heloStopBtn"      onclick="heloStreaming('stop')"  disabled title="Coming soon — same API discovery as Start">⏹ Stop Streaming</button>
       </div>
       <div class="roku-preview-cell" id="enc-cell-roku-active">
         <div class="hls-preview-empty">Select an encoder to view its Roku output…</div>
@@ -1260,6 +1312,8 @@ let _testEvents = [];     // synthetic test events when test mode is active
 let _testCaptureLocal = new Map(); // schedule_event_id → { av_confirmed, encoder } (test-only, in-memory)
 let _captureStatus = new Map(); // schedule_event_id → wsc_capture_status row
 let _encoderStatus = new Map(); // encoder_id → wsc_encoder_status row (admin-managed active/inactive)
+let _espnMacros    = [];        // wsc_espn_macros rows (ESPN Roku capture macros scheduled alongside Master Schedule SRT)
+let _espnEvents    = new Map(); // espn_event_id → wsc_espn_events row (used to fuzzy-match a Master Schedule row to an ESPN event id)
 const ENCODER_CONFLICT_WINDOW_MS = 4 * 60 * 60 * 1000; // 4-hour overlap window for same-encoder conflicts
 let _dismissals = new Map();    // event_id → { dismissed_by, dismissed_at, reason }
 let _showDismissed = false;     // Manual Capture toolbar toggle
@@ -1321,7 +1375,7 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus(), loadEncoderOverrides(), loadNetworkOverrides()]);
+  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus(), loadEncoderOverrides(), loadNetworkOverrides(), loadEspnMacros(), loadEspnEvents()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
   applyAdminVisibility();
@@ -2230,6 +2284,103 @@ async function loadEncoderStatus() {
   }
 }
 
+// ESPN macro scheduler (D1) — load scheduled macros + scanned events.
+// Both are read-only here; writes go through wsc_espn_macro_upsert /
+// wsc_espn_macro_cancel RPCs. Pulls from kickoff_at >= today-30 so the
+// archive view still has access to recently-fired macros for forensics.
+async function loadEspnMacros() {
+  if (!_db) return;
+  try {
+    const earliest = new Date(); earliest.setDate(earliest.getDate() - 30);
+    const { data, error } = await _db.from('wsc_espn_macros')
+      .select('id, encoder_id, espn_event_id, sport, matchup_label, search_query, result_index, trigger_at, kickoff_at, status, fired_command_id, result_log, notes, created_by_email, created_at')
+      .gte('kickoff_at', earliest.toISOString())
+      .order('kickoff_at', { ascending: true });
+    if (error) throw error;
+    _espnMacros = data || [];
+  } catch (e) {
+    console.warn('wsc_espn_macros load:', e?.message || e);
+    _espnMacros = [];
+  }
+}
+
+async function loadEspnEvents() {
+  if (!_db) return;
+  try {
+    const earliest = new Date(); earliest.setDate(earliest.getDate() - 30);
+    const { data, error } = await _db.from('wsc_espn_events')
+      .select('espn_event_id, sport, league_slug, short_name, home_team, home_team_id, home_is_cusa, away_team, away_team_id, away_is_cusa, kickoff_at, status, broadcast')
+      .gte('kickoff_at', earliest.toISOString());
+    if (error) throw error;
+    _espnEvents = new Map((data || []).map(r => [r.espn_event_id, r]));
+  } catch (e) {
+    console.warn('wsc_espn_events load:', e?.message || e);
+    _espnEvents = new Map();
+  }
+}
+
+// Fuzzy-match a Master Schedule row (away/home strings + event_date +
+// event_time) to a wsc_espn_events row. ESPN team names are often more
+// formal than CUSA's internal labels ("Middle Tennessee Blue Raiders"
+// vs "MTSU"), so we collapse both sides to alphanumeric-lowercased
+// tokens and require BOTH teams' tokens to overlap. Date must match
+// within ±36h to absorb timezone + same-day-doubleheader edge cases.
+function _tokenize(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(t => t.length >= 3);
+}
+function _tokensOverlap(a, b) {
+  if (!a.length || !b.length) return false;
+  const setA = new Set(a);
+  for (const t of b) if (setA.has(t)) return true;
+  return false;
+}
+function findEspnEventForRow(ev) {
+  if (!ev || !_espnEvents.size) return null;
+  const rowStart = parseEventStart(ev.event_date, ev.event_time);
+  if (!rowStart) return null;
+  const rowMs = rowStart.getTime();
+  const evAway = _tokenize(ev.away);
+  const evHome = _tokenize(ev.home);
+  let bestMatch = null, bestDelta = Infinity;
+  for (const ee of _espnEvents.values()) {
+    const koMs = new Date(ee.kickoff_at).getTime();
+    const delta = Math.abs(koMs - rowMs);
+    if (delta > 36 * 3600 * 1000) continue;     // > 36h apart → different game
+    const eeAway = _tokenize(ee.away_team);
+    const eeHome = _tokenize(ee.home_team);
+    // Require BOTH teams to overlap (either-orientation: away-vs-away+home-vs-home OR swapped).
+    const straight = _tokensOverlap(evAway, eeAway) && _tokensOverlap(evHome, eeHome);
+    const swapped  = _tokensOverlap(evAway, eeHome) && _tokensOverlap(evHome, eeAway);
+    if (!straight && !swapped) continue;
+    if (delta < bestDelta) { bestMatch = ee; bestDelta = delta; }
+  }
+  return bestMatch;
+}
+function findMacroForRow(ev) {
+  if (!ev || !_espnMacros.length) return null;
+  // Prefer matching via the linked espn_event_id (set when scheduled
+  // from a matched ESPN scanner event).
+  const linked = findEspnEventForRow(ev);
+  if (linked) {
+    for (const m of _espnMacros) {
+      if (m.espn_event_id === linked.espn_event_id) return m;
+    }
+  }
+  // Fallback: match by kickoff proximity + team name overlap on the
+  // macro's search_query (works for ad-hoc macros without an ESPN link).
+  const rowStart = parseEventStart(ev.event_date, ev.event_time);
+  if (!rowStart) return null;
+  const rowMs = rowStart.getTime();
+  const evTokens = [..._tokenize(ev.home), ..._tokenize(ev.away)];
+  for (const m of _espnMacros) {
+    const mMs = new Date(m.kickoff_at || 0).getTime();
+    if (Math.abs(mMs - rowMs) > 6 * 3600 * 1000) continue;
+    const qTokens = _tokenize(m.search_query);
+    if (_tokensOverlap(qTokens, evTokens)) return m;
+  }
+  return null;
+}
+
 function isEncoderActive(encoderId) {
   const row = _encoderStatus.get(encoderId);
   return !row || row.active !== false;
@@ -2294,7 +2445,251 @@ function encoderConflictsFor(targetEvent) {
       out.set(status.encoder, ev);
     }
   }
+  // Also include encoders reserved by a pending/fired ESPN macro whose
+  // kickoff_at is within the conflict window of this event. A macro
+  // running on CUSA1 at 6pm should block CUSA1 from being picked for
+  // a Manual Capture at the same time.
+  for (const m of _espnMacros) {
+    if (!m.encoder_id) continue;
+    if (m.status !== 'pending' && m.status !== 'fired') continue;
+    if (out.has(m.encoder_id)) continue;
+    const macroMs = new Date(m.kickoff_at || m.trigger_at || 0).getTime();
+    if (!macroMs) continue;
+    if (!targetStart) {
+      // unparseable target time → flag any same-day macro as conflicting
+      const macroDate = new Date(macroMs).toISOString().slice(0, 10);
+      if (macroDate === targetEvent.event_date) {
+        out.set(m.encoder_id, { id: 'macro_' + m.id, away: m.matchup_label || m.search_query, home: '', event_date: macroDate, event_time: '' });
+      }
+      continue;
+    }
+    if (Math.abs(macroMs - targetStart.getTime()) < ENCODER_CONFLICT_WINDOW_MS) {
+      out.set(m.encoder_id, { id: 'macro_' + m.id, away: m.matchup_label || m.search_query, home: '(ESPN macro)', event_date: targetEvent.event_date, event_time: '' });
+    }
+  }
   return out;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  ESPN MACRO — per-row scheduler embedded in the Master Schedule
+ * ══════════════════════════════════════════════════════════════════ */
+
+function _macroStatusBadge(status) {
+  const map = {
+    pending:   ['⏳','#ffb14a','PENDING'],
+    fired:     ['📡','#00B5E2','FIRED'],
+    completed: ['✓', '#A7D500','COMPLETED'],
+    failed:    ['✗', '#ff7d8a','FAILED'],
+    canceled:  ['—', '#999',   'CANCELED'],
+  };
+  const [icon, color, label] = map[status] || ['?','#999', String(status || '—').toUpperCase()];
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;letter-spacing:0.4px;color:${color}">${icon} ${label}</span>`;
+}
+
+// Cell content for the ESPN Capture column on a Master Schedule row.
+// Two states: empty (Schedule button) and configured (encoder + query + status + cancel).
+function renderEspnMacroCell(ev) {
+  if (!isSuperAdmin()) return '<td style="font-size:10px;color:var(--wsc-mute)">—</td>';
+  const m = findMacroForRow(ev);
+  if (!m) {
+    return `<td>
+      <button class="toggle" type="button" onclick="openEspnMacroModal('${escapeAttr(ev.id)}')" style="font-size:10.5px;padding:5px 10px">
+        🛡 Schedule
+      </button>
+    </td>`;
+  }
+  const canCancel = (m.status === 'pending');
+  const cancelBtn = canCancel
+    ? `<button class="toggle" type="button" onclick="cancelEspnMacro('${m.id}')" title="Cancel scheduled macro" style="margin-left:6px;font-size:10px;padding:3px 8px;background:rgba(228,0,70,0.18);border-color:rgba(228,0,70,0.4);color:#ff7d8a">✕</button>`
+    : '';
+  const editBtn = canCancel
+    ? `<button class="toggle" type="button" onclick="openEspnMacroModal('${escapeAttr(ev.id)}','${m.id}')" title="Edit macro" style="margin-left:4px;font-size:10px;padding:3px 8px">✎</button>`
+    : '';
+  return `<td>
+    <div style="display:flex;flex-direction:column;gap:3px;font-size:11px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <strong style="color:var(--wsc-green)">${escapeHtml(m.encoder_id || '?')}</strong>
+        <span style="color:var(--wsc-mute)">·</span>
+        <span style="font-family:'SF Mono',monospace;color:var(--wsc-text)">${escapeHtml(m.search_query || '')}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        ${_macroStatusBadge(m.status)}
+        ${editBtn}${cancelBtn}
+      </div>
+    </div>
+  </td>`;
+}
+
+let _macroEditing = null;  // { row: ev, macro: existing wsc_espn_macros row | null, espn: matched event | null }
+
+function openEspnMacroModal(eventId, existingMacroId) {
+  if (!isSuperAdmin()) { showToast('Super admin only', 'err'); return; }
+  if (!_db) { showToast('Database not connected', 'err'); return; }
+  const ev = findEventById(eventId);
+  if (!ev) { showToast('Event not found', 'err'); return; }
+  const existing = existingMacroId ? (_espnMacros.find(m => m.id === existingMacroId) || null) : null;
+  const espn = findEspnEventForRow(ev);
+  _macroEditing = { row: ev, macro: existing, espn };
+
+  // Derive search_query default: prefer the CUSA team name (home if CUSA, else away).
+  let defaultQuery = '';
+  if (existing) {
+    defaultQuery = existing.search_query;
+  } else if (espn) {
+    if (espn.home_is_cusa)      defaultQuery = String(espn.home_team || '').split(' ')[0].toLowerCase();
+    else if (espn.away_is_cusa) defaultQuery = String(espn.away_team || '').split(' ')[0].toLowerCase();
+    else                         defaultQuery = String(espn.home_team || '').split(' ')[0].toLowerCase();
+  } else {
+    defaultQuery = String(ev.home || ev.away || '').split(' ')[0].toLowerCase();
+  }
+
+  // Derive trigger_at default: kickoff − 4 min.
+  const kickoff = parseEventStart(ev.event_date, ev.event_time);
+  let triggerLocal = '';
+  let kickoffLocalForLabel = '—';
+  if (kickoff) {
+    kickoffLocalForLabel = kickoff.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    const trig = existing ? new Date(existing.trigger_at) : new Date(kickoff.getTime() - 4 * 60 * 1000);
+    triggerLocal = _toLocalInputValue(trig);
+  }
+
+  // Encoder dropdown — same conflict-aware pattern Manual Capture uses.
+  const conflicts = encoderConflictsFor(ev);
+  const opts = (_config?.encoders || []).map(e => {
+    const isSelected = existing?.encoder_id === e.id;
+    const inactive   = !isEncoderActive(e.id);
+    const conflict   = conflicts.get(e.id);
+    const disable    = !isSelected && (inactive || !!conflict);
+    let label = e.id;
+    if (inactive) label += ' (inactive)';
+    else if (conflict) label += ` (conflict: ${(conflict.away || '') + (conflict.home ? ' @ ' + conflict.home : '')})`;
+    return `<option value="${escapeAttr(e.id)}" ${isSelected ? 'selected' : ''} ${disable ? 'disabled' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+
+  const matchHint = espn
+    ? `<span style="color:var(--wsc-green)">✓ Matched ESPN event ${escapeHtml(espn.espn_event_id)} (${escapeHtml(espn.short_name || (espn.away_team + ' @ ' + espn.home_team))})</span>`
+    : `<span style="color:var(--wsc-mute)">No matching ESPN scanner event — macro will be unlinked. Auto-update on kickoff-time changes is disabled until the next scan picks this game up.</span>`;
+
+  document.getElementById('espnMacroModalTitle').textContent =
+    (existing ? 'Edit ESPN Macro — ' : 'Schedule ESPN Macro — ') + (ev.away || '?') + ' @ ' + (ev.home || '?');
+  document.getElementById('espnMacroKickoffLabel').textContent = kickoffLocalForLabel;
+  document.getElementById('espnMacroEncoder').innerHTML = opts;
+  document.getElementById('espnMacroQuery').value = defaultQuery;
+  document.getElementById('espnMacroResultIndex').value = existing?.result_index ?? 0;
+  document.getElementById('espnMacroTrigger').value = triggerLocal;
+  document.getElementById('espnMacroMatchHint').innerHTML = matchHint;
+  document.getElementById('espnMacroErr').textContent = '';
+  document.getElementById('espnMacroSubmit').textContent = existing ? 'Update' : 'Schedule Macro';
+  document.getElementById('espnMacroOverlay').classList.add('open');
+}
+
+function closeEspnMacroModal() {
+  document.getElementById('espnMacroOverlay').classList.remove('open');
+  _macroEditing = null;
+}
+
+function _toLocalInputValue(d) {
+  // Format a Date as the `YYYY-MM-DDTHH:MM` that <input type="datetime-local"> expects, in local time.
+  if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function submitEspnMacro() {
+  if (!_macroEditing) return;
+  const { row, macro, espn } = _macroEditing;
+  const errEl = document.getElementById('espnMacroErr');
+  errEl.textContent = '';
+
+  const encoderId = document.getElementById('espnMacroEncoder').value;
+  const searchQuery = (document.getElementById('espnMacroQuery').value || '').trim().toLowerCase();
+  const resultIndex = parseInt(document.getElementById('espnMacroResultIndex').value || '0', 10);
+  const triggerInput = document.getElementById('espnMacroTrigger').value;
+
+  if (!encoderId) { errEl.textContent = 'Pick an encoder.'; return; }
+  if (!searchQuery) { errEl.textContent = 'Search query required.'; return; }
+  if (!/^[\x20-\x7e]+$/.test(searchQuery) || searchQuery.length > 100) {
+    errEl.textContent = 'Search query must be printable ASCII, ≤ 100 chars.';
+    return;
+  }
+  if (resultIndex < 0 || resultIndex > 20 || Number.isNaN(resultIndex)) {
+    errEl.textContent = 'Result index must be 0–20.';
+    return;
+  }
+  // Kickoff_at — fall back to event row's parsed start if no ESPN match.
+  let kickoffISO;
+  if (espn && espn.kickoff_at) kickoffISO = new Date(espn.kickoff_at).toISOString();
+  else {
+    const ks = parseEventStart(row.event_date, row.event_time);
+    if (!ks) { errEl.textContent = 'Could not parse kickoff time from the Master Schedule row.'; return; }
+    kickoffISO = ks.toISOString();
+  }
+  // Trigger_at — admin-editable. If empty, server defaults to kickoff−4min.
+  let triggerISO = null;
+  if (triggerInput) {
+    const t = new Date(triggerInput);  // local-time interpretation
+    if (isNaN(t.getTime())) { errEl.textContent = 'Trigger time is invalid.'; return; }
+    triggerISO = t.toISOString();
+  }
+
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  if (!email || !pw) { errEl.textContent = 'Sign out + back in to refresh credentials.'; return; }
+
+  const btn = document.getElementById('espnMacroSubmit');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Saving…';
+  try {
+    const { error } = await _db.rpc('wsc_espn_macro_upsert', {
+      p_email:         email,
+      p_pw_hash:       pw,
+      p_id:            macro ? macro.id : null,
+      p_encoder_id:    encoderId,
+      p_espn_event_id: espn ? espn.espn_event_id : null,
+      p_search_query:  searchQuery,
+      p_result_index:  resultIndex,
+      p_kickoff_at:    kickoffISO,
+      p_trigger_at:    triggerISO,
+      p_notes:         null,
+    });
+    if (error) throw error;
+    closeEspnMacroModal();
+    await loadEspnMacros();
+    renderAllSchedules();
+    showToast(macro ? 'Macro updated' : 'Macro scheduled', 'ok');
+    logActivity('espn-macro-' + (macro ? 'update' : 'create'),
+      'event:' + row.id,
+      `${encoderId} q="${searchQuery}" idx=${resultIndex}` + (espn ? ` espn=${espn.espn_event_id}` : ''));
+  } catch (e) {
+    console.error('espn macro save:', e);
+    errEl.textContent = 'Save failed: ' + (e.message || e);
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+async function cancelEspnMacro(macroId) {
+  if (!isSuperAdmin()) return;
+  if (!_db) return;
+  if (!confirm('Cancel this scheduled ESPN macro? The relay will not fire it.')) return;
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  if (!email || !pw) return showToast('Sign out + back in to refresh credentials', 'err');
+  try {
+    const { data, error } = await _db.rpc('wsc_espn_macro_cancel', {
+      p_email: email, p_pw_hash: pw, p_id: macroId,
+    });
+    if (error) throw error;
+    if (data === false) { showToast('Macro is not pending (already fired or canceled).', 'err'); }
+    await loadEspnMacros();
+    renderAllSchedules();
+    if (data !== false) {
+      showToast('Macro canceled', 'ok');
+      logActivity('espn-macro-cancel', 'macro:' + macroId, null);
+    }
+  } catch (e) {
+    console.error('espn macro cancel:', e);
+    showToast('Cancel failed: ' + (e.message || e), 'err');
+  }
 }
 
 function findEventById(id) {
@@ -2704,6 +3099,7 @@ function renderTable(scope, opts = {}) {
       <th>School Contact</th>
       <th>A/V Confirmed</th>
       <th>SRT (WSC · SportRadar)</th>
+      <th style="min-width:170px">🛡 ESPN Capture</th>
       <th>HLS Preview</th>
     </tr></thead>` : `
     <thead><tr>
@@ -2772,6 +3168,7 @@ function renderTable(scope, opts = {}) {
             <div class="av-format-chip ${school?.video_format ? '' : 'unset'}">${escapeHtml(school?.video_format || '— format —')}</div>
           </td>
           ${srtHtml}
+          ${renderEspnMacroCell(ev)}
           <td class="col-hls-preview" id="enc-cell-${cssId(ev.id)}">
             <div class="hls-preview-empty">Loading…</div>
           </td>
@@ -3009,6 +3406,14 @@ function setupRealtime() {
      })
      .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_event_network_overrides' }, async () => {
        await loadNetworkOverrides();
+       renderAllSchedules();
+     })
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_espn_macros' }, async () => {
+       await loadEspnMacros();
+       renderAllSchedules();
+     })
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_espn_events' }, async () => {
+       await loadEspnEvents();
        renderAllSchedules();
      })
      .subscribe();
@@ -3363,7 +3768,43 @@ function selectRokuEncoder(id) {
   });
   document.getElementById('rokuActiveLabel').textContent = id || '—';
   document.getElementById('rokuActiveIp').textContent    = enc?.roku_ip || '—';
+  const heloEl = document.getElementById('rokuActiveHeloIp');
+  if (heloEl) heloEl.textContent = enc?.aja_ip || enc?.helo_ip || '—';
   mountRokuPreview(id);
+}
+
+/* ── HELO Plus controls — manual fallback for the ESPN macro automation ── */
+
+function _activeHeloIp() {
+  if (!_rokuActiveEncoder) return null;
+  const enc = (_config?.encoders || []).find(e => e.id === _rokuActiveEncoder);
+  return enc?.aja_ip || enc?.helo_ip || null;
+}
+
+function openHeloWebUi() {
+  const ip = _activeHeloIp();
+  if (!ip) { rokuLog('No HELO IP for the active encoder — set one in Settings → Encoder IP overrides.', 'err'); return; }
+  rokuLog(`${_rokuActiveEncoder} → opening HELO web UI at http://${ip}/`);
+  window.open(`http://${ip}/`, '_blank', 'noopener');
+}
+
+// Stream 1/2 Output tabs are sub-views of the same HELO Plus web UI
+// (single-page app at the root URL). We open the root and let the
+// operator click into the right tab. If AJA exposes a deep-link URL
+// for a specific tab later, swap this for that exact path.
+function openHeloStream(n) {
+  const ip = _activeHeloIp();
+  if (!ip) { rokuLog('No HELO IP for the active encoder — set one in Settings → Encoder IP overrides.', 'err'); return; }
+  rokuLog(`${_rokuActiveEncoder} → opening Stream ${n} Output in the HELO web UI`);
+  window.open(`http://${ip}/`, '_blank', 'noopener');
+}
+
+// Start/Stop streaming — placeholder until we know the AJA REST API
+// endpoint. The buttons are visually present but disabled in the HTML;
+// this function exists so once the API is wired, removing the
+// 'disabled' attribute is the only HTML change needed.
+async function heloStreaming(action) {
+  rokuLog(`HELO ${action} not yet wired — need the AJA REST endpoint from the HELO web UI's DevTools Network panel.`, 'err');
 }
 
 // Mount whichever preview mode the operator has selected for the given

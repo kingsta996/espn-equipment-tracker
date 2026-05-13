@@ -28,7 +28,7 @@ alter table roku_commands
 
 alter table roku_commands
   add constraint roku_commands_kind_check
-  check (kind in ('keypress', 'launch', 'text', 'macro'));
+  check (kind in ('keypress', 'launch', 'text', 'macro', 'helo_stream'));
 
 
 -- ─── 2. Extend wsc_roku_enqueue to accept text + macro ───────────────────
@@ -80,7 +80,7 @@ begin
   end if;
 
   -- 3) Command shape
-  if p_kind not in ('keypress', 'launch', 'text', 'macro') then
+  if p_kind not in ('keypress', 'launch', 'text', 'macro', 'helo_stream') then
     raise exception 'invalid kind: %', p_kind;
   end if;
   if p_encoder_id !~ '^CUSA([1-9]|10)$' then
@@ -102,6 +102,14 @@ begin
     -- Printable ASCII only — matches relay's _exec_text guard.
     if p_payload ~ '[^\x20-\x7E]' then
       raise exception 'text payload must be printable ASCII only';
+    end if;
+  end if;
+  if p_kind = 'helo_stream' then
+    -- Strict allowlist: 'start' = eParamID_ReplicatorCommand value 3,
+    -- 'stop' = value 4. Other replicator values (notably 5 = Shutdown,
+    -- 1/2 = recorder controls) must never reach the HELO via this path.
+    if p_payload not in ('start', 'stop') then
+      raise exception 'helo_stream payload must be start or stop';
     end if;
   end if;
   if p_kind = 'macro' then

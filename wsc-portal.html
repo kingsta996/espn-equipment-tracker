@@ -788,8 +788,8 @@
         <button class="toggle" type="button" id="heloStream1Btn"   onclick="openHeloStream(1)" title="Deep-link to Stream 1 Output tab (same root URL — admin navigates to the tab once loaded)">📺 Stream 1 Output</button>
         <button class="toggle" type="button" id="heloStream2Btn"   onclick="openHeloStream(2)" title="Deep-link to Stream 2 Output tab">📺 Stream 2 Output</button>
         <span style="flex:1"></span>
-        <button class="toggle" type="button" id="heloStartBtn"     onclick="heloStreaming('start')" disabled title="Coming soon — needs AJA REST API endpoint (run the HELO's Start button while DevTools Network panel is recording, copy the cURL, share it back)">▶ Start Streaming</button>
-        <button class="toggle" type="button" id="heloStopBtn"      onclick="heloStreaming('stop')"  disabled title="Coming soon — same API discovery as Start">⏹ Stop Streaming</button>
+        <button class="toggle" type="button" id="heloStartBtn"     onclick="heloStreaming('start')" title="Send Start Streaming via the relay (eParamID_ReplicatorCommand=3 to the active encoder's HELO Plus)">▶ Start Streaming</button>
+        <button class="toggle" type="button" id="heloStopBtn"      onclick="heloStreaming('stop')"  title="Send Stop Streaming via the relay (eParamID_ReplicatorCommand=4)">⏹ Stop Streaming</button>
       </div>
       <div class="roku-preview-cell" id="enc-cell-roku-active">
         <div class="hls-preview-empty">Select an encoder to view its Roku output…</div>
@@ -3799,12 +3799,81 @@ function openHeloStream(n) {
   window.open(`http://${ip}/`, '_blank', 'noopener');
 }
 
-// Start/Stop streaming — placeholder until we know the AJA REST API
-// endpoint. The buttons are visually present but disabled in the HTML;
-// this function exists so once the API is wired, removing the
-// 'disabled' attribute is the only HTML change needed.
+// Start/Stop streaming on the active encoder's HELO Plus. Always goes
+// through cusa_relay.py via Supabase (kind=helo_stream); the local-agent
+// fast path isn't wired for HELO because the security/auth profile of
+// these commands is high — relay-only keeps every request authenticated
+// through wsc_roku_enqueue's super-admin gate.
 async function heloStreaming(action) {
-  rokuLog(`HELO ${action} not yet wired — need the AJA REST endpoint from the HELO web UI's DevTools Network panel.`, 'err');
+  if (!_rokuActiveEncoder) { rokuLog('No encoder selected', 'err'); return; }
+  if (action !== 'start' && action !== 'stop') return;
+  if (!_db) { rokuLog('Supabase not initialized', 'err'); return; }
+  const ip = _activeHeloIp();
+  if (!ip) { rokuLog('No HELO IP for the active encoder — set one in Settings → Encoder IP overrides.', 'err'); return; }
+  const enc = _rokuActiveEncoder;
+  if (action === 'stop' && !confirm(`Stop streaming on ${enc} (HELO ${ip})?`)) return;
+
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  const akey  = rokuAgentKey();
+  if (!email || !pw || !akey) {
+    rokuLog('Missing super-admin credential or pairing key — pair the agent first.', 'err');
+    return;
+  }
+  rokuLog(`${enc} HELO → ${action === 'start' ? 'Start Streaming (value=3)' : 'Stop Streaming (value=4)'}`);
+  // Briefly disable the buttons to prevent double-fires while we poll.
+  const startBtn = document.getElementById('heloStartBtn');
+  const stopBtn  = document.getElementById('heloStopBtn');
+  startBtn.disabled = stopBtn.disabled = true;
+
+  let cmdId = null;
+  try {
+    const { data, error } = await _db.rpc('wsc_roku_enqueue', {
+      p_email: email,
+      p_pw_hash: pw,
+      p_agent_key: akey,
+      p_encoder_id: enc,
+      p_kind: 'helo_stream',
+      p_payload: action,
+    });
+    if (error) throw error;
+    cmdId = data;
+  } catch (e) {
+    rokuLog(`✗ enqueue failed: ${e.message || e}`, 'err');
+    startBtn.disabled = stopBtn.disabled = false;
+    return;
+  }
+  // Same poll pattern as Roku remote: relay picks the row up within
+  // POLL_INTERVAL_S, executes, writes the row back, we see status=ok|error.
+  const t0 = Date.now();
+  const MAX_MS = (typeof ROKU_REMOTE_TIMEOUT_MS === 'number' ? ROKU_REMOTE_TIMEOUT_MS : 12000);
+  while (Date.now() - t0 < MAX_MS) {
+    await new Promise(r => setTimeout(r, 600));
+    try {
+      const { data: rows, error } = await _db.from('roku_commands')
+        .select('status,result,agent_id').eq('id', cmdId).limit(1);
+      if (error) throw error;
+      const row = (rows || [])[0];
+      if (!row) continue;
+      if (row.status === 'ok' || row.status === 'error') {
+        const r = row.result || {};
+        if (row.status === 'ok') {
+          rokuLog(`✓ ${enc} HELO ${action} (HTTP ${r.http_status || '?'} from ${r.heloIp || ip})`, 'ok');
+          logActivity('helo-stream', 'encoder:' + enc, action);
+        } else {
+          rokuLog(`✗ ${enc} HELO ${action}: ${r.error || 'agent reported error'}`, 'err');
+        }
+        startBtn.disabled = stopBtn.disabled = false;
+        return;
+      }
+    } catch (e) {
+      rokuLog(`✗ poll error: ${e.message || e}`, 'err');
+      startBtn.disabled = stopBtn.disabled = false;
+      return;
+    }
+  }
+  rokuLog(`✗ ${enc} HELO ${action}: timed out — is cusa_relay.py running on the MC workstation?`, 'err');
+  startBtn.disabled = stopBtn.disabled = false;
 }
 
 // Mount whichever preview mode the operator has selected for the given

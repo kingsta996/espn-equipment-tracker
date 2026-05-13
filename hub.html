@@ -354,8 +354,8 @@
   </a>
   <a class="hub-card" href="javascript:void(0)" onclick="openAdminAuditLogin();return false;">
     <div class="card-icon" style="background:rgba(255,215,0,0.18);border:1px solid rgba(255,215,0,0.5);color:#FFD700;">🛡</div>
-    <div class="card-title">Admin Audit <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
-    <div class="card-desc">Claude Code activity log + risk assessment. Legacy admin password required.</div>
+    <div class="card-title">Hub Admin <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
+    <div class="card-desc">Creative Hub state override + Claude Code audit log. Legacy admin password required.</div>
     <div class="card-arrow">Open →</div>
   </a>
 </div>
@@ -719,16 +719,14 @@
         btn.disabled = false; btn.textContent = 'Sign in';
         return;
       }
-      // Pre-seed the admin.html session so it skips its own modal and
-      // boots straight into the Claude Audit tab via the URL hash.
+      // Pre-seed the hub-admin.html session so it skips its own modal.
       try {
-        localStorage.setItem('cusa_viewer_unlocked', 'true');
-        localStorage.setItem('cusa_admin_current_user', JSON.stringify({
+        localStorage.setItem('cusa_hub_admin_user', JSON.stringify({
           email: 'kking@conferenceusa.com',
           display_name: 'Legacy Admin'
         }));
       } catch (_) {}
-      window.location.href = 'admin.html#claude-audit';
+      window.location.href = 'hub-admin.html';
     } catch (e) {
       err.textContent = 'Sign-in failed: ' + (e.message || e);
       btn.disabled = false; btn.textContent = 'Sign in';

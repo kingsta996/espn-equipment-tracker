@@ -119,8 +119,14 @@
 <script>
   /* ─────────────────────────────────────────────────────────────── */
   var SUPER_EMAIL  = 'kking@conferenceusa.com';
-  // Same legacy admin password hash used in chatlogs.html, wsc-portal.html, etc.
-  var LEGACY_HASH  = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  // Distinct admin accounts. Each entry maps a password hash to an identity so
+  // audit/activity logs show WHO performed an action. Add additional admins by
+  // appending to this array (also update the matching list in hub.html).
+  var ADMIN_USERS  = [
+    { hash: '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2', email: 'kking@conferenceusa.com', display_name: 'Keith King' },
+    { hash: 'ee0579f300f3d10b330e1b9a9d122d6638f9ab54a2fa6c28dd8e5e972c0fadf1', email: 'bcarter@gxait.com',        display_name: 'GXA IT — B. Carter' }
+  ];
+  var ALLOWED_EMAILS = ADMIN_USERS.map(function (u) { return u.email; });
   var SESSION_KEY  = 'cusa_hub_admin_user';
 
   var _db = null;
@@ -167,12 +173,13 @@
     btn.disabled = true; btn.textContent = 'Signing in…';
     try {
       var h = await hashPw(pw);
-      if (h !== LEGACY_HASH) {
+      var match = ADMIN_USERS.find(function (u) { return u.hash === h; });
+      if (!match) {
         err.textContent = 'Incorrect password.';
         btn.disabled = false; btn.textContent = 'Sign In';
         return;
       }
-      _currentUser = { email: SUPER_EMAIL, display_name: 'Legacy Admin' };
+      _currentUser = { email: match.email, display_name: match.display_name };
       try { localStorage.setItem(SESSION_KEY, JSON.stringify(_currentUser)); } catch (_) {}
       btn.disabled = false; btn.textContent = 'Sign In';
       onSignedIn();
@@ -201,7 +208,7 @@
       var raw = localStorage.getItem(SESSION_KEY);
       if (raw) {
         var u = JSON.parse(raw);
-        if (u && u.email === SUPER_EMAIL) {
+        if (u && u.email && ALLOWED_EMAILS.indexOf(u.email) !== -1) {
           _currentUser = u;
           onSignedIn();
           return;
@@ -242,7 +249,7 @@
       repoLabel:     'espn-equipment-tracker',
       repoFilter:    '%/ESPN Equipment Tracker%',
       getUser:       function () { return _currentUser; },
-      requiredEmail: 'kking@conferenceusa.com'
+      allowedEmails: ALLOWED_EMAILS
     });
   }
 

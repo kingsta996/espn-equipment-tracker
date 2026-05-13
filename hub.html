@@ -684,8 +684,12 @@
     }
   });
 
-  /* ── Admin Audit gate (legacy admin password → admin.html#claude-audit) ── */
-  var ADMIN_AUDIT_LEGACY_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  /* ── Admin Audit gate (legacy admin password → hub-admin.html) ── */
+  /* Each admin gets a distinct identity so audit/activity logs reflect WHO logged in. */
+  var ADMIN_AUDIT_USERS = [
+    { hash: '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2', email: 'kking@conferenceusa.com', display_name: 'Keith King' },
+    { hash: 'ee0579f300f3d10b330e1b9a9d122d6638f9ab54a2fa6c28dd8e5e972c0fadf1', email: 'bcarter@gxait.com',        display_name: 'GXA IT — B. Carter' }
+  ];
 
   function openAdminAuditLogin() {
     var pwEl = document.getElementById('adminAuditPw');
@@ -714,7 +718,8 @@
     btn.disabled = true; btn.textContent = 'Signing in…';
     try {
       var h = await adminAuditHashPw(pw);
-      if (h !== ADMIN_AUDIT_LEGACY_HASH) {
+      var match = ADMIN_AUDIT_USERS.find(function (u) { return u.hash === h; });
+      if (!match) {
         err.textContent = 'Incorrect password.';
         btn.disabled = false; btn.textContent = 'Sign in';
         return;
@@ -722,8 +727,8 @@
       // Pre-seed the hub-admin.html session so it skips its own modal.
       try {
         localStorage.setItem('cusa_hub_admin_user', JSON.stringify({
-          email: 'kking@conferenceusa.com',
-          display_name: 'Legacy Admin'
+          email: match.email,
+          display_name: match.display_name
         }));
       } catch (_) {}
       window.location.href = 'hub-admin.html';

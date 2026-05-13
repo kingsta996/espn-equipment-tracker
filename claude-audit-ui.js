@@ -131,6 +131,11 @@
 .ca-toolbar button.primary { background: #EF4035; color: #fff; border-color: #EF4035; }
 .ca-toolbar button.primary:hover { background: #d4322a; }
 .ca-toolbar .grow { flex: 1; }
+.ca-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; opacity: 0.75; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(127,127,127,0.25); background: rgba(127,127,127,0.06); white-space: nowrap; }
+.ca-live .dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 0 rgba(22,163,74,0.6); animation: ca-live-pulse 1.8s ease-out infinite; }
+.ca-live.paused { opacity: 0.5; }
+.ca-live.paused .dot { background: #9ca3af; animation: none; box-shadow: none; }
+@keyframes ca-live-pulse { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.55); } 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0); } 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); } }
 .ca-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .ca-stat { background: rgba(127,127,127,0.06); border: 1px solid rgba(127,127,127,0.18); border-radius: 10px; padding: 12px 14px; }
 .ca-stat .num { font-size: 22px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
@@ -243,9 +248,15 @@
       filters: { days: 7, event: '', severity: '', search: '' },
       page: 0,
       pageSize: 100,
-      activePane: 'overview'
+      activePane: 'overview',
+      lastLoadedAt: 0,
+      autoTimer: null,
+      tickerTimer: null,
+      paused: false
     };
   }
+
+  const AUTO_REFRESH_MS = 30000;
 
   /* ── Public init ─────────────────────────────────────────────────────── */
   async function init(cfg) {
@@ -254,16 +265,22 @@
     const state = newState();
     state.cfg = cfg;
 
-    // Auth gate (optional)
-    if (cfg.requiredEmail) {
+    // Auth gate (optional). Accepts either requiredEmail (string) or allowedEmails (array).
+    const allowed = []
+      .concat(cfg.requiredEmail ? [cfg.requiredEmail] : [])
+      .concat(Array.isArray(cfg.allowedEmails) ? cfg.allowedEmails : [])
+      .map(e => String(e).toLowerCase())
+      .filter(Boolean);
+    if (allowed.length) {
       const u = (cfg.getUser && cfg.getUser()) || null;
       const email = (u && u.email ? String(u.email).toLowerCase() : '');
-      if (email !== String(cfg.requiredEmail).toLowerCase()) {
+      if (!allowed.includes(email)) {
+        const list = allowed.map(escHtml).join(', ');
         cfg.container.innerHTML = `
           <div class="ca-root">
             <div class="ca-restricted">
               <h3>🔒 Restricted</h3>
-              <p>Claude Audit is only accessible to ${escHtml(cfg.requiredEmail)}. You are signed in as ${escHtml(email || 'unknown')}.</p>
+              <p>Claude Audit is only accessible to ${list}. You are signed in as ${escHtml(email || 'unknown')}.</p>
             </div>
           </div>`;
         return;
@@ -278,6 +295,53 @@
     cfg.container.innerHTML = renderSkeleton(state);
     wireSkeleton(state);
     await reload(state);
+    startAutoRefresh(state);
+  }
+
+  function startAutoRefresh(state) {
+    stopAutoRefresh(state);
+    state.autoTimer = setInterval(() => {
+      if (state.paused) return;
+      reload(state);
+    }, AUTO_REFRESH_MS);
+    state.tickerTimer = setInterval(() => updateLiveIndicator(state), 1000);
+    if (typeof document !== 'undefined' && !state._visHandler) {
+      state._visHandler = () => {
+        const hidden = document.visibilityState === 'hidden';
+        state.paused = hidden;
+        if (!hidden) reload(state);
+        updateLiveIndicator(state);
+      };
+      document.addEventListener('visibilitychange', state._visHandler);
+    }
+    updateLiveIndicator(state);
+  }
+
+  function stopAutoRefresh(state) {
+    if (state.autoTimer) { clearInterval(state.autoTimer); state.autoTimer = null; }
+    if (state.tickerTimer) { clearInterval(state.tickerTimer); state.tickerTimer = null; }
+  }
+
+  function updateLiveIndicator(state) {
+    const root = state.cfg && state.cfg.container;
+    if (!root) return;
+    const pill = root.querySelector('[data-live]');
+    const txt = root.querySelector('[data-live-text]');
+    if (!pill || !txt) return;
+    if (state.paused) {
+      pill.classList.add('paused');
+      txt.textContent = 'Paused (tab hidden)';
+      return;
+    }
+    pill.classList.remove('paused');
+    if (!state.lastLoadedAt) { txt.textContent = 'Live'; return; }
+    const ageMs = Date.now() - state.lastLoadedAt;
+    const ageSec = Math.floor(ageMs / 1000);
+    let when;
+    if (ageSec < 5) when = 'just now';
+    else if (ageSec < 60) when = ageSec + 's ago';
+    else { const m = Math.floor(ageSec / 60); when = m + 'm ago'; }
+    txt.textContent = 'Live · updated ' + when;
   }
 
   function renderSkeleton(state) {
@@ -332,6 +396,7 @@
     </label>
     <input type="search" placeholder="Search command, path, URL…" data-filter="search" />
     <span class="grow"></span>
+    <span class="ca-live" data-live title="Auto-refreshes every 30 seconds. Pauses while this tab is hidden."><span class="dot"></span><span data-live-text>Live</span></span>
     <button data-action="refresh">↻ Refresh</button>
     <button data-action="download" class="primary">⬇ Download Report</button>
   </div>
@@ -395,12 +460,15 @@
       const { data, error } = await q;
       if (error) throw error;
       state.events = data || [];
+      state.lastLoadedAt = Date.now();
     } catch (e) {
       state.events = [];
       root.querySelectorAll('.ca-pane').forEach(p => p.innerHTML = `<div class="ca-empty">Load failed: ${escHtml(e.message || e)}</div>`);
+      updateLiveIndicator(state);
       return;
     }
     applyFiltersAndRender(state);
+    updateLiveIndicator(state);
   }
 
   function applyFiltersAndRender(state) {

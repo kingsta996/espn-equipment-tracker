@@ -28,7 +28,8 @@ alter table roku_commands
 
 alter table roku_commands
   add constraint roku_commands_kind_check
-  check (kind in ('keypress', 'launch', 'text', 'macro', 'helo_stream'));
+  check (kind in ('keypress', 'launch', 'text', 'macro', 'helo_stream',
+                  'helo_get_param', 'helo_set_param'));
 
 
 -- ─── 2. Extend wsc_roku_enqueue to accept text + macro ───────────────────
@@ -80,7 +81,8 @@ begin
   end if;
 
   -- 3) Command shape
-  if p_kind not in ('keypress', 'launch', 'text', 'macro', 'helo_stream') then
+  if p_kind not in ('keypress', 'launch', 'text', 'macro', 'helo_stream',
+                    'helo_get_param', 'helo_set_param') then
     raise exception 'invalid kind: %', p_kind;
   end if;
   if p_encoder_id !~ '^CUSA([1-9]|10)$' then
@@ -111,6 +113,63 @@ begin
     if p_payload not in ('start', 'stop') then
       raise exception 'helo_stream payload must be start or stop';
     end if;
+  end if;
+  if p_kind = 'helo_get_param' then
+    -- Read-side allowlist mirrors cusa_relay.py HELO_PARAM_ALLOWLIST.
+    -- Keep both lists in lockstep when adding new fields.
+    if p_payload not in (
+      'eParamID_Stream1_Enable',
+      'eParamID_Stream2_Enable',
+      'eParamID_Stream1_RTMPServerURL',
+      'eParamID_Stream2_RTMPServerURL',
+      'eParamID_Stream1_RTMPStreamName',
+      'eParamID_Stream2_RTMPStreamName',
+      'eParamID_ReplicatorStream1State',
+      'eParamID_ReplicatorStream2State'
+    ) then
+      raise exception 'helo_get_param: paramid not in allowlist';
+    end if;
+  end if;
+  if p_kind = 'helo_set_param' then
+    -- Write-side allowlist: only the 6 user-editable fields. State
+    -- enums (Stream1State / Stream2State) are read-only, mirroring
+    -- the relay's HELO_PARAM_ALLOWLIST.set flag.
+    declare
+      v_pid text;
+      v_val text;
+      v_parsed jsonb;
+    begin
+      begin
+        v_parsed := p_payload::jsonb;
+      exception when others then
+        raise exception 'helo_set_param: payload not valid JSON';
+      end;
+      v_pid := v_parsed->>'paramid';
+      v_val := v_parsed->>'value';
+      if v_pid not in (
+        'eParamID_Stream1_Enable',
+        'eParamID_Stream2_Enable',
+        'eParamID_Stream1_RTMPServerURL',
+        'eParamID_Stream2_RTMPServerURL',
+        'eParamID_Stream1_RTMPStreamName',
+        'eParamID_Stream2_RTMPStreamName'
+      ) then
+        raise exception 'helo_set_param: paramid not writable';
+      end if;
+      if v_val is null then
+        raise exception 'helo_set_param: value missing';
+      end if;
+      if v_pid in ('eParamID_Stream1_Enable', 'eParamID_Stream2_Enable')
+         and v_val not in ('0', '1') then
+        raise exception 'helo_set_param: enable value must be 0 or 1';
+      end if;
+      if length(v_val) > 500 then
+        raise exception 'helo_set_param: value too long (max 500)';
+      end if;
+      if v_val ~ '[^\x20-\x7E]' then
+        raise exception 'helo_set_param: value must be printable ASCII';
+      end if;
+    end;
   end if;
   if p_kind = 'macro' then
     -- Cap payload size before the JSON parse so a malicious row can't

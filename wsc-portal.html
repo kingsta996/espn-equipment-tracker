@@ -782,14 +782,64 @@
         <button class="toggle" type="button" onclick="reloadRokuPreview()" title="Reconnect the live preview">↻ Reload</button>
       </div>
       <!-- HELO encoder controls: manual fallback when ESPN macro automation isn't appropriate. -->
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:rgba(0,181,226,0.08);border:1px solid rgba(0,181,226,0.25);border-radius:8px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:rgba(0,181,226,0.08);border:1px solid rgba(0,181,226,0.25);border-radius:8px">
         <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">📡 HELO Plus</div>
-        <button class="toggle" type="button" id="heloOpenWebBtn"   onclick="openHeloWebUi()"  title="Open the HELO Plus web UI in a new tab — Stream 1 Output and Stream 2 Output tabs live there. Only works from the MC broadcast LAN.">🌐 Web UI</button>
-        <button class="toggle" type="button" id="heloStream1Btn"   onclick="openHeloStream(1)" title="Deep-link to Stream 1 Output tab (same root URL — admin navigates to the tab once loaded)">📺 Stream 1 Output</button>
-        <button class="toggle" type="button" id="heloStream2Btn"   onclick="openHeloStream(2)" title="Deep-link to Stream 2 Output tab">📺 Stream 2 Output</button>
+        <button class="toggle" type="button" id="heloOpenWebBtn"   onclick="openHeloWebUi()"  title="Open the HELO Plus web UI in a new tab — only works from the MC broadcast LAN.">🌐 Web UI</button>
         <span style="flex:1"></span>
-        <button class="toggle" type="button" id="heloStartBtn"     onclick="heloStreaming('start')" title="Send Start Streaming via the relay (eParamID_ReplicatorCommand=3 to the active encoder's HELO Plus)">▶ Start Streaming</button>
+        <button class="toggle" type="button" id="heloStartBtn"     onclick="heloStreaming('start')" title="Send Start Streaming via the relay (eParamID_ReplicatorCommand=3)">▶ Start Streaming</button>
         <button class="toggle" type="button" id="heloStopBtn"      onclick="heloStreaming('stop')"  title="Send Stop Streaming via the relay (eParamID_ReplicatorCommand=4)">⏹ Stop Streaming</button>
+      </div>
+      <!-- Stream 1 / Stream 2 Output fields. Reads + writes go through the relay
+           on a strict paramid allowlist (Stream{1,2}_Enable, RTMPServerURL, RTMPStreamName). -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px;margin-bottom:14px">
+        <div id="heloStream1Panel" data-stream="1" style="padding:10px 12px;background:rgba(167,213,0,0.06);border:1px solid rgba(167,213,0,0.22);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <strong style="font-size:11px;color:var(--wsc-green);letter-spacing:0.6px;text-transform:uppercase">Stream 1 Output</strong>
+            <span class="helo-stream-state" id="heloStream1State" style="font-size:10px;color:var(--wsc-mute);font-weight:700;letter-spacing:0.4px">—</span>
+            <span style="flex:1"></span>
+            <button class="toggle" type="button" onclick="heloLoadStream(1)" title="Read current Enable / URL / Key from the device">↓ Load</button>
+            <button class="toggle" type="button" onclick="heloSaveStream(1)" title="Push the form values to the device">💾 Save</button>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:11.5px;align-items:center">
+            <label style="color:var(--wsc-mute);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Enabled</label>
+            <select id="heloStream1Enable" style="padding:5px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:5px;font-family:inherit;font-size:11.5px">
+              <option value="">—</option>
+              <option value="1">Enable</option>
+              <option value="0">Disable</option>
+            </select>
+            <label style="color:var(--wsc-mute);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">RTMP URL</label>
+            <input id="heloStream1Url" type="text" maxlength="500" placeholder="rtmp://ingest.example.com/live" style="padding:5px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:5px;font-family:'SF Mono',monospace;font-size:11px">
+            <label style="color:var(--wsc-mute);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Stream Key</label>
+            <div style="display:flex;gap:4px">
+              <input id="heloStream1Key" type="password" maxlength="500" autocomplete="off" placeholder="(loaded value will be masked)" style="flex:1;padding:5px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:5px;font-family:'SF Mono',monospace;font-size:11px">
+              <button class="toggle" type="button" onclick="heloToggleKeyMask(1)" title="Show / hide the stream key">👁</button>
+            </div>
+          </div>
+        </div>
+        <div id="heloStream2Panel" data-stream="2" style="padding:10px 12px;background:rgba(167,213,0,0.06);border:1px solid rgba(167,213,0,0.22);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <strong style="font-size:11px;color:var(--wsc-green);letter-spacing:0.6px;text-transform:uppercase">Stream 2 Output</strong>
+            <span class="helo-stream-state" id="heloStream2State" style="font-size:10px;color:var(--wsc-mute);font-weight:700;letter-spacing:0.4px">—</span>
+            <span style="flex:1"></span>
+            <button class="toggle" type="button" onclick="heloLoadStream(2)" title="Read current Enable / URL / Key from the device">↓ Load</button>
+            <button class="toggle" type="button" onclick="heloSaveStream(2)" title="Push the form values to the device">💾 Save</button>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:11.5px;align-items:center">
+            <label style="color:var(--wsc-mute);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Enabled</label>
+            <select id="heloStream2Enable" style="padding:5px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:5px;font-family:inherit;font-size:11.5px">
+              <option value="">—</option>
+              <option value="1">Enable</option>
+              <option value="0">Disable</option>
+            </select>
+            <label style="color:var(--wsc-mute);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">RTMP URL</label>
+            <input id="heloStream2Url" type="text" maxlength="500" placeholder="rtmp://ingest.example.com/live" style="padding:5px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:5px;font-family:'SF Mono',monospace;font-size:11px">
+            <label style="color:var(--wsc-mute);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Stream Key</label>
+            <div style="display:flex;gap:4px">
+              <input id="heloStream2Key" type="password" maxlength="500" autocomplete="off" placeholder="(loaded value will be masked)" style="flex:1;padding:5px 8px;background:rgba(0,0,0,0.3);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:5px;font-family:'SF Mono',monospace;font-size:11px">
+              <button class="toggle" type="button" onclick="heloToggleKeyMask(2)" title="Show / hide the stream key">👁</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="roku-preview-cell" id="enc-cell-roku-active">
         <div class="hls-preview-empty">Select an encoder to view its Roku output…</div>
@@ -3788,15 +3838,150 @@ function openHeloWebUi() {
   window.open(`http://${ip}/`, '_blank', 'noopener');
 }
 
-// Stream 1/2 Output tabs are sub-views of the same HELO Plus web UI
-// (single-page app at the root URL). We open the root and let the
-// operator click into the right tab. If AJA exposes a deep-link URL
-// for a specific tab later, swap this for that exact path.
-function openHeloStream(n) {
-  const ip = _activeHeloIp();
-  if (!ip) { rokuLog('No HELO IP for the active encoder — set one in Settings → Encoder IP overrides.', 'err'); return; }
-  rokuLog(`${_rokuActiveEncoder} → opening Stream ${n} Output in the HELO web UI`);
-  window.open(`http://${ip}/`, '_blank', 'noopener');
+// (Stream 1/2 Output now have dedicated relay-backed panels below the
+// HELO Plus row. The earlier "deep-link to web UI" buttons for Stream
+// 1/2 were removed once the relay-backed fields landed — operators
+// reach the same fields directly in the portal instead of jumping out
+// to the HELO web UI. Web UI button remains as a manual fallback.)
+
+const HELO_STREAM_STATE_LABEL = {
+  '0': '⏳ Initializing',
+  '1': '· Idle',
+  '2': '🔴 Streaming',
+  '3': '· Idle',
+  '4': '⏹ Stopped',
+  '5': '⏳ Shutting down',
+};
+const HELO_STREAM_STATE_COLOR = {
+  '0': 'var(--wsc-mute)',
+  '1': 'var(--wsc-mute)',
+  '2': '#A7D500',
+  '3': 'var(--wsc-mute)',
+  '4': '#ff7d8a',
+  '5': 'var(--wsc-mute)',
+};
+
+function _heloParamIdForStream(n, field) {
+  const map = {
+    enable: `eParamID_Stream${n}_Enable`,
+    url:    `eParamID_Stream${n}_RTMPServerURL`,
+    key:    `eParamID_Stream${n}_RTMPStreamName`,
+    state:  `eParamID_ReplicatorStream${n}State`,
+  };
+  return map[field];
+}
+
+// Enqueue a helo_get_param / helo_set_param command and poll for the
+// relay's response. Returns the parsed result (the row's .result jsonb)
+// or throws on failure.
+async function _heloRpc(kind, encoderId, payloadStr) {
+  if (!_db) throw new Error('Supabase not initialized');
+  const email = String(_currentUser?.email || '').toLowerCase();
+  const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+  const akey  = rokuAgentKey();
+  if (!email || !pw || !akey) throw new Error('Missing super-admin credential or pairing key — pair the agent first.');
+  const { data: cmdId, error } = await _db.rpc('wsc_roku_enqueue', {
+    p_email: email, p_pw_hash: pw, p_agent_key: akey,
+    p_encoder_id: encoderId, p_kind: kind, p_payload: payloadStr,
+  });
+  if (error) throw new Error('enqueue: ' + (error.message || error));
+  const MAX_MS = (typeof ROKU_REMOTE_TIMEOUT_MS === 'number' ? ROKU_REMOTE_TIMEOUT_MS : 12000);
+  const t0 = Date.now();
+  while (Date.now() - t0 < MAX_MS) {
+    await new Promise(r => setTimeout(r, 500));
+    const { data: rows, error: pollErr } = await _db.from('roku_commands')
+      .select('status,result').eq('id', cmdId).limit(1);
+    if (pollErr) throw new Error('poll: ' + (pollErr.message || pollErr));
+    const row = (rows || [])[0];
+    if (!row) continue;
+    if (row.status === 'ok' || row.status === 'error') {
+      const r = row.result || {};
+      if (row.status === 'error') throw new Error(r.error || 'agent reported error');
+      return r;
+    }
+  }
+  throw new Error('timed out — is cusa_relay.py running?');
+}
+
+async function heloLoadStream(n) {
+  if (!_rokuActiveEncoder) { rokuLog('No encoder selected', 'err'); return; }
+  const enc = _rokuActiveEncoder;
+  rokuLog(`${enc} → loading Stream ${n} settings from HELO`);
+  const stateEl = document.getElementById('heloStream' + n + 'State');
+  stateEl.textContent = '…loading';
+  stateEl.style.color = 'var(--wsc-mute)';
+  try {
+    // Fire all four reads in parallel for speed.
+    const [enable, url, key, state] = await Promise.all([
+      _heloRpc('helo_get_param', enc, _heloParamIdForStream(n, 'enable')),
+      _heloRpc('helo_get_param', enc, _heloParamIdForStream(n, 'url')),
+      _heloRpc('helo_get_param', enc, _heloParamIdForStream(n, 'key')),
+      _heloRpc('helo_get_param', enc, _heloParamIdForStream(n, 'state')),
+    ]);
+    document.getElementById('heloStream' + n + 'Enable').value = String(enable.value ?? '');
+    document.getElementById('heloStream' + n + 'Url').value    = String(url.value ?? '');
+    document.getElementById('heloStream' + n + 'Key').value    = String(key.value ?? '');
+    const sv = String(state.value ?? '');
+    stateEl.textContent = HELO_STREAM_STATE_LABEL[sv] || ('state=' + sv);
+    stateEl.style.color = HELO_STREAM_STATE_COLOR[sv] || 'var(--wsc-mute)';
+    rokuLog(`✓ ${enc} Stream ${n} loaded (state=${sv})`, 'ok');
+  } catch (e) {
+    rokuLog(`✗ ${enc} Stream ${n} load failed: ${e.message || e}`, 'err');
+    stateEl.textContent = '✗ load failed';
+    stateEl.style.color = '#ff7d8a';
+  }
+}
+
+async function heloSaveStream(n) {
+  if (!_rokuActiveEncoder) { rokuLog('No encoder selected', 'err'); return; }
+  const enc = _rokuActiveEncoder;
+  const enableVal = document.getElementById('heloStream' + n + 'Enable').value;
+  const urlVal    = document.getElementById('heloStream' + n + 'Url').value;
+  const keyVal    = document.getElementById('heloStream' + n + 'Key').value;
+
+  // Build the list of fields the operator actually intends to write.
+  // Empty enable means "don't touch". Empty URL/Key means "don't touch"
+  // — preventing accidental wipes when the operator only meant to flip
+  // the enable toggle.
+  const toWrite = [];
+  if (enableVal === '0' || enableVal === '1') toWrite.push({ field: 'enable', paramid: _heloParamIdForStream(n, 'enable'), value: enableVal });
+  if (urlVal !== '')                          toWrite.push({ field: 'url',    paramid: _heloParamIdForStream(n, 'url'),    value: urlVal });
+  if (keyVal !== '')                          toWrite.push({ field: 'key',    paramid: _heloParamIdForStream(n, 'key'),    value: keyVal });
+  if (!toWrite.length) { rokuLog(`Nothing to save for Stream ${n} — all fields blank.`, 'err'); return; }
+
+  // Confirm potentially-disruptive writes during live operations.
+  const enabling = (enableVal === '1');
+  if (enabling) {
+    if (!confirm(`Enable Stream ${n} on ${enc}? Make sure URL + key are correct first.`)) return;
+  }
+
+  rokuLog(`${enc} → saving Stream ${n} (${toWrite.map(w => w.field).join(', ')})`);
+  let ok = 0, failed = [];
+  for (const w of toWrite) {
+    try {
+      await _heloRpc('helo_set_param', enc, JSON.stringify({ paramid: w.paramid, value: w.value }));
+      ok++;
+    } catch (e) {
+      failed.push(`${w.field}: ${e.message || e}`);
+    }
+  }
+  if (failed.length) {
+    rokuLog(`✗ ${enc} Stream ${n} save partial: ${ok} ok, ${failed.length} failed — ${failed.join('; ')}`, 'err');
+  } else {
+    rokuLog(`✓ ${enc} Stream ${n} saved (${ok} field${ok === 1 ? '' : 's'})`, 'ok');
+    // Stream keys are intentionally NOT logged here — we log only the field names.
+    logActivity('helo-stream-config', 'encoder:' + enc, `stream${n}: ${toWrite.map(w => w.field).join(',')}`);
+    // Re-load to confirm state + clear the password field so a stale
+    // value doesn't sit visible.
+    document.getElementById('heloStream' + n + 'Key').value = '';
+    await heloLoadStream(n);
+  }
+}
+
+function heloToggleKeyMask(n) {
+  const inp = document.getElementById('heloStream' + n + 'Key');
+  if (!inp) return;
+  inp.type = (inp.type === 'password') ? 'text' : 'password';
 }
 
 // Start/Stop streaming on the active encoder's HELO Plus. Always goes

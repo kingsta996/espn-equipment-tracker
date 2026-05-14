@@ -620,6 +620,73 @@
   </div>
 </div>
 
+<!-- Add / edit Championship modal -->
+<div class="pw-overlay" id="champFormOverlay">
+  <div class="pw-box" style="max-width:560px;text-align:left">
+    <h2 id="champFormTitle" style="text-align:left">＋ Add Championship</h2>
+    <p style="text-align:left;font-size:11.5px;color:rgba(255,255,255,0.55);margin-bottom:14px">
+      Add a CUSA championship event so it appears in the Championships capture queue. Pick <em>Team-vs-team</em> for football, soccer, volleyball, basketball, baseball, softball. Pick <em>CUSA solo</em> for bowling, golf, tennis, cross country, track &amp; field.
+    </p>
+    <input type="hidden" id="champEditId">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Format</label>
+        <div style="display:flex;gap:6px">
+          <button class="toggle active" type="button" id="champTypeTeamBtn" onclick="setChampType('team')">Team-vs-team</button>
+          <button class="toggle" type="button" id="champTypeSoloBtn" onclick="setChampType('solo')">CUSA solo</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Sport</label>
+          <select id="champSport" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px"></select>
+        </div>
+        <div style="flex:0 0 150px">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Date</label>
+          <input id="champDate" type="date" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:13px">
+        </div>
+        <div style="flex:0 0 140px">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Time</label>
+          <input id="champTime" type="text" placeholder="7:00 PM CT" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
+        </div>
+      </div>
+      <div id="champTeamFields" style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Away</label>
+          <input id="champAway" type="text" placeholder="e.g. Liberty" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Home</label>
+          <input id="champHome" type="text" placeholder="e.g. Western Kentucky" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
+        </div>
+      </div>
+      <div id="champSoloFields" style="display:none">
+        <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Title</label>
+        <input id="champTitle" type="text" placeholder="e.g. CUSA Tennis Championship — Semifinal" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Network</label>
+          <input id="champNetwork" type="text" placeholder="ESPN+" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Round</label>
+          <input id="champRound" type="text" placeholder="Championship, Semifinal, Round 1…" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Notes</label>
+        <input id="champNotes" type="text" placeholder="optional" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
+      </div>
+    </div>
+    <div id="champFormErr" style="color:#ff7d8a;font-size:12px;min-height:18px;margin-top:8px"></div>
+    <div class="pw-actions" style="margin-top:6px">
+      <button class="secondary" type="button" onclick="closeAddChampionshipModal()">Cancel</button>
+      <button id="champFormSubmit" type="button" onclick="submitChampionshipForm()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Header -->
 <div class="header">
   <div class="logos">
@@ -640,7 +707,8 @@
 <!-- Tabs -->
 <div class="tab-bar">
   <button class="active" data-tab="master" data-school-hidden>📡 Master Schedule <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Tata SRT)</span></button>
-  <button data-tab="manual">🎯 Manual Capture</button>
+  <button data-tab="manual">🎯 Manual Capture <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Sam Houston)</span></button>
+  <button data-tab="championship" data-school-hidden>🏆 Championships</button>
   <button data-tab="past">🗄 Past Events</button>
   <button data-tab="streamsheet">📊 WSC Stream Sheet</button>
   <button data-tab="multi"    data-multiviewer-only>📺 Multiviewer</button>
@@ -684,7 +752,7 @@
 <!-- Manual Capture -->
 <section class="tab-content" id="tab-manual">
   <div class="support-note">
-    <span>Manual capture support is provided by the conference office — for issues, contact <a href="mailto:kking@conferenceusa.com">kking@conferenceusa.com</a>. Sam Houston rows include a <strong>🖥 Splashtop</strong> button for remote access into the office capture computer.</span>
+    <span><strong>Sam Houston manual-capture queue.</strong> This tab is specifically for Sam Houston's on-site manual captures (their soccer, volleyball, baseball, softball — not on Tata SRT). For conference-run championship captures, use the <strong>🏆 Championships</strong> tab. Support: <a href="mailto:kking@conferenceusa.com">kking@conferenceusa.com</a>. Sam Houston rows include a <strong>🖥 Splashtop</strong> button for remote access into the office capture computer.</span>
   </div>
   <div class="stats-strip">
     <div class="stat"><div class="num" id="manualCount">—</div><div class="lbl">Manual Events</div></div>
@@ -702,6 +770,28 @@
     <button class="toggle" type="button" onclick="exportManual()">⇣ CSV</button>
   </div>
   <div id="manualTable"></div>
+</section>
+
+<!-- Championships (conference manual capture, separate from Sam Houston) -->
+<section class="tab-content" id="tab-championship">
+  <div class="support-note">
+    <span><strong>Conference championship capture queue.</strong> Add CUSA championship events manually, or watch them auto-populate from the ESPN API. Encoders booked here participate in the same 4-hour conflict check as the Master Schedule + Manual Capture, so you can't double-book a CUSA encoder.</span>
+  </div>
+  <div class="stats-strip">
+    <div class="stat"><div class="num" id="championshipCount">—</div><div class="lbl">Championship Events</div></div>
+    <div class="stat"><div class="num" id="championshipUpcoming">—</div><div class="lbl">Upcoming 7 days</div></div>
+    <div class="stat"><div class="num" id="championshipEspn">—</div><div class="lbl">From ESPN API</div></div>
+  </div>
+  <div class="toolbar">
+    <span class="pill">CUSA · CHAMPIONSHIPS</span>
+    <input id="championshipSearch" placeholder="Search matchup, sport, network…">
+    <select id="championshipSport"><option value="">All Sports</option></select>
+    <input id="championshipFrom" type="date" title="From">
+    <input id="championshipTo"   type="date" title="To">
+    <span class="grow"></span>
+    <button class="toggle" type="button" onclick="openAddChampionshipModal()">＋ Add Championship</button>
+  </div>
+  <div id="championshipTable"></div>
 </section>
 
 <!-- Past Events archive -->
@@ -988,6 +1078,27 @@ const SAM_HOUSTON_MANUAL_SPORTS = new Set([
 ]);
 const FOOTBALL = 'Football';
 const BASKETBALL = new Set(["Men's Basketball", "Women's Basketball", "Women’s Basketball"]);
+
+// Championships tab — sports the user identified explicitly.
+// "Team" = two specific teams play the championship game (football, soccer, VB,
+// basketball, baseball, softball). "Solo" = a single CUSA event w/ no matchup
+// (bowling, golf, tennis, cross country, track & field, beach volleyball).
+const TEAM_CHAMP_SPORTS = [
+  'Football', "Men's Soccer", "Women's Soccer", 'Soccer',
+  'Volleyball', "Men's Volleyball", "Women's Volleyball",
+  "Men's Basketball", "Women's Basketball", "Women’s Basketball",
+  'Baseball', 'Softball'
+];
+const SOLO_CHAMP_SPORTS = [
+  'Bowling',
+  "Men's Golf", "Women's Golf", 'Golf',
+  "Men's Tennis", "Women's Tennis", 'Tennis',
+  "Men's Cross Country", "Women's Cross Country", 'Cross Country',
+  "Men's Indoor Track & Field", "Women's Indoor Track & Field",
+  "Men's Outdoor Track & Field", "Women's Outdoor Track & Field",
+  'Track & Field', "Track and Field",
+  'Beach Volleyball', "Women's Beach Volleyball"
+];
 
 // Wowza blob storage doesn't send Access-Control-Allow-Origin, so HLS.js
 // can't fetch playlists directly. netlify.toml rewrites /wsc-blob/* and
@@ -1358,6 +1469,7 @@ let _networkOverrides = new Map(); // event_key → { network, updated_by, updat
 let _aliasMap = new Map(); // lowercase alias → canonical
 let _events = [];         // schedule_events rows (deduped, master+manual scope)
 let _externalEvents = []; // wsc_external_events rows (school-site scrapes)
+let _championships = []; // wsc_championship_events rows (manual conference championship entries)
 let _testEvents = [];     // synthetic test events when test mode is active
 let _testCaptureLocal = new Map(); // schedule_event_id → { av_confirmed, encoder } (test-only, in-memory)
 let _captureStatus = new Map(); // schedule_event_id → wsc_capture_status row
@@ -1372,9 +1484,10 @@ let _adminUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true';
 let _testMode = localStorage.getItem(TEST_MODE_KEY) === '1';
 
 let _filters = {
-  master: { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
-  manual: { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
-  past:   { search: '', sport: '', school: '', from: '', to: '', hideConf: false }
+  master:       { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
+  manual:       { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
+  past:         { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
+  championship: { search: '', sport: '', from: '', to: '' }
 };
 let _pastView = 'master';     // Past Events tab sub-view: 'master' | 'manual'
 
@@ -1425,7 +1538,7 @@ async function initPortal() {
   document.getElementById('currentUser').textContent =
     _currentUser ? (_currentUser.display_name || _currentUser.email) : '';
   await loadConfig();
-  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus(), loadEncoderOverrides(), loadNetworkOverrides(), loadEspnMacros(), loadEspnEvents()]);
+  await Promise.all([loadEvents(), loadExternalEvents(), loadCaptureStatus(), loadDismissals(), loadOverrides(), loadEncoderStatus(), loadEncoderOverrides(), loadNetworkOverrides(), loadEspnMacros(), loadEspnEvents(), loadChampionships()]);
   if (_testMode) await loadTestEvents();
   refreshTestBanner();
   applyAdminVisibility();
@@ -2369,6 +2482,103 @@ async function loadEspnEvents() {
   }
 }
 
+async function loadChampionships() {
+  if (!_db) return;
+  try {
+    const earliest = new Date(); earliest.setDate(earliest.getDate() - 30);
+    const { data, error } = await _db.from('wsc_championship_events')
+      .select('*')
+      .gte('event_date', earliest.toISOString().slice(0, 10))
+      .order('event_date');
+    if (error) throw error;
+    _championships = (data || []).filter(r => !r.archived);
+  } catch (e) {
+    console.warn('wsc_championship_events load:', e?.message || e);
+    _championships = [];
+  }
+}
+
+// Decides whether an ESPN API row is a CUSA championship. We use this to
+// auto-surface ESPN-discovered championships on the Championships tab
+// alongside manually-added entries.
+function isEspnChampionship(ee) {
+  if (!ee) return false;
+  const hay = `${ee.short_name || ''} ${ee.away_team || ''} ${ee.home_team || ''} ${ee.league_slug || ''}`.toLowerCase();
+  const cusa = /\bcusa\b|conference\s*usa/.test(hay);
+  if (!cusa) return false;
+  if (/championship/.test(hay)) return true;
+  // Solo-championship sports are CUSA-only events in our reporting — if the
+  // ESPN row mentions CUSA at all, treat it as a championship.
+  if (SOLO_CHAMP_SPORTS.includes(ee.sport)) return true;
+  return false;
+}
+
+// Composer: returns event-row-shaped objects for both manual entries and
+// ESPN-detected championships. ID prefix lets the rest of the portal
+// (capture status, encoder conflict) keep things distinct from regular
+// schedule events. Manual entries take precedence on duplicates.
+function championshipRows() {
+  const out = [];
+  const seen = new Set();
+  const keyOf = (date, sport, home, away, title) =>
+    [date || '', sport || '', normalize(home), normalize(away), normalize(title)].join('|');
+
+  for (const r of _championships) {
+    const isSolo = r.champ_type === 'solo';
+    const title = isSolo ? (r.title || `CUSA ${r.sport} Championship`) : '';
+    out.push({
+      id: 'champ_' + r.id,
+      _isChampionship: true,
+      _championshipSource: 'manual',
+      _championshipRecord: r,
+      _championshipType: r.champ_type,
+      _championshipTitle: title,
+      sport: r.sport || '',
+      event_date: r.event_date || '',
+      event_time: r.event_time || '',
+      home: r.home_team || '',
+      away: r.away_team || '',
+      conference: 'Conference USA',
+      network: r.network || '',
+      round_text: r.round_text || '',
+      notes: r.notes || ''
+    });
+    seen.add(keyOf(r.event_date, r.sport, r.home_team, r.away_team, title));
+  }
+  for (const ee of _espnEvents.values()) {
+    if (!isEspnChampionship(ee)) continue;
+    const ev_date = ee.kickoff_at ? new Date(ee.kickoff_at).toISOString().slice(0, 10) : '';
+    const ev_time = ee.kickoff_at
+      ? new Date(ee.kickoff_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+      : '';
+    const homeT = ee.home_team || '';
+    const awayT = ee.away_team || '';
+    const isTeam = !!(homeT && awayT);
+    const title = isTeam ? '' : (ee.short_name || `CUSA ${ee.sport || ''} Championship`).trim();
+    const key = keyOf(ev_date, ee.sport, homeT, awayT, title);
+    if (seen.has(key)) continue;
+    out.push({
+      id: 'espnchamp_' + ee.espn_event_id,
+      _isChampionship: true,
+      _championshipSource: 'espn',
+      _espnRecord: ee,
+      _championshipType: isTeam ? 'team' : 'solo',
+      _championshipTitle: title,
+      sport: ee.sport || '',
+      event_date: ev_date,
+      event_time: ev_time,
+      home: homeT,
+      away: awayT,
+      conference: 'Conference USA',
+      network: ee.broadcast || '',
+      round_text: '',
+      notes: ''
+    });
+    seen.add(key);
+  }
+  return out;
+}
+
 // Fuzzy-match a Master Schedule row (away/home strings + event_date +
 // event_time) to a wsc_espn_events row. ESPN team names are often more
 // formal than CUSA's internal labels ("Middle Tennessee Blue Raiders"
@@ -2756,6 +2966,21 @@ function findEventById(id) {
     const r = _testEvents.find(e => e.id === id);
     if (r) return r;
   }
+  // Championship rows: encoder conflict label needs to be able to name a
+  // championship that's holding an encoder, even though we don't keep them
+  // in _events. Compose on the fly.
+  if (typeof id === 'string' && (id.startsWith('champ_') || id.startsWith('espnchamp_'))) {
+    const cr = championshipRows();
+    const r = cr.find(e => e.id === id);
+    if (r) {
+      // Conflict UI reads .away / .home — for solo champs there's no matchup,
+      // fall the title into .away so it shows up in the dropdown label.
+      if (!r.away && !r.home && r._championshipTitle) {
+        return Object.assign({}, r, { away: r._championshipTitle, home: '' });
+      }
+      return r;
+    }
+  }
   return null;
 }
 
@@ -2969,13 +3194,14 @@ function wireTabs() {
       stopAllMv();
       destroyAllRowHls();
       // Re-render the entering tab so its previews remount.
-      if (tab === 'multi')    rebuildMv();
-      if (tab === 'master')   renderMaster();
-      if (tab === 'manual')   renderManual();
-      if (tab === 'past')     renderPast();
-      if (tab === 'settings') renderSettings();
-      if (tab === 'roku')     enterRokuTab();
-      else                    leaveRokuTab();
+      if (tab === 'multi')         rebuildMv();
+      if (tab === 'master')        renderMaster();
+      if (tab === 'manual')        renderManual();
+      if (tab === 'championship')  renderChampionships();
+      if (tab === 'past')          renderPast();
+      if (tab === 'settings')      renderSettings();
+      if (tab === 'roku')          enterRokuTab();
+      else                         leaveRokuTab();
     });
   });
 }
@@ -3001,6 +3227,17 @@ function bindFilterControls() {
       });
     }
   });
+  // Championships tab has its own filter scope (no school dropdown).
+  const cf = _filters.championship;
+  const cReRender = () => renderChampionships();
+  const bindIf = (id, key, evt = 'change') => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, e => { cf[key] = e.target.value; cReRender(); });
+  };
+  bindIf('championshipSearch', 'search', 'input');
+  bindIf('championshipSport',  'sport');
+  bindIf('championshipFrom',   'from');
+  bindIf('championshipTo',     'to');
 }
 
 function setPastView(v) {
@@ -3077,7 +3314,143 @@ function renderManual() { renderTable('manual'); }
 function renderPast()   { renderTable(_pastView, { past: true }); }
 // Re-render all three schedule views — used after any data load that may shift
 // events between current and past, or change A/V / encoder state.
-function renderAllSchedules() { renderMaster(); renderManual(); renderPast(); }
+function renderAllSchedules() { renderMaster(); renderManual(); renderPast(); renderChampionships(); }
+
+function renderChampionships() {
+  const tableEl = document.getElementById('championshipTable');
+  if (!tableEl) return;
+  destroyAllRowHls();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  const all = championshipRows()
+    .filter(e => {
+      if (!e.event_date) return true;
+      const d = new Date(e.event_date + 'T12:00:00'); d.setHours(0, 0, 0, 0);
+      return d >= today;
+    })
+    .sort((a, b) => (a.event_date || '').localeCompare(b.event_date || ''));
+
+  // Stats strip
+  const weekOut = new Date(today); weekOut.setDate(weekOut.getDate() + 7);
+  const upcoming = all.filter(e => {
+    if (!e.event_date) return false;
+    const t = new Date(e.event_date + 'T12:00:00');
+    return t >= today && t <= weekOut;
+  }).length;
+  const espnCount = all.filter(e => e._championshipSource === 'espn').length;
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText('championshipCount', all.length);
+  setText('championshipUpcoming', upcoming);
+  setText('championshipEspn', espnCount);
+
+  // Sport filter dropdown
+  fillSelect('championshipSport', Array.from(new Set(all.map(e => e.sport).filter(Boolean))).sort());
+
+  // Apply filters
+  const f = _filters.championship;
+  const q = (f.search || '').trim().toLowerCase();
+  const fromTs = f.from ? new Date(f.from).getTime() : -Infinity;
+  const toTs   = f.to   ? new Date(f.to).getTime() + 86400000 : Infinity;
+  const rows = all.filter(ev => {
+    if (f.sport && ev.sport !== f.sport) return false;
+    const t = ev.event_date ? new Date(ev.event_date).getTime() : 0;
+    if (t < fromTs || t > toTs) return false;
+    if (q) {
+      const hay = [ev.home, ev.away, ev.sport, ev._championshipTitle, networkForEvent(ev).value, ev.round_text, ev.notes].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  if (rows.length === 0) {
+    tableEl.innerHTML = `<div class="empty"><h3>No championship events</h3>Click "＋ Add Championship" to enter one, or wait for the ESPN API to surface a CUSA championship.</div>`;
+    return;
+  }
+
+  const head = `
+    <thead><tr>
+      <th>Date</th>
+      <th>Sport</th>
+      <th>Matchup / Title</th>
+      <th class="col-network">Network</th>
+      <th>Source</th>
+      <th>Encoder</th>
+      <th>HLS Preview</th>
+      <th></th>
+    </tr></thead>`;
+
+  const body = rows.map(ev => {
+    const status = getCaptureFor(ev.id);
+    const matchupCell = ev._championshipType === 'team' && (ev.away || ev.home)
+      ? `${escapeHtml(ev.away || '?')} @ ${escapeHtml(ev.home || '?')}`
+      : escapeHtml(ev._championshipTitle || `CUSA ${ev.sport} Championship`);
+    const subBits = [ev.event_time, ev.round_text].filter(Boolean).map(escapeHtml).join(' · ');
+    const subHtml = subBits ? `<span class="sub">${subBits}</span>` : '';
+    const sportCell = `<td class="col-sport"><span>${escapeHtml(shortSport(ev.sport))}</span></td>`;
+    const sourcePill = ev._championshipSource === 'espn'
+      ? `<span class="pill" style="background:rgba(255,193,7,0.18);color:#FFC107;border-color:rgba(255,193,7,0.4)" title="Auto-detected from the ESPN API — add a manual row to override">ESPN</span>`
+      : `<span class="pill" style="background:rgba(0,181,226,0.18);color:#00B5E2;border-color:rgba(0,181,226,0.4)" title="Manually added on this tab">MANUAL</span>`;
+
+    const conflicts = encoderConflictsFor(ev);
+    const encOptsRow = (_config?.encoders || []).map(e => {
+      const isSelected = status.encoder === e.id;
+      const inactive   = !isEncoderActive(e.id);
+      const conflict   = conflicts.get(e.id);
+      const disable    = !isSelected && (inactive || !!conflict);
+      let label = e.id;
+      if (inactive) {
+        const reason = _encoderStatus.get(e.id)?.inactive_reason;
+        label += reason ? ` — inactive (${reason})` : ' — inactive';
+      } else if (conflict) {
+        const cmatch = `${conflict.away || '?'}${conflict.home ? ' @ ' + conflict.home : ''}`;
+        const when = conflict.event_time ? ` ${conflict.event_time}` : '';
+        label += ` — in use:${when} ${cmatch}`;
+      }
+      const titleAttr = disable ? ` title="${escapeAttr(label)}"` : '';
+      return `<option value="${e.id}" ${isSelected ? 'selected' : ''} ${disable ? 'disabled' : ''}${titleAttr}>${escapeHtml(label)}</option>`;
+    }).join('');
+
+    const rowActions = ev._championshipSource === 'manual'
+      ? `<button class="remove-btn" type="button" onclick="openEditChampionshipModal('${ev._championshipRecord.id}')" title="Edit">✎</button>
+         <button class="remove-btn" type="button" onclick="deleteChampionship('${ev._championshipRecord.id}')" title="Delete">✕</button>`
+      : '';
+
+    return `
+      <tr>
+        <td class="col-date">${formatDate(ev.event_date)}</td>
+        ${sportCell}
+        <td class="col-matchup">${matchupCell}${subHtml}</td>
+        ${networkCellHtml(ev)}
+        <td>${sourcePill}</td>
+        <td class="encoder-cell">
+          <select class="${status.encoder ? 'set' : ''}" onchange="setEncoderAndPreview('${ev.id}', this.value)">
+            <option value="">— Select —</option>
+            ${encOptsRow}
+          </select>
+        </td>
+        <td class="col-hls-preview" id="enc-cell-${cssId(ev.id)}">
+          <div class="hls-preview-empty">Pick an encoder →</div>
+        </td>
+        <td style="white-space:nowrap">${rowActions}</td>
+      </tr>`;
+  }).join('');
+
+  tableEl.innerHTML = `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
+
+  // Mount HLS preview cells — same pattern as Manual Capture.
+  for (const ev of rows) {
+    const st = getCaptureFor(ev.id);
+    const cell = document.getElementById('enc-cell-' + cssId(ev.id));
+    if (!cell) continue;
+    if (isToday(ev.event_date)) {
+      if (st.encoder) attachEncoderPreview(ev.id, st.encoder);
+    } else if (st.encoder) {
+      cell.innerHTML = `<div class="hls-preview-empty">${previewButtonHtml(ev.id, 'encoder')}<div class="hls-preview-hint">Game day: ${formatDate(ev.event_date)}</div></div>`;
+    } else {
+      cell.innerHTML = `<div class="hls-preview-empty">Pick an encoder, then preview<div class="hls-preview-hint">Game day: ${formatDate(ev.event_date)}</div></div>`;
+    }
+  }
+}
 
 function renderTable(scope, opts = {}) {
   const { past = false } = opts;
@@ -3324,6 +3697,143 @@ function renderTable(scope, opts = {}) {
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════
+ *  CHAMPIONSHIPS — add / edit / delete modal
+ * ══════════════════════════════════════════════════════════════════ */
+let _champFormType = 'team';  // 'team' | 'solo'
+
+function setChampType(t) {
+  _champFormType = t === 'solo' ? 'solo' : 'team';
+  const teamBtn = document.getElementById('champTypeTeamBtn');
+  const soloBtn = document.getElementById('champTypeSoloBtn');
+  if (teamBtn) teamBtn.classList.toggle('active', _champFormType === 'team');
+  if (soloBtn) soloBtn.classList.toggle('active', _champFormType === 'solo');
+  document.getElementById('champTeamFields').style.display = _champFormType === 'team' ? 'flex' : 'none';
+  document.getElementById('champSoloFields').style.display = _champFormType === 'solo' ? 'block' : 'none';
+  // Repopulate sport options for the chosen type.
+  const list = _champFormType === 'team' ? TEAM_CHAMP_SPORTS : SOLO_CHAMP_SPORTS;
+  const sel = document.getElementById('champSport');
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = list.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join('');
+    if (list.includes(prev)) sel.value = prev;
+  }
+}
+
+function openAddChampionshipModal() {
+  document.getElementById('champFormTitle').textContent = '＋ Add Championship';
+  document.getElementById('champEditId').value = '';
+  document.getElementById('champDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('champTime').value = '';
+  document.getElementById('champAway').value = '';
+  document.getElementById('champHome').value = '';
+  document.getElementById('champTitle').value = '';
+  document.getElementById('champNetwork').value = 'ESPN+';
+  document.getElementById('champRound').value = '';
+  document.getElementById('champNotes').value = '';
+  document.getElementById('champFormErr').textContent = '';
+  setChampType('team');
+  document.getElementById('champFormOverlay').classList.add('open');
+}
+
+function openEditChampionshipModal(id) {
+  const rec = _championships.find(r => r.id === id);
+  if (!rec) { showToast('Championship not found', 'err'); return; }
+  document.getElementById('champFormTitle').textContent = '✎ Edit Championship';
+  document.getElementById('champEditId').value = rec.id;
+  document.getElementById('champDate').value = rec.event_date || '';
+  document.getElementById('champTime').value = rec.event_time || '';
+  document.getElementById('champAway').value = rec.away_team || '';
+  document.getElementById('champHome').value = rec.home_team || '';
+  document.getElementById('champTitle').value = rec.title || '';
+  document.getElementById('champNetwork').value = rec.network || '';
+  document.getElementById('champRound').value = rec.round_text || '';
+  document.getElementById('champNotes').value = rec.notes || '';
+  document.getElementById('champFormErr').textContent = '';
+  setChampType(rec.champ_type === 'solo' ? 'solo' : 'team');
+  // Set sport after setChampType has repopulated the dropdown.
+  const sel = document.getElementById('champSport');
+  if (sel && rec.sport) {
+    if (!Array.from(sel.options).some(o => o.value === rec.sport)) {
+      const opt = document.createElement('option');
+      opt.value = rec.sport; opt.textContent = rec.sport;
+      sel.appendChild(opt);
+    }
+    sel.value = rec.sport;
+  }
+  document.getElementById('champFormOverlay').classList.add('open');
+}
+
+function closeAddChampionshipModal() {
+  document.getElementById('champFormOverlay').classList.remove('open');
+}
+
+async function submitChampionshipForm() {
+  const errEl = document.getElementById('champFormErr');
+  errEl.textContent = '';
+  if (!_db) { errEl.textContent = 'Database not connected.'; return; }
+  const editId = document.getElementById('champEditId').value || null;
+  const sport  = document.getElementById('champSport').value.trim();
+  const date   = document.getElementById('champDate').value.trim();
+  if (!sport) { errEl.textContent = 'Pick a sport.'; return; }
+  if (!date)  { errEl.textContent = 'Pick a date.';  return; }
+  const payload = {
+    champ_type: _champFormType,
+    sport,
+    event_date: date,
+    event_time: document.getElementById('champTime').value.trim() || null,
+    title:      _champFormType === 'solo' ? (document.getElementById('champTitle').value.trim() || null) : null,
+    away_team:  _champFormType === 'team' ? (document.getElementById('champAway').value.trim() || null) : null,
+    home_team:  _champFormType === 'team' ? (document.getElementById('champHome').value.trim() || null) : null,
+    network:    document.getElementById('champNetwork').value.trim() || null,
+    round_text: document.getElementById('champRound').value.trim() || null,
+    notes:      document.getElementById('champNotes').value.trim() || null,
+    created_by: _currentUser?.email || null,
+    updated_at: new Date().toISOString()
+  };
+  if (_champFormType === 'team' && !payload.away_team && !payload.home_team) {
+    errEl.textContent = 'Enter at least one team (away or home).'; return;
+  }
+  if (_champFormType === 'solo' && !payload.title) {
+    payload.title = `CUSA ${sport} Championship`;
+  }
+  const btn = document.getElementById('champFormSubmit');
+  btn.disabled = true;
+  try {
+    if (editId) {
+      const { error } = await _db.from('wsc_championship_events').update(payload).eq('id', editId);
+      if (error) throw error;
+      showToast('Championship updated', 'ok');
+    } else {
+      const { error } = await _db.from('wsc_championship_events').insert([payload]);
+      if (error) throw error;
+      showToast('Championship added', 'ok');
+    }
+    closeAddChampionshipModal();
+    await loadChampionships();
+    renderChampionships();
+  } catch (e) {
+    errEl.textContent = e?.message || String(e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteChampionship(id) {
+  if (!confirm('Delete this championship row? Any encoder booking attached to it will also be cleared.')) return;
+  try {
+    await _db.from('wsc_capture_status').delete().eq('schedule_event_id', 'champ_' + id);
+    const { error } = await _db.from('wsc_championship_events').delete().eq('id', id);
+    if (error) throw error;
+    showToast('Championship deleted', 'ok');
+    await loadChampionships();
+    await loadCaptureStatus();
+    renderChampionships();
+  } catch (e) {
+    showToast(e?.message || 'Delete failed', 'err');
+  }
+}
+
 function primarySportKey(sport) {
   // SRT data has Football / Men's Basketball / Women's Basketball — non-listed sports fall through.
   if (sport === FOOTBALL) return FOOTBALL;
@@ -3404,14 +3914,14 @@ async function setEncoder(eventId, encoder) {
   if (isTestId(eventId)) {
     _testCaptureLocal.set(eventId, Object.assign({}, cur, patch));
     // Immediate re-render so other rows' dropdowns reflect the new conflict.
-    renderManual();
+    renderAllSchedules();
     return;
   }
   if (!_db) return;
   _captureStatus.set(eventId, Object.assign({}, cur, patch));
   // Re-render NOW so other rows on the same date+window grey out this
   // encoder without waiting for the realtime echo round-trip.
-  renderManual();
+  renderAllSchedules();
   try {
     const { error } = await _db.from('wsc_capture_status').upsert(patch, { onConflict: 'schedule_event_id' });
     if (error) throw error;
@@ -3423,7 +3933,7 @@ async function setEncoder(eventId, encoder) {
     } else {
       _captureStatus.delete(eventId);
     }
-    renderManual();
+    renderAllSchedules();
     showToast('Encoder save failed', 'err');
   }
 }
@@ -3465,6 +3975,10 @@ function setupRealtime() {
      .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_espn_events' }, async () => {
        await loadEspnEvents();
        renderAllSchedules();
+     })
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_championship_events' }, async () => {
+       await loadChampionships();
+       renderChampionships();
      })
      .subscribe();
 }

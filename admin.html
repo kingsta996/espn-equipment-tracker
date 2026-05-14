@@ -471,6 +471,7 @@
   <button data-tab="championships">Championships</button>
   <button data-tab="shows">Shows</button>
   <button data-tab="rawdata">Raw Data</button>
+  <button data-tab="periods">📅 Periods</button>
   <button data-tab="activity">📋 Activity Log</button>
   <button data-tab="schools">🏫 Schools</button>
 </div>
@@ -494,6 +495,7 @@
   <div id="championships" class="tab-content" style="display:none"></div>
   <div id="shows"         class="tab-content" style="display:none"></div>
   <div id="rawdata"       class="tab-content" style="display:none"></div>
+  <div id="periods"       class="tab-content" style="display:none"></div>
   <div id="activity"      class="tab-content" style="display:none"></div>
   <div id="schools"       class="tab-content" style="display:none"></div>
 
@@ -2230,6 +2232,7 @@
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = c.id === name ? 'block' : 'none');
     if (name === 'activity') renderActivityLog();
     if (name === 'schools') renderSchoolsTab();
+    if (name === 'periods') renderReportingPeriods();
   }
 
   function renderAllTabs() {
@@ -2239,6 +2242,7 @@
     renderShows();
     renderRawData();
     if (document.querySelector('.tab-bar button[data-tab="activity"].active')) renderActivityLog();
+    if (document.querySelector('.tab-bar button[data-tab="periods"].active')) renderReportingPeriods();
   }
 
   async function renderActivityLog() {
@@ -2909,6 +2913,140 @@
         <tbody>${sorted.map(r=>`<tr>${headers.map(h=>`<td>${r[h]||'-'}</td>`).join('')}</tr>`).join('')}</tbody>
         </table>
       </div>`;
+  }
+
+  /* ── Reporting Periods tab — one card per imported period ──────────────── */
+  function periodSortKey(p) {
+    const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const m = String(p || '').trim().match(/^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$/i);
+    if (m) return parseInt(m[2], 10) * 12 + months.indexOf(m[1].toLowerCase());
+    return -1; // unparseable → fall to alpha sort below
+  }
+  function renderReportingPeriods() {
+    const container = document.getElementById('periods');
+    const real = activeData().filter(r => !r._placeholder && (r.REPORT_PERIOD || '').trim());
+    if (!real.length) {
+      container.innerHTML = `<div class="empty-state"><h3>No reporting periods yet</h3><p>Import a viewership report to see periods listed here</p></div>`;
+      return;
+    }
+    const byPeriod = {};
+    real.forEach(r => { (byPeriod[r.REPORT_PERIOD] = byPeriod[r.REPORT_PERIOD] || []).push(r); });
+    const periods = Object.keys(byPeriod).sort((a, b) => {
+      const ka = periodSortKey(a), kb = periodSortKey(b);
+      if (ka !== kb) return kb - ka;
+      return b.localeCompare(a);
+    });
+    const cusaSet = new Set(CUSA_SCHOOLS);
+    const cards = periods.map(p => {
+      const events = byPeriod[p];
+      const totalV = events.reduce((s,r) => s + (r.UNIQUE_VIEWERS||0), 0);
+      const totalM = events.reduce((s,r) => s + (r.TOTAL_MINUTES||0), 0);
+      const avgMpv = events.length
+        ? (events.reduce((s,r) => s + (r.MIN_PER_VIEWER||0), 0) / events.length).toFixed(1)
+        : '0.0';
+      const dates = events.map(r => parseDateForSort(r.DATE)).filter(n => n).sort((a,b) => a - b);
+      const dateRange = dates.length
+        ? `${new Date(dates[0]).toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${new Date(dates[dates.length-1]).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`
+        : '—';
+      const sportTotals = {};
+      events.forEach(r => {
+        const s = r.SPORT || 'Unknown';
+        if (!sportTotals[s]) sportTotals[s] = { events: 0, viewers: 0 };
+        sportTotals[s].events++;
+        sportTotals[s].viewers += r.UNIQUE_VIEWERS || 0;
+      });
+      const sportRows = Object.entries(sportTotals).sort((a,b) => b[1].viewers - a[1].viewers);
+      const schoolTotals = {};
+      events.forEach(r => {
+        [r.AWAY_TEAM, r.HOME_TEAM].filter(t => t && cusaSet.has(t)).forEach(t => {
+          if (!schoolTotals[t]) schoolTotals[t] = { events: 0, viewers: 0 };
+          schoolTotals[t].events++;
+          schoolTotals[t].viewers += r.UNIQUE_VIEWERS || 0;
+        });
+      });
+      const topSchools = Object.entries(schoolTotals).sort((a,b) => b[1].viewers - a[1].viewers).slice(0, 5);
+      const pAttr = p.replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+      return `
+        <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:18px;margin-bottom:18px;">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-bottom:1px solid #eee;padding-bottom:12px;margin-bottom:14px">
+            <div style="flex:1;min-width:200px">
+              <h3 style="color:var(--navy);margin:0 0 4px;font-size:16px;font-weight:700">📅 ${escapeReconText(p)}</h3>
+              <div style="font-size:11px;color:#666">${escapeReconText(dateRange)}</div>
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:11px">
+              <div><div style="color:#888;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:2px">Events</div><div style="font-size:17px;font-weight:700;color:var(--espn-red)">${events.length.toLocaleString()}</div></div>
+              <div><div style="color:#888;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:2px">Unique Viewers</div><div style="font-size:17px;font-weight:700;color:var(--espn-red)">${totalV.toLocaleString()}</div></div>
+              <div><div style="color:#888;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:2px">Total Minutes</div><div style="font-size:17px;font-weight:700;color:var(--espn-red)">${totalM.toLocaleString()}</div></div>
+              <div><div style="color:#888;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:2px">Avg Min/Viewer</div><div style="font-size:17px;font-weight:700;color:var(--espn-red)">${avgMpv}</div></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-export" onclick="exportPeriod('${pAttr}')">📤 Export Period</button>
+              ${adminUnlocked ? `<button class="btn" style="background:var(--espn-red);color:#fff" onclick="deletePeriodFromAll('${pAttr}')">🗑 Delete Period</button>` : ''}
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+            <div>
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#888;font-weight:700;margin-bottom:6px">By Sport</div>
+              <div class="table-container" style="margin:0">
+                <table style="font-size:12px">
+                  <thead><tr><th>Sport</th><th>Events</th><th>Viewers</th></tr></thead>
+                  <tbody>${sportRows.map(([s, t]) => `
+                    <tr><td>${escapeReconText(s)}</td><td class="number">${t.events}</td><td class="number">${t.viewers.toLocaleString()}</td></tr>
+                  `).join('')}</tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#888;font-weight:700;margin-bottom:6px">Top CUSA Schools</div>
+              <div class="table-container" style="margin:0">
+                <table style="font-size:12px">
+                  <thead><tr><th>School</th><th>Events</th><th>Viewers</th></tr></thead>
+                  <tbody>${topSchools.length ? topSchools.map(([s, t]) => `
+                    <tr><td>${escapeReconText(s)}</td><td class="number">${t.events}</td><td class="number">${t.viewers.toLocaleString()}</td></tr>
+                  `).join('') : `<tr><td colspan="3" style="text-align:center;color:#999;padding:14px">No CUSA-school rows in this period</td></tr>`}</tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <h3 style="color:var(--navy);font-size:15px;margin:0">📅 Reporting Periods</h3>
+        <span style="font-size:11px;color:#666">${periods.length} period${periods.length===1?'':'s'} · ${real.length.toLocaleString()} total event${real.length===1?'':'s'} · most recent first</span>
+      </div>
+      ${cards}`;
+  }
+
+  function exportPeriod(period) {
+    const events = rawData.filter(r => !r._placeholder && r.REPORT_PERIOD === period)
+      .sort((a,b) => parseDateForSort(a.DATE) - parseDateForSort(b.DATE));
+    if (!events.length) { alert('No events in this period'); return; }
+    const ws = buildAllEventsSheet(events, `📊  ${period.toUpperCase()} — ALL EVENTS`);
+    const wb = XLSX.utils.book_new();
+    const safeTab = period.replace(/[\/\\?*\[\]]/g, '-').substring(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, safeTab);
+    XLSX.writeFile(wb, `CUSA_${period.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    updateStatus(`Exported ${events.length} events for ${period}`);
+  }
+
+  async function deletePeriodFromAll(period) {
+    if (!period) return;
+    const count = rawData.filter(r => r.REPORT_PERIOD === period).length;
+    if (!confirm(`Remove all ${count} events from period "${period}"? This cannot be undone.`)) return;
+    rawData = rawData.filter(r => r.REPORT_PERIOD !== period);
+    if (localStorage.getItem(PERIOD_KEY) === period) localStorage.removeItem(PERIOD_KEY);
+    saveToStorage();
+    const dbOk = await deleteSupabasePeriod(period);
+    renderAllTabs();
+    updateMetaBar(JSON.parse(localStorage.getItem(META_KEY) || 'null'));
+    updateStatus(
+      dbOk
+        ? `☁️ Removed period "${period}" — ${rawData.filter(r => !r._placeholder).length} events remaining`
+        : `💻 Removed period "${period}" locally — Supabase delete failed`,
+      dbOk ? 'saved-cloud' : 'saved-local'
+    );
+    if (dbOk) logActivity('delete', 'viewership_events', `Removed period "${period}" (${count} events)`);
   }
 
   function exportCurrentTab() {

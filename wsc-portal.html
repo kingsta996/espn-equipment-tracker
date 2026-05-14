@@ -3774,18 +3774,36 @@ const TZ_OFFSETS_VS_ET = {
   AKT: 4, AKDT: 4, AKST: 4,
   HT: 5, HST: 5, HDT: 5
 };
+// Reliable 24-hour ET formatter. `toLocaleString({hour12:false})` is
+// inconsistent across browsers (Safari ignores hour12:false on some
+// locales and returns 12-hour anyway). formatToParts + hourCycle:'h23'
+// is the cross-engine path.
+function _fmtEastern24(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      hourCycle: 'h23'
+    }).formatToParts(date);
+    let hh = parts.find(p => p.type === 'hour')?.value || '0';
+    const mm = parts.find(p => p.type === 'minute')?.value || '0';
+    if (hh === '24') hh = '00';  // Chrome/Safari midnight quirk
+    return hh.padStart(2, '0') + ':' + mm.padStart(2, '0');
+  } catch { return ''; }
+}
+
 function getChampStartTimeEastern24hr() {
   const date = document.getElementById('champDate')?.value || '';
   const raw  = (document.getElementById('champTime')?.value || '').trim();
   if (!date || !raw) return '';
   const tzMatch = raw.match(/\b(ET|EST|EDT|CT|CST|CDT|MT|MST|MDT|PT|PST|PDT|AKT|AKST|AKDT|HT|HST|HDT)\b\s*$/i);
-  // Parse the time portion (parseEventStart strips trailing TZ + handles 12h/24h).
-  const parsed = parseEventStart(date, raw);
-  if (!parsed) return '';
   if (tzMatch) {
-    // Explicit TZ in the field → parseEventStart's "treat as local" is
-    // misleading; rebuild from raw hr:min and shift to ET.
-    const m = raw.replace(/\s*\b([A-Z]{2,4})\b\s*$/, '').match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)?$/);
+    // Explicit TZ in the field → strip it (case-insensitive) and rebuild
+    // from raw hr:min, then shift to ET.
+    const m = raw.replace(/\s*\b([A-Za-z]{2,4})\b\s*$/, '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)?$/);
     if (m) {
       let hr = parseInt(m[1], 10);
       const min = m[2] ? parseInt(m[2], 10) : 0;
@@ -3798,12 +3816,11 @@ function getChampStartTimeEastern24hr() {
       return String(hr).padStart(2, '0') + ':' + String(min).padStart(2, '0');
     }
   }
-  // No explicit TZ → treat parseEventStart's local-time Date as canonical
-  // and convert that instant to ET via Intl.
-  return parsed.toLocaleString('en-US', {
-    timeZone: 'America/New_York',
-    hour: '2-digit', minute: '2-digit', hour12: false
-  });
+  // No explicit TZ (or TZ regex matched but inner parse failed) → treat
+  // parseEventStart's local-time Date as canonical and convert that instant
+  // to ET via Intl.
+  const parsed = parseEventStart(date, raw);
+  return _fmtEastern24(parsed);
 }
 
 function refreshChampTimeEastern() {

@@ -1926,7 +1926,9 @@
         });
 
         // Raw ESPN DTC Reporting workbook → run the 2026-04-15 playbook filter
-        // before merging into the rest of the admin pipeline.
+        // before merging into the rest of the admin pipeline. Always APPEND
+        // (never replace) regardless of which import button was used —
+        // monthly DTC reports are additive periods, not full snapshots.
         if (format === 'raw-dtc') {
           const guess = detectReportPeriod(file.name, newData);
           const period = window.prompt(
@@ -1954,9 +1956,10 @@
             `    • High school football:          ${s.droppedHighSchool}\n` +
             `    • Hard-excluded matchups:        ${s.droppedHardExclude}\n\n` +
             `Period: "${period.trim()}"\n\n` +
-            `${appendMode ? 'Add these ' + s.output + ' rows to existing data?' : 'Replace existing data with these ' + s.output + ' rows?'}`;
+            `Add these ${s.output} rows to existing data? (duplicates by sport+title+date will be skipped)`;
           if (!window.confirm(summary)) { event.target.value = ''; return; }
           newData = result.rows;
+          appendMode = true;  // force append — DTC reports are monthly additive
         }
 
         if (appendMode) {

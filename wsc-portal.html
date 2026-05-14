@@ -695,7 +695,9 @@
           fires at <strong style="color:var(--wsc-text)">kickoff − 4 min</strong> on the picked encoder's Roku.
           Sequence: Home → launch ESPN (~15s) → search for <em>“<span id="champTimelineQuery">cusa</span>”</em> → select first result. Total run ~52s, so it's live-ready a minute before kickoff. Skips macro if no event time is entered or you're not signed in as a super admin — use the 🛡 button on the row after save to schedule manually.
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:8px">
+          <span id="champHlsHint" style="font-size:10.5px;color:var(--wsc-mute);margin-right:auto"></span>
+          <button type="button" class="toggle" id="champCopyHlsBtn" onclick="copyChampEncoderHls()" title="Copy the selected encoder's HLS playlist URL — paste it into ClipPro when scheduling the event">📋 Copy HLS Link</button>
           <button type="button" class="toggle" onclick="openClipProWindow()" title="Open WSC ClipPro setup in a new window — configure WSC's clip ingest for this event">📺 WSC ClipPro Setup</button>
         </div>
       </div>
@@ -3279,6 +3281,9 @@ function bindFilterControls() {
     const span = document.getElementById('champTimelineQuery');
     if (span) span.textContent = sq.value.trim() || 'cusa';
   });
+  // HLS hint mirrors whichever encoder is picked.
+  const encSel = document.getElementById('champEncoder');
+  if (encSel) encSel.addEventListener('change', refreshChampHlsHint);
 }
 
 function setPastView(v) {
@@ -3755,6 +3760,49 @@ function openClipProWindow() {
   if (w && typeof w.focus === 'function') w.focus();
 }
 
+// Copy the HLS playlist URL for the encoder currently picked in the
+// Add/Edit Championship modal. Used by the operator when scheduling the
+// event inside WSC ClipPro (paste the HLS link as ClipPro's source feed).
+function copyChampEncoderHls() {
+  const sel = document.getElementById('champEncoder');
+  const encId = sel ? sel.value : '';
+  if (!encId) { showToast('Pick an encoder first', 'err'); return; }
+  const enc = (_config?.encoders || []).find(e => e.id === encId);
+  if (!enc?.hls) { showToast('No HLS URL configured for ' + encId, 'err'); return; }
+  copyToClipboard(enc.hls);
+  showToast(`HLS link for ${encId} copied`, 'ok');
+}
+
+// Refresh the small hint next to the Copy HLS button so the operator can
+// see which encoder URL they're about to copy without opening the dropdown.
+function refreshChampHlsHint() {
+  const sel  = document.getElementById('champEncoder');
+  const hint = document.getElementById('champHlsHint');
+  const btn  = document.getElementById('champCopyHlsBtn');
+  if (!sel || !hint || !btn) return;
+  const encId = sel.value || '';
+  if (!encId) {
+    hint.textContent = '';
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+    return;
+  }
+  const enc = (_config?.encoders || []).find(e => e.id === encId);
+  if (enc?.hls) {
+    hint.textContent = `${encId} → HLS ready to copy`;
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+    btn.title = `Copy ${enc.hls}`;
+  } else {
+    hint.textContent = `${encId}: no HLS URL configured`;
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
 function setChampType(t) {
   _champFormType = t === 'solo' ? 'solo' : 'team';
   const teamBtn = document.getElementById('champTypeTeamBtn');
@@ -3806,6 +3854,7 @@ function refreshChampEncoderOptions() {
   }).join('');
   sel.innerHTML = `<option value="">— Select —</option>` + opts;
   if (prev && Array.from(sel.options).some(o => o.value === prev && !o.disabled)) sel.value = prev;
+  refreshChampHlsHint();
 }
 
 function openAddChampionshipModal() {

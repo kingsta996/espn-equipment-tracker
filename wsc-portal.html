@@ -2830,8 +2830,14 @@ function openEspnMacroModal(eventId, existingMacroId) {
     ? `<span style="color:var(--wsc-green)">✓ Matched ESPN event ${escapeHtml(espn.espn_event_id)} (${escapeHtml(espn.short_name || (espn.away_team + ' @ ' + espn.home_team))})</span>`
     : `<span style="color:var(--wsc-mute)">No matching ESPN scanner event — macro will be unlinked. Auto-update on kickoff-time changes is disabled until the next scan picks this game up.</span>`;
 
-  document.getElementById('espnMacroModalTitle').textContent =
-    (existing ? 'Edit ESPN Macro — ' : 'Schedule ESPN Macro — ') + (ev.away || '?') + ' @ ' + (ev.home || '?');
+  const prefix = existing ? 'Edit ESPN Macro — ' : 'Schedule ESPN Macro — ';
+  let displayLabel;
+  if (ev._isChampionship && ev._championshipType === 'solo' && ev._championshipTitle) {
+    displayLabel = ev._championshipTitle;
+  } else {
+    displayLabel = (ev.away || '?') + ' @ ' + (ev.home || '?');
+  }
+  document.getElementById('espnMacroModalTitle').textContent = prefix + displayLabel;
   document.getElementById('espnMacroKickoffLabel').textContent = kickoffLocalForLabel;
   document.getElementById('espnMacroEncoder').innerHTML = opts;
   document.getElementById('espnMacroQuery').value = defaultQuery;
@@ -3375,6 +3381,7 @@ function renderChampionships() {
       <th class="col-network">Network</th>
       <th>Source</th>
       <th>Encoder</th>
+      <th style="min-width:170px">🛡 ESPN Capture</th>
       <th>HLS Preview</th>
       <th></th>
     </tr></thead>`;
@@ -3428,6 +3435,7 @@ function renderChampionships() {
             ${encOptsRow}
           </select>
         </td>
+        ${renderEspnMacroCell(ev)}
         <td class="col-hls-preview" id="enc-cell-${cssId(ev.id)}">
           <div class="hls-preview-empty">Pick an encoder →</div>
         </td>

@@ -678,6 +678,27 @@
         <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Notes</label>
         <input id="champNotes" type="text" placeholder="optional" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
       </div>
+      <div style="border-top:1px solid var(--wsc-line);padding-top:10px;margin-top:4px">
+        <div style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Capture</div>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Encoder <small style="text-transform:none;letter-spacing:0;font-weight:400">(picking one auto-schedules the ESPN macro)</small></label>
+            <select id="champEncoder" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px"></select>
+          </div>
+          <div style="flex:0 0 140px">
+            <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">ESPN search</label>
+            <input id="champSearchQuery" type="text" placeholder="cusa" value="cusa" maxlength="100" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:13px">
+          </div>
+        </div>
+        <div style="font-size:11px;line-height:1.45;color:rgba(255,255,255,0.55);background:rgba(0,0,0,0.25);border:1px solid var(--wsc-line);border-radius:6px;padding:8px 10px;margin-top:8px">
+          <strong style="color:var(--wsc-green);font-weight:700">Macro timeline:</strong>
+          fires at <strong style="color:var(--wsc-text)">kickoff − 4 min</strong> on the picked encoder's Roku.
+          Sequence: Home → launch ESPN (~15s) → search for <em>“<span id="champTimelineQuery">cusa</span>”</em> → select first result. Total run ~52s, so it's live-ready a minute before kickoff. Skips macro if no event time is entered or you're not signed in as a super admin — use the 🛡 button on the row after save to schedule manually.
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="toggle" onclick="openClipProWindow()" title="Open WSC ClipPro setup in a new window — configure WSC's clip ingest for this event">📺 WSC ClipPro Setup</button>
+        </div>
+      </div>
     </div>
     <div id="champFormErr" style="color:#ff7d8a;font-size:12px;min-height:18px;margin-top:8px"></div>
     <div class="pw-actions" style="margin-top:6px">
@@ -3244,6 +3265,20 @@ function bindFilterControls() {
   bindIf('championshipSport',  'sport');
   bindIf('championshipFrom',   'from');
   bindIf('championshipTo',     'to');
+
+  // Add-Championship modal: recompute the encoder dropdown's conflict map
+  // whenever the date or time field changes so the user sees up-to-date
+  // greys/disables as they pick a slot.
+  const dateField = document.getElementById('champDate');
+  const timeField = document.getElementById('champTime');
+  if (dateField) dateField.addEventListener('change', refreshChampEncoderOptions);
+  if (timeField) timeField.addEventListener('input',  refreshChampEncoderOptions);
+  // Macro-timeline note mirrors whatever the user types into ESPN search.
+  const sq = document.getElementById('champSearchQuery');
+  if (sq) sq.addEventListener('input', () => {
+    const span = document.getElementById('champTimelineQuery');
+    if (span) span.textContent = sq.value.trim() || 'cusa';
+  });
 }
 
 function setPastView(v) {
@@ -3709,6 +3744,16 @@ function renderTable(scope, opts = {}) {
  *  CHAMPIONSHIPS — add / edit / delete modal
  * ══════════════════════════════════════════════════════════════════ */
 let _champFormType = 'team';  // 'team' | 'solo'
+const WSC_CLIPRO_URL = 'https://www.clipro.tv/clipro/clipro/?system=50876&group=105340&activeTab=pbp&libraryFilter_minRating=2&libraryFilter_mediaTypes=project%2Cvideo%2Cgraphics%2CimageGraphic%2CvideoGraphic%2Cimage%2Caudio%2Cgif&libraryFilter_assetTypes=10%2C9%2C0%2C15%2C1%2C16%2C13%2C3%2C11%2C5%2C6%2C12%2C2%2C4%2C17%2C19%2C20&lpbpFilter_minRating=2&lpbpFilter_sortPolicy=DateCreatedDesc';
+
+function openClipProWindow() {
+  // ClipPro almost certainly blocks iframe embedding via X-Frame-Options /
+  // frame-ancestors, so we open a sized popup instead of a modal iframe.
+  // Reuses the same window name so repeat clicks focus the existing window
+  // instead of opening a second one.
+  const w = window.open(WSC_CLIPRO_URL, 'wsc_clipro', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+  if (w && typeof w.focus === 'function') w.focus();
+}
 
 function setChampType(t) {
   _champFormType = t === 'solo' ? 'solo' : 'team';
@@ -3728,6 +3773,41 @@ function setChampType(t) {
   }
 }
 
+// Build the modal's encoder dropdown — conflict-aware against every other
+// booking in wsc_capture_status + scheduled ESPN macros, just like the
+// per-row dropdowns. Re-run on date/time change so conflicts stay accurate.
+function refreshChampEncoderOptions() {
+  const sel = document.getElementById('champEncoder');
+  if (!sel) return;
+  const editId = document.getElementById('champEditId').value || null;
+  const date   = document.getElementById('champDate').value.trim();
+  const time   = document.getElementById('champTime').value.trim();
+  const champRowId = editId ? ('champ_' + editId) : null;
+  const currentBooking = champRowId ? (_captureStatus.get(champRowId) || {}) : {};
+  const currentEncoder = currentBooking.encoder || '';
+  const tempEvent = { id: champRowId || '__champ_new__', event_date: date, event_time: time };
+  const conflicts = encoderConflictsFor(tempEvent);
+  const prev = sel.value || currentEncoder || '';
+  const opts = (_config?.encoders || []).map(e => {
+    const isSelected = prev === e.id || currentEncoder === e.id;
+    const inactive   = !isEncoderActive(e.id);
+    const conflict   = conflicts.get(e.id);
+    const disable    = !isSelected && (inactive || !!conflict);
+    let label = e.id;
+    if (inactive) {
+      const reason = _encoderStatus.get(e.id)?.inactive_reason;
+      label += reason ? ` — inactive (${reason})` : ' — inactive';
+    } else if (conflict) {
+      const cm = `${conflict.away || '?'}${conflict.home ? ' @ ' + conflict.home : ''}`;
+      const when = conflict.event_time ? ` ${conflict.event_time}` : '';
+      label += ` — in use:${when} ${cm}`;
+    }
+    return `<option value="${escapeAttr(e.id)}" ${isSelected ? 'selected' : ''} ${disable ? 'disabled' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+  sel.innerHTML = `<option value="">— Select —</option>` + opts;
+  if (prev && Array.from(sel.options).some(o => o.value === prev && !o.disabled)) sel.value = prev;
+}
+
 function openAddChampionshipModal() {
   document.getElementById('champFormTitle').textContent = '＋ Add Championship';
   document.getElementById('champEditId').value = '';
@@ -3739,8 +3819,12 @@ function openAddChampionshipModal() {
   document.getElementById('champNetwork').value = 'ESPN+';
   document.getElementById('champRound').value = '';
   document.getElementById('champNotes').value = '';
+  document.getElementById('champSearchQuery').value = 'cusa';
+  const tlAdd = document.getElementById('champTimelineQuery');
+  if (tlAdd) tlAdd.textContent = 'cusa';
   document.getElementById('champFormErr').textContent = '';
   setChampType('team');
+  refreshChampEncoderOptions();
   document.getElementById('champFormOverlay').classList.add('open');
 }
 
@@ -3757,6 +3841,15 @@ function openEditChampionshipModal(id) {
   document.getElementById('champNetwork').value = rec.network || '';
   document.getElementById('champRound').value = rec.round_text || '';
   document.getElementById('champNotes').value = rec.notes || '';
+  // Pre-fill the macro's existing search query if one is already scheduled for this row.
+  const existingMacro = _espnMacros.find(m => {
+    const link = parseEventStart(rec.event_date, rec.event_time);
+    if (!link) return false;
+    return Math.abs(new Date(m.kickoff_at || 0).getTime() - link.getTime()) < 60_000;
+  });
+  document.getElementById('champSearchQuery').value = existingMacro?.search_query || 'cusa';
+  const tlEdit = document.getElementById('champTimelineQuery');
+  if (tlEdit) tlEdit.textContent = existingMacro?.search_query || 'cusa';
   document.getElementById('champFormErr').textContent = '';
   setChampType(rec.champ_type === 'solo' ? 'solo' : 'team');
   // Set sport after setChampType has repopulated the dropdown.
@@ -3769,6 +3862,7 @@ function openEditChampionshipModal(id) {
     }
     sel.value = rec.sport;
   }
+  refreshChampEncoderOptions();
   document.getElementById('champFormOverlay').classList.add('open');
 }
 
@@ -3776,20 +3870,31 @@ function closeAddChampionshipModal() {
   document.getElementById('champFormOverlay').classList.remove('open');
 }
 
+// Insert the championship row, book the encoder, and (when an event_time is
+// present + the user is super-admin) auto-schedule the ESPN macro at
+// kickoff − 4 min. Booking + macro are best-effort: a championship row still
+// saves even if the macro step fails so the user has a chance to retry.
 async function submitChampionshipForm() {
   const errEl = document.getElementById('champFormErr');
   errEl.textContent = '';
   if (!_db) { errEl.textContent = 'Database not connected.'; return; }
-  const editId = document.getElementById('champEditId').value || null;
-  const sport  = document.getElementById('champSport').value.trim();
-  const date   = document.getElementById('champDate').value.trim();
+  const editId  = document.getElementById('champEditId').value || null;
+  const sport   = document.getElementById('champSport').value.trim();
+  const date    = document.getElementById('champDate').value.trim();
+  const time    = document.getElementById('champTime').value.trim();
+  const encoder = document.getElementById('champEncoder').value.trim();
+  const searchQuery = (document.getElementById('champSearchQuery').value || '').trim().toLowerCase();
   if (!sport) { errEl.textContent = 'Pick a sport.'; return; }
   if (!date)  { errEl.textContent = 'Pick a date.';  return; }
+  if (encoder && searchQuery && (!/^[\x20-\x7e]+$/.test(searchQuery) || searchQuery.length > 100)) {
+    errEl.textContent = 'ESPN search query must be printable ASCII, ≤ 100 chars.';
+    return;
+  }
   const payload = {
     champ_type: _champFormType,
     sport,
     event_date: date,
-    event_time: document.getElementById('champTime').value.trim() || null,
+    event_time: time || null,
     title:      _champFormType === 'solo' ? (document.getElementById('champTitle').value.trim() || null) : null,
     away_team:  _champFormType === 'team' ? (document.getElementById('champAway').value.trim() || null) : null,
     home_team:  _champFormType === 'team' ? (document.getElementById('champHome').value.trim() || null) : null,
@@ -3808,18 +3913,75 @@ async function submitChampionshipForm() {
   const btn = document.getElementById('champFormSubmit');
   btn.disabled = true;
   try {
+    let savedId = editId;
     if (editId) {
       const { error } = await _db.from('wsc_championship_events').update(payload).eq('id', editId);
       if (error) throw error;
-      showToast('Championship updated', 'ok');
     } else {
-      const { error } = await _db.from('wsc_championship_events').insert([payload]);
+      const { data, error } = await _db.from('wsc_championship_events').insert([payload]).select('id').single();
       if (error) throw error;
-      showToast('Championship added', 'ok');
+      savedId = data?.id || null;
     }
+
+    // Capture-side side-effects: encoder booking + ESPN macro.
+    const champRowId = savedId ? ('champ_' + savedId) : null;
+    let bookingOk = true;
+    let macroOk   = null;        // null=skipped, true/false=attempted result
+    if (champRowId && encoder) {
+      try {
+        await _db.from('wsc_capture_status').upsert({
+          schedule_event_id: champRowId,
+          encoder: encoder,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'schedule_event_id' });
+      } catch (bookErr) {
+        console.warn('encoder booking failed:', bookErr);
+        bookingOk = false;
+      }
+      // Auto-macro requires kickoff time + super-admin pw cached for the RPC.
+      const kickoff = parseEventStart(date, time);
+      const email = String(_currentUser?.email || '').toLowerCase();
+      const pw    = localStorage.getItem('cusa_wsc_super_pw') || '';
+      if (kickoff && email && pw && isSuperAdmin() && searchQuery) {
+        try {
+          // Look up an existing macro for this row so an edit reschedules
+          // rather than stacks a second one. Match by kickoff proximity.
+          const existingMacro = _espnMacros.find(m =>
+            m.encoder_id === encoder &&
+            Math.abs(new Date(m.kickoff_at || 0).getTime() - kickoff.getTime()) < 60_000
+          );
+          const { error: rpcErr } = await _db.rpc('wsc_espn_macro_upsert', {
+            p_email:         email,
+            p_pw_hash:       pw,
+            p_id:            existingMacro ? existingMacro.id : null,
+            p_encoder_id:    encoder,
+            p_espn_event_id: null,
+            p_search_query:  searchQuery,
+            p_result_index:  0,
+            p_kickoff_at:    kickoff.toISOString(),
+            p_trigger_at:    new Date(kickoff.getTime() - 4 * 60 * 1000).toISOString(),
+            p_notes:         'Auto-scheduled from Championships tab'
+          });
+          macroOk = !rpcErr;
+          if (rpcErr) console.warn('macro auto-schedule failed:', rpcErr);
+        } catch (rpcEx) {
+          console.warn('macro auto-schedule exception:', rpcEx);
+          macroOk = false;
+        }
+      }
+    }
+
     closeAddChampionshipModal();
-    await loadChampionships();
-    renderChampionships();
+    await Promise.all([loadChampionships(), loadCaptureStatus(), loadEspnMacros()]);
+    renderAllSchedules();
+
+    const verb = editId ? 'updated' : 'added';
+    let msg = `Championship ${verb}`;
+    if (encoder && bookingOk) msg += ` · ${encoder} booked`;
+    if (macroOk === true)     msg += ` · macro armed for kickoff − 4 min`;
+    else if (macroOk === false) msg += ` · macro auto-schedule failed (use 🛡 button on the row)`;
+    else if (encoder && !time) msg += ` · add an event time to auto-schedule the macro`;
+    showToast(msg, bookingOk && macroOk !== false ? 'ok' : 'err');
   } catch (e) {
     errEl.textContent = e?.message || String(e);
   } finally {

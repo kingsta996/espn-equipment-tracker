@@ -645,8 +645,8 @@
           <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Date</label>
           <input id="champDate" type="date" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:'SF Mono',monospace;font-size:13px">
         </div>
-        <div style="flex:0 0 140px">
-          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Time</label>
+        <div style="flex:0 0 160px">
+          <label style="font-size:10.5px;color:var(--wsc-mute);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Time <small id="champTimeEastern" style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--wsc-green)"></small></label>
           <input id="champTime" type="text" placeholder="7:00 PM CT" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.35);border:1px solid var(--wsc-line);color:var(--wsc-text);border-radius:6px;font-family:inherit;font-size:13px">
         </div>
       </div>
@@ -695,8 +695,9 @@
           fires at <strong style="color:var(--wsc-text)">kickoff − 4 min</strong> on the picked encoder's Roku.
           Sequence: Home → launch ESPN (~15s) → search for <em>“<span id="champTimelineQuery">cusa</span>”</em> → select first result. Total run ~52s, so it's live-ready a minute before kickoff. Skips macro if no event time is entered or you're not signed in as a super admin — use the 🛡 button on the row after save to schedule manually.
         </div>
-        <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
           <span id="champHlsHint" style="font-size:10.5px;color:var(--wsc-mute);margin-right:auto"></span>
+          <button type="button" class="toggle" id="champCopyTimeBtn" onclick="copyChampTimeEastern()" title="Copy the start time as 24-hour Eastern (HH:MM) — paste into ClipPro's time field">📋 Copy Start Time</button>
           <button type="button" class="toggle" id="champCopyHlsBtn" onclick="copyChampEncoderHls()" title="Copy the selected encoder's HLS playlist URL — paste it into ClipPro when scheduling the event">📋 Copy HLS Link</button>
           <button type="button" class="toggle" onclick="openClipProWindow()" title="Open WSC ClipPro setup in a new window — configure WSC's clip ingest for this event">📺 WSC ClipPro Setup</button>
         </div>
@@ -3273,8 +3274,8 @@ function bindFilterControls() {
   // greys/disables as they pick a slot.
   const dateField = document.getElementById('champDate');
   const timeField = document.getElementById('champTime');
-  if (dateField) dateField.addEventListener('change', refreshChampEncoderOptions);
-  if (timeField) timeField.addEventListener('input',  refreshChampEncoderOptions);
+  if (dateField) dateField.addEventListener('change', () => { refreshChampEncoderOptions(); refreshChampTimeEastern(); });
+  if (timeField) timeField.addEventListener('input',  () => { refreshChampEncoderOptions(); refreshChampTimeEastern(); });
   // Macro-timeline note mirrors whatever the user types into ESPN search.
   const sq = document.getElementById('champSearchQuery');
   if (sq) sq.addEventListener('input', () => {
@@ -3760,6 +3761,77 @@ function openClipProWindow() {
   if (w && typeof w.focus === 'function') w.focus();
 }
 
+// Convert the modal's free-form Time input ("7:00 PM CT", "19:00 ET",
+// "7pm") into 24-hour Eastern time for ClipPro scheduling. ClipPro expects
+// times in ET, so we always normalize there. Honors an explicit timezone
+// suffix in the input; otherwise falls back to whatever parseEventStart
+// gave us (browser-local interpretation → converted to ET via Intl).
+const TZ_OFFSETS_VS_ET = {
+  ET: 0, EST: 0, EDT: 0,
+  CT: 1, CST: 1, CDT: 1,        // CT is ET − 1h, so CT → ET means + 1h
+  MT: 2, MST: 2, MDT: 2,
+  PT: 3, PST: 3, PDT: 3,
+  AKT: 4, AKDT: 4, AKST: 4,
+  HT: 5, HST: 5, HDT: 5
+};
+function getChampStartTimeEastern24hr() {
+  const date = document.getElementById('champDate')?.value || '';
+  const raw  = (document.getElementById('champTime')?.value || '').trim();
+  if (!date || !raw) return '';
+  const tzMatch = raw.match(/\b(ET|EST|EDT|CT|CST|CDT|MT|MST|MDT|PT|PST|PDT|AKT|AKST|AKDT|HT|HST|HDT)\b\s*$/i);
+  // Parse the time portion (parseEventStart strips trailing TZ + handles 12h/24h).
+  const parsed = parseEventStart(date, raw);
+  if (!parsed) return '';
+  if (tzMatch) {
+    // Explicit TZ in the field → parseEventStart's "treat as local" is
+    // misleading; rebuild from raw hr:min and shift to ET.
+    const m = raw.replace(/\s*\b([A-Z]{2,4})\b\s*$/, '').match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)?$/);
+    if (m) {
+      let hr = parseInt(m[1], 10);
+      const min = m[2] ? parseInt(m[2], 10) : 0;
+      const ap = (m[3] || '').toLowerCase();
+      if (ap === 'pm' && hr < 12) hr += 12;
+      if (ap === 'am' && hr === 12) hr = 0;
+      const shift = TZ_OFFSETS_VS_ET[tzMatch[1].toUpperCase()] || 0;
+      hr = (hr + shift) % 24;
+      if (hr < 0) hr += 24;
+      return String(hr).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+    }
+  }
+  // No explicit TZ → treat parseEventStart's local-time Date as canonical
+  // and convert that instant to ET via Intl.
+  return parsed.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+}
+
+function refreshChampTimeEastern() {
+  const span = document.getElementById('champTimeEastern');
+  const btn  = document.getElementById('champCopyTimeBtn');
+  if (!span || !btn) return;
+  const et = getChampStartTimeEastern24hr();
+  if (et) {
+    span.textContent = `= ${et} ET`;
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+    btn.title = `Copy "${et}" (24-hour Eastern)`;
+  } else {
+    span.textContent = '';
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
+function copyChampTimeEastern() {
+  const et = getChampStartTimeEastern24hr();
+  if (!et) { showToast('Enter a valid start time first', 'err'); return; }
+  copyToClipboard(et);
+  showToast(`${et} ET copied`, 'ok');
+}
+
 // Copy the HLS playlist URL for the encoder currently picked in the
 // Add/Edit Championship modal. Used by the operator when scheduling the
 // event inside WSC ClipPro (paste the HLS link as ClipPro's source feed).
@@ -3874,6 +3946,7 @@ function openAddChampionshipModal() {
   document.getElementById('champFormErr').textContent = '';
   setChampType('team');
   refreshChampEncoderOptions();
+  refreshChampTimeEastern();
   document.getElementById('champFormOverlay').classList.add('open');
 }
 
@@ -3912,6 +3985,7 @@ function openEditChampionshipModal(id) {
     sel.value = rec.sport;
   }
   refreshChampEncoderOptions();
+  refreshChampTimeEastern();
   document.getElementById('champFormOverlay').classList.add('open');
 }
 

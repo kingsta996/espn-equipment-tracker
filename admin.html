@@ -382,12 +382,12 @@
 <!-- Controls -->
 <div class="controls">
   <div class="file-input-wrapper">
-    <label for="fileInput" class="btn btn-import">📂 Import Excel</label>
+    <label for="fileInput" class="btn btn-import" title="Replace data: upload a pre-filtered viewership Excel OR a raw ESPN DTC Reporting workbook (auto-filtered via the 2026-04-15 playbook)">📂 Import Excel</label>
     <input type="file" id="fileInput" accept=".xlsx,.xls">
   </div>
   <button class="btn btn-save" id="saveBtn" title="Flush viewership events to the database (produced-event changes auto-save as you make them)">💾 Save All</button>
   <div class="file-input-wrapper">
-    <label for="appendInput" class="btn btn-append">➕ Add New Period</label>
+    <label for="appendInput" class="btn btn-append" title="Add to existing data: pre-filtered Excel OR raw ESPN DTC Reporting workbook (auto-filtered)">➕ Add New Period</label>
     <input type="file" id="appendInput" accept=".xlsx,.xls">
   </div>
   <button class="btn btn-toggle" id="producedToggle" onclick="toggleProducedFilter()" title="Show only events produced by CUSA schools" disabled>○ CUSA Produced Only</button>
@@ -1717,6 +1717,185 @@
     document.getElementById('saveBtn').addEventListener('click', saveData);
   }
 
+  // ── ESPN DTC Reporting playbook filter ──────────────────────────────────
+  // Applies the broadcast-link filter spec from Saved_Process_Playbook_2026-04-15.xlsx
+  // (tab 01_Broadcast_Filter) to the raw ESPN DTC Reporting workbook schema:
+  //   DEAL → SPORT (after NCAA + approved-sport gate)
+  //   TITLE → AIRING_TITLE  (also drives school match, exact word boundaries)
+  //   ORIGINAL_AIR_DATE_EST → DATE
+  //   MINUTES_PER_VIEWER → MIN_PER_VIEWER
+  // Rules: League determines sport, Title determines school. Lookalikes
+  // (Delaware State, Southeast/Southwest Missouri State) are stripped before
+  // school matching. The women's-soccer CUSA exception still applies, and
+  // two football matchups are hard-excluded.
+  const APPROVED_DTC_SPORTS = [
+    'Football', 'Volleyball', "Women's Volleyball", "Women's Soccer",
+    "Men's Basketball", "Women's Basketball", 'Softball', 'Baseball',
+    // Expanded beyond the 2026-04-15 playbook to cover CUSA championships
+    // ESPN+ also reports on (tennis, golf, beach volleyball).
+    "Women's Beach Volleyball", "Men's Tennis", "Women's Tennis",
+    "Men's Golf", "Women's Golf"
+  ];
+  const DTC_SPORT_CANONICAL = {
+    'NCAA Football': 'NCAA Football',
+    'NCAA Volleyball': "NCAA Women's Volleyball",
+    "NCAA Women's Volleyball": "NCAA Women's Volleyball",
+    "NCAA Women's Soccer": "NCAA Women's Soccer",
+    "NCAA Men's Basketball": "NCAA Men's Basketball",
+    "NCAA Women's Basketball": "NCAA Women's Basketball",
+    'NCAA Softball': 'NCAA Softball',
+    'NCAA Baseball': 'NCAA Baseball',
+    "NCAA Women's Beach Volleyball": "NCAA Women's Beach Volleyball",
+    "NCAA Men's Tennis": "NCAA Men's Tennis",
+    "NCAA Women's Tennis": "NCAA Women's Tennis",
+    "NCAA Men's Golf": "NCAA Men's Golf",
+    "NCAA Women's Golf": "NCAA Women's Golf"
+  };
+  // Playbook-named schools — superset of the live conference_schools table so
+  // UTEP / Louisiana Tech rows survive the filter even if the table hasn't
+  // been backfilled yet.
+  const PLAYBOOK_SCHOOLS = [
+    'Delaware','Missouri State','Florida International','Jacksonville State',
+    'Sam Houston','UTEP','Western Kentucky','Middle Tennessee','Kennesaw State',
+    'Louisiana Tech','New Mexico State','Liberty','Dallas Baptist'
+  ];
+  const PLAYBOOK_SCHOOL_ALIASES = {
+    'Florida International': ['FIU'],
+    'Middle Tennessee':      ['MTSU','Middle Tennessee State'],
+    'Western Kentucky':      ['WKU'],
+    'Sam Houston':           ['Sam Houston State','SHSU'],
+    'Jacksonville State':    ['Jax State','JSU'],
+    'Kennesaw State':        ['KSU'],
+    'New Mexico State':      ['NMSU'],
+    'Louisiana Tech':        ['LA Tech'],
+    'Dallas Baptist':        ['DBU']
+  };
+  // Stripped from TITLE before the school regex so "Delaware" / "Missouri
+  // State" can't false-positive on these lookalikes.
+  const PLAYBOOK_LOOKALIKES = [
+    /\bsoutheast missouri state\b/gi,
+    /\bsouthwest missouri state\b/gi,
+    /\bdelaware state\b/gi,
+    /\bdelaware st\.?(?!ate)\b/gi
+  ];
+  // "Always remove ... including duplicates" — football only, per playbook.
+  const PLAYBOOK_HARD_EXCLUDE_FOOTBALL = [
+    /\bdelaware\b[^|]*\bwake forest\b|\bwake forest\b[^|]*\bdelaware\b/i,
+    /\bwestern kentucky\b[^|]*\blsu\b|\blsu\b[^|]*\bwestern kentucky\b/i
+  ];
+
+  function normalizeForMatch(s) {
+    return String(s || '')
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+  function playbookSchoolAllowList() {
+    return Array.from(new Set([...PLAYBOOK_SCHOOLS, ...(CUSA_SCHOOLS || [])]));
+  }
+  function titleMatchesApprovedSchool(title, schools) {
+    let t = ' ' + normalizeForMatch(title) + ' ';
+    PLAYBOOK_LOOKALIKES.forEach(re => { t = t.replace(re, ' '); });
+    for (const sc of schools) {
+      const variants = new Set([sc, ...(PLAYBOOK_SCHOOL_ALIASES[sc] || [])]);
+      for (const v of variants) {
+        const pat = v.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`(?:^|[\\s.,/&()'"\\-])${pat}(?:$|[\\s.,/&()'"\\-])`, 'i');
+        if (re.test(t)) return sc;
+      }
+    }
+    return null;
+  }
+  function deriveDtcSport(deal) {
+    const raw = String(deal || '').replace(/[‘’]/g, "'").trim();
+    if (!/^NCAA\b/i.test(raw)) return null;            // NCAA gate
+    const sport = raw.replace(/^NCAA\s+/i, '').trim();
+    const ok = APPROVED_DTC_SPORTS.some(s => s.toLowerCase() === sport.toLowerCase());
+    if (!ok) return null;
+    for (const [k, v] of Object.entries(DTC_SPORT_CANONICAL)) {
+      if (k.toLowerCase() === raw.toLowerCase()) return v;
+    }
+    return raw;
+  }
+  function isHardExcluded(sport, title) {
+    if (!/football/i.test(sport || '')) return false;
+    return PLAYBOOK_HARD_EXCLUDE_FOOTBALL.some(re => re.test(title || ''));
+  }
+  function fmtDtcDate(v) {
+    if (v == null || v === '') return '';
+    if (v instanceof Date) {
+      const mm = String(v.getMonth() + 1).padStart(2, '0');
+      const dd = String(v.getDate()).padStart(2, '0');
+      return `${mm}/${dd}/${v.getFullYear()}`;
+    }
+    if (typeof v === 'number') {
+      // Excel serial → JS Date
+      return fmtDtcDate(new Date(Math.round((v - 25569) * 86400 * 1000)));
+    }
+    return String(v);
+  }
+  function detectReportPeriod(filename, rows) {
+    const m = String(filename || '').match(
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/i
+    );
+    if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()} ${m[2]}`;
+    const dates = (rows || []).map(r => {
+      const v = r.ORIGINAL_AIR_DATE_EST;
+      if (v instanceof Date) return v;
+      if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000));
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    }).filter(Boolean);
+    if (!dates.length) return '';
+    dates.sort((a, b) => a - b);
+    return dates[0].toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  }
+  function applyDtcReportingFilter(rows, opts) {
+    const schools = opts.schools || playbookSchoolAllowList();
+    const stats = {
+      input: rows.length, output: 0,
+      droppedNonNcaa: 0, droppedNonApprovedSport: 0, droppedNoSchoolMatch: 0,
+      droppedHighSchool: 0, droppedHardExclude: 0,
+      keptSchoolMatch: 0, keptCusaTitleException: 0
+    };
+    const out = [];
+    for (const r of rows) {
+      const deal = r.DEAL, title = r.TITLE;
+      if (/high school/i.test(String(deal || '') + ' ' + String(title || ''))) { stats.droppedHighSchool++; continue; }
+      const sport = deriveDtcSport(deal);
+      if (!sport) {
+        if (!/^NCAA\b/i.test(String(deal || ''))) stats.droppedNonNcaa++;
+        else stats.droppedNonApprovedSport++;
+        continue;
+      }
+      const matched = titleMatchesApprovedSchool(title, schools);
+      // Generalized from the playbook's women's-soccer-only exception: any NCAA
+      // approved-sport row whose title contains "CUSA" is kept even with no
+      // approved school in the title. Catches league championships (golf,
+      // tennis, beach volleyball, soccer) where AWAY/HOME are blank.
+      const cusaException = /\bcusa\b/.test(normalizeForMatch(title));
+      if (!matched && !cusaException) { stats.droppedNoSchoolMatch++; continue; }
+      if (isHardExcluded(sport, title)) { stats.droppedHardExclude++; continue; }
+      if (!matched && cusaException) stats.keptCusaTitleException++;
+      else stats.keptSchoolMatch++;
+      out.push({
+        SPORT: sport,
+        AIRING_TITLE: title || '',
+        DATE: fmtDtcDate(r.ORIGINAL_AIR_DATE_EST),
+        AWAY_TEAM: canonCusa(r.AWAY_TEAM),
+        HOME_TEAM: canonCusa(r.HOME_TEAM),
+        UNIQUE_VIEWERS: Number(r.UNIQUE_VIEWERS) || 0,
+        TOTAL_MINUTES: Number(r.TOTAL_MINUTES) || 0,
+        MIN_PER_VIEWER: Number(r.MINUTES_PER_VIEWER) || 0,
+        REPORT_PERIOD: opts.period || ''
+      });
+    }
+    stats.output = out.length;
+    return { rows: out, stats };
+  }
+
   function handleFileImport(event, appendMode = false) {
     const file = event.target.files[0];
     if (!file) return;
@@ -1728,18 +1907,57 @@
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
-        let headerRow = -1;
+        let headerRow = -1, format = null;
         for (let i = 0; i < jsonData.length; i++) {
-          if (jsonData[i][0] === 'SPORT') { headerRow = i; break; }
+          const c0 = String(jsonData[i][0] || '').trim().toUpperCase();
+          if (c0 === 'SPORT') { headerRow = i; format = 'pre-filtered'; break; }
+          if (c0 === 'DEAL')  { headerRow = i; format = 'raw-dtc';      break; }
         }
-        if (headerRow === -1) { alert('Could not find header row with "SPORT" column'); return; }
+        if (headerRow === -1) {
+          alert('Could not find a recognized header row.\n\nExpected first column "SPORT" (pre-filtered workbook) or "DEAL" (raw ESPN DTC Reporting workbook).');
+          return;
+        }
 
         const headers = jsonData[headerRow];
-        const newData = jsonData.slice(headerRow + 1).filter(row => row[0]).map(row => {
+        let newData = jsonData.slice(headerRow + 1).filter(row => row[0]).map(row => {
           const obj = {};
           headers.forEach((h, i) => { obj[h] = row[i]; });
           return obj;
         });
+
+        // Raw ESPN DTC Reporting workbook → run the 2026-04-15 playbook filter
+        // before merging into the rest of the admin pipeline.
+        if (format === 'raw-dtc') {
+          const guess = detectReportPeriod(file.name, newData);
+          const period = window.prompt(
+            'Detected raw ESPN DTC Reporting workbook.\n\nReport period label for these rows:',
+            guess || ''
+          );
+          if (period == null) { event.target.value = ''; return; }
+          const result = applyDtcReportingFilter(newData, {
+            schools: playbookSchoolAllowList(),
+            period: period.trim()
+          });
+          const s = result.stats;
+          const dropped = s.droppedNonNcaa + s.droppedNonApprovedSport + s.droppedNoSchoolMatch + s.droppedHighSchool + s.droppedHardExclude;
+          const summary =
+            `Playbook filter complete.\n\n` +
+            `  Input rows: ${s.input}\n` +
+            `  Kept: ${s.output}` +
+              (s.keptCusaTitleException
+                ? ` (${s.keptSchoolMatch} school-match + ${s.keptCusaTitleException} CUSA-title exception)`
+                : '') + `\n` +
+            `  Dropped: ${dropped}\n` +
+            `    • Non-NCAA / studio / news:      ${s.droppedNonNcaa}\n` +
+            `    • Non-approved sport (golf, …): ${s.droppedNonApprovedSport}\n` +
+            `    • No approved school in title:   ${s.droppedNoSchoolMatch}\n` +
+            `    • High school football:          ${s.droppedHighSchool}\n` +
+            `    • Hard-excluded matchups:        ${s.droppedHardExclude}\n\n` +
+            `Period: "${period.trim()}"\n\n` +
+            `${appendMode ? 'Add these ' + s.output + ' rows to existing data?' : 'Replace existing data with these ' + s.output + ' rows?'}`;
+          if (!window.confirm(summary)) { event.target.value = ''; return; }
+          newData = result.rows;
+        }
 
         if (appendMode) {
           const existingReal = rawData.filter(r => !r._placeholder);

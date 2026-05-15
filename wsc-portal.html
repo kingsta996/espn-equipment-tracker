@@ -1032,6 +1032,20 @@
     <div id="encoderIpsTable"></div>
   </div>
 
+  <div style="background:var(--wsc-panel);border:1px solid var(--wsc-line);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:13px;font-weight:700;color:var(--wsc-text);margin-bottom:4px">🖥 Splashtop Activity</div>
+        <div style="font-size:11.5px;color:var(--wsc-mute);line-height:1.5">
+          Every click on the 🖥 Splashtop button in Manual Capture is logged here. Sam Houston operators + super admins both surface in the same list. Joins each click to the matchup label so you can see <em>who</em> opened Splashtop, <em>for which event</em>, and <em>when</em>. Realtime — new clicks appear without a refresh.
+        </div>
+        <div id="splashtopActivityMeta" style="font-size:11px;color:var(--wsc-mute);margin-top:6px;font-family:'SF Mono',monospace"></div>
+      </div>
+      <button class="toggle" type="button" onclick="renderSplashtopActivity()" id="splashtopActivityRefresh">🔄 Refresh</button>
+    </div>
+    <div id="splashtopActivityList" style="max-height:380px;overflow-y:auto"></div>
+  </div>
+
   <div id="settingsList" style="display:flex;flex-direction:column;gap:10px"></div>
 </section>
 
@@ -1631,6 +1645,157 @@ function renderSettings() {
   root.innerHTML = (_config?.schools || []).map(renderSchoolCard).join('');
   renderEncoderAvailability();
   renderEncoderIpsTable();
+  renderSplashtopActivity();
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ *  SPLASHTOP ACTIVITY PANEL — admin_activity_log rows where
+ *  app='wsc' and action='splashtop'. Joined to the in-memory event
+ *  index so each click row shows the matchup label, not just an id.
+ * ──────────────────────────────────────────────────────────────────*/
+let _splashtopActivityChannel = null;
+async function renderSplashtopActivity() {
+  const list = document.getElementById('splashtopActivityList');
+  const meta = document.getElementById('splashtopActivityMeta');
+  if (!list) return;
+  if (!isSuperAdmin()) { list.innerHTML = ''; if (meta) meta.textContent = ''; return; }
+  if (!_db) { list.innerHTML = '<div style="color:var(--wsc-mute);font-size:12px;padding:14px">Database not connected.</div>'; return; }
+  list.innerHTML = '<div style="color:var(--wsc-mute);font-size:12px;padding:14px">Loading activity…</div>';
+  try {
+    const { data, error } = await _db.from('admin_activity_log')
+      .select('id, email, display_name, action, target, details, occurred_at')
+      .eq('app', 'wsc').eq('action', 'splashtop')
+      .order('occurred_at', { ascending: false }).limit(200);
+    if (error) throw error;
+    const rows = data || [];
+
+    // Aggregate by event_id + email for a "session" view (consecutive
+    // clicks within ~10 min collapse to a single launch session row).
+    const sessions = collapseSplashtopSessions(rows);
+
+    if (meta) {
+      const uniqUsers  = new Set(rows.map(r => r.email)).size;
+      const uniqEvents = new Set(rows.map(r => r.target)).size;
+      const lastTs     = rows[0] ? new Date(rows[0].occurred_at).toLocaleString() : '—';
+      meta.textContent = `${rows.length} click${rows.length === 1 ? '' : 's'} · ${sessions.length} session${sessions.length === 1 ? '' : 's'} · ${uniqUsers} user${uniqUsers === 1 ? '' : 's'} · ${uniqEvents} event${uniqEvents === 1 ? '' : 's'} · last click ${lastTs}`;
+    }
+
+    if (!sessions.length) {
+      list.innerHTML = '<div style="color:var(--wsc-mute);font-size:12px;padding:14px">No Splashtop clicks recorded yet.</div>';
+      return;
+    }
+
+    list.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-family:'SF Mono',monospace;font-size:11.5px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--wsc-line);color:var(--wsc-mute);text-transform:uppercase;letter-spacing:0.6px;font-size:10px">
+            <th style="text-align:left;padding:8px 10px">First click</th>
+            <th style="text-align:left;padding:8px 10px">User</th>
+            <th style="text-align:left;padding:8px 10px">Event</th>
+            <th style="text-align:left;padding:8px 10px">Matchup</th>
+            <th style="text-align:right;padding:8px 10px">Clicks</th>
+            <th style="text-align:left;padding:8px 10px">Span</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sessions.map(s => {
+            const eventId = (s.target || '').replace(/^event:/, '');
+            const matchup = lookupEventLabel(eventId);
+            const tFirst = new Date(s.firstTs).toLocaleString([], {
+              month:'short', day:'numeric', hour:'numeric', minute:'2-digit'
+            });
+            const span = s.clicks > 1
+              ? Math.max(1, Math.round((new Date(s.lastTs) - new Date(s.firstTs)) / 60000)) + 'm'
+              : '—';
+            return `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
+                <td style="padding:6px 10px;color:var(--wsc-mute);white-space:nowrap">${escapeHtml(tFirst)}</td>
+                <td style="padding:6px 10px;color:var(--wsc-text)">${escapeHtml(s.display_name || s.email)}</td>
+                <td style="padding:6px 10px;color:var(--wsc-mute);font-size:10.5px">${escapeHtml(eventId || '—')}</td>
+                <td style="padding:6px 10px;color:var(--wsc-text)">${escapeHtml(matchup || '—')}</td>
+                <td style="padding:6px 10px;text-align:right;color:var(--wsc-green);font-weight:700">${s.clicks}</td>
+                <td style="padding:6px 10px;color:var(--wsc-mute)">${escapeHtml(span)}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+
+    // Realtime: subscribe once, live-append new rows so the panel updates
+    // without a manual refresh. New activity_log inserts trigger a quick
+    // re-render (cheap — at most 200 rows in memory).
+    if (!_splashtopActivityChannel) {
+      try {
+        _splashtopActivityChannel = _db.channel('wsc_splashtop_activity')
+          .on('postgres_changes', {
+            event: 'INSERT', schema: 'public', table: 'admin_activity_log'
+          }, payload => {
+            const row = payload.new || {};
+            if (row.app === 'wsc' && row.action === 'splashtop') renderSplashtopActivity();
+          })
+          .subscribe();
+      } catch (e) { console.warn('Splashtop realtime sub failed:', e); }
+    }
+  } catch (e) {
+    list.innerHTML = `<div style="color:#ff7d8a;font-size:12px;padding:14px">Load failed: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+// Collapse consecutive clicks (same user + same target, <10 min apart)
+// into a single session row. Mirrors how operators actually use Splashtop:
+// they often double-click the button or re-open after a disconnect, and
+// surfacing each click separately drowns the panel in noise.
+function collapseSplashtopSessions(rows) {
+  const SPAN_MS = 10 * 60 * 1000;
+  const sessions = [];
+  for (const r of rows) {
+    const last = sessions[sessions.length - 1];
+    const sameSession = last
+      && last.email === r.email
+      && last.target === r.target
+      && (new Date(last.firstTs) - new Date(r.occurred_at)) <= SPAN_MS;
+    if (sameSession) {
+      last.firstTs = r.occurred_at;       // rows arrive newest-first; firstTs is the earliest
+      last.clicks += 1;
+    } else {
+      sessions.push({
+        email: r.email,
+        display_name: r.display_name,
+        target: r.target,
+        firstTs: r.occurred_at,
+        lastTs:  r.occurred_at,
+        clicks:  1,
+      });
+    }
+  }
+  return sessions;
+}
+
+// Look up an event's matchup label by id. Tries the live ESPN events
+// cache + the external (Sidearm) events cache + Tata SRT entries that
+// are stored under different ID prefixes (ext_, espn_, champ_, …).
+function lookupEventLabel(eventId) {
+  if (!eventId) return '';
+  const sources = [
+    Array.isArray(window._espnEvents)    ? window._espnEvents    : [],
+    Array.isArray(window._externalEvents) ? window._externalEvents : [],
+  ];
+  for (const arr of sources) {
+    const hit = arr.find(e => String(e.id) === eventId || String(e.event_id) === eventId);
+    if (hit) {
+      const away = hit.away_team || hit.away || hit.short_name?.split(' at ')?.[0] || '';
+      const home = hit.home_team || hit.home || hit.short_name?.split(' at ')?.[1] || '';
+      const sport = hit.sport || hit.short_name || '';
+      if (away && home) return `${away} @ ${home}` + (sport ? ` · ${sport}` : '');
+      if (hit.short_name) return hit.short_name;
+      if (hit.title) return hit.title;
+    }
+  }
+  // Last resort: derive from the id slug itself (ext_cusa-baseball-2026-05-14-sam-houston-at-louisiana-tech)
+  if (eventId.startsWith('ext_')) {
+    const slug = eventId.slice(4).replace(/^cusa-/, '').replace(/^\w+-/, '');
+    return slug.replace(/-/g, ' ').replace(/\bat\b/, '@').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return '';
 }
 
 function renderEncoderAvailability() {

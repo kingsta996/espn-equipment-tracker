@@ -99,6 +99,14 @@
   function cmd(e)    { return (e.input && (e.input.command || e.input.cmd)) || ''; }
   function path(e)   { const i = e.input || {}; return i.file_path || i.path || i.url || i.notebook_path || ''; }
   function isMcp(e)  { return (e.tool || '').startsWith('mcp__') || (e.tool || '').startsWith('mcp_'); }
+  function isResolved(e) { return !!e.resolved_at; }
+  // High + Critical events that need attention (PreToolUse + unresolved).
+  function isActiveAlert(e) {
+    if (e.event !== 'PreToolUse') return false;
+    if (isResolved(e)) return false;
+    const sev = classify(e).sev;
+    return sev === 'critical' || sev === 'high';
+  }
 
   function classify(e) {
     for (const r of RISK_RULES) {
@@ -196,6 +204,35 @@
 .ca-pagination { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 14px; font-size: 12px; }
 .ca-pagination button { background: rgba(127,127,127,0.12); border: 1px solid rgba(127,127,127,0.25); border-radius: 6px; padding: 4px 12px; font-weight: 700; cursor: pointer; font-family: inherit; color: inherit; }
 .ca-pagination button:disabled { opacity: 0.4; cursor: default; }
+.ca-stat .sub { font-size: 10px; opacity: 0.6; margin-top: 4px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+.ca-stat.crit.has-active, .ca-stat.high.has-active { border-color: currentColor; box-shadow: 0 0 0 1px currentColor inset; }
+.ca-stat.all-clear .num { color: #16a34a; }
+.ca-row-resolve { padding: 8px 12px; background: rgba(22,163,74,0.06); border-top: 1px dashed rgba(22,163,74,0.35); font-size: 11px; line-height: 1.55; }
+.ca-row-resolve strong { color: #15803d; }
+.ca-row-resolve .meta { opacity: 0.7; margin-right: 8px; }
+.ca-row-resolve button { background: transparent; border: 1px solid rgba(127,127,127,0.3); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; font-family: inherit; color: inherit; margin-left: 6px; }
+.ca-row-resolve button:hover { background: rgba(127,127,127,0.1); }
+.ca-resolve-btn { background: #ea580c; color: #fff; border: 0; border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 4px; letter-spacing: 0.3px; }
+.ca-resolve-btn.crit { background: #dc2626; }
+.ca-resolve-btn:hover { filter: brightness(1.08); }
+.ca-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
+.ca-modal-overlay.open { display: flex; }
+.ca-modal { background: #fff; color: #222; border-radius: 10px; padding: 22px 24px; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.35); max-height: 92vh; overflow-y: auto; }
+.ca-modal h3 { margin-bottom: 6px; font-size: 16px; color: #111; }
+.ca-modal .sev-line { font-size: 12px; margin-bottom: 14px; }
+.ca-modal .sev-line .sev { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-right: 6px; }
+.ca-modal .sev-line .sev.crit { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+.ca-modal .sev-line .sev.high { background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
+.ca-modal .cmd-box { background: #f6f7f9; border: 1px solid #e3e6eb; border-radius: 6px; padding: 9px 12px; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; word-break: break-word; margin-bottom: 14px; max-height: 110px; overflow: auto; }
+.ca-modal label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; font-weight: 700; margin-bottom: 5px; }
+.ca-modal textarea { width: 100%; min-height: 90px; padding: 9px 11px; border: 1.5px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; resize: vertical; }
+.ca-modal textarea:focus { outline: none; border-color: #00B5E2; }
+.ca-modal .hint { font-size: 11px; color: #777; margin-top: 6px; }
+.ca-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.ca-modal-actions button { padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: 0; }
+.ca-modal-actions .cancel { background: #f0f1f4; color: #444; }
+.ca-modal-actions .save { background: #16a34a; color: #fff; }
+.ca-modal-actions button:hover { filter: brightness(1.06); }
 `;
 
   let cssMounted = false;
@@ -550,7 +587,15 @@
     const sessionCount = state.sessions.length;
 
     const sevTotals = { critical: 0, high: 0, medium: 0, low: 0 };
-    for (const e of state.events.filter(e => e.event === 'PreToolUse')) sevTotals[classify(e).sev]++;
+    const sevActive = { critical: 0, high: 0 };
+    for (const e of state.events.filter(e => e.event === 'PreToolUse')) {
+      const sev = classify(e).sev;
+      sevTotals[sev]++;
+      if ((sev === 'critical' || sev === 'high') && !isResolved(e)) sevActive[sev]++;
+    }
+    const critResolved = sevTotals.critical - sevActive.critical;
+    const highResolved = sevTotals.high - sevActive.high;
+    const allClear = sevActive.critical === 0 && sevActive.high === 0 && (sevTotals.critical || sevTotals.high);
 
     const stats = `
 <div class="ca-stats">
@@ -559,8 +604,16 @@
   <div class="ca-stat"><div class="num">${prompts}</div><div class="lbl">User prompts</div></div>
   <div class="ca-stat"><div class="num">${preTool}</div><div class="lbl">Tool calls</div></div>
   <div class="ca-stat"><div class="num">${failures}</div><div class="lbl">Failures</div></div>
-  <div class="ca-stat crit"><div class="num">${sevTotals.critical}</div><div class="lbl">Critical</div></div>
-  <div class="ca-stat high"><div class="num">${sevTotals.high}</div><div class="lbl">High</div></div>
+  <div class="ca-stat crit ${sevActive.critical > 0 ? 'has-active' : ''} ${allClear && sevTotals.critical ? 'all-clear' : ''}">
+    <div class="num">${sevActive.critical}</div>
+    <div class="lbl">Active Critical</div>
+    ${sevTotals.critical ? `<div class="sub">${critResolved} resolved · ${sevTotals.critical} total</div>` : ''}
+  </div>
+  <div class="ca-stat high ${sevActive.high > 0 ? 'has-active' : ''} ${allClear && sevTotals.high ? 'all-clear' : ''}">
+    <div class="num">${sevActive.high}</div>
+    <div class="lbl">Active High</div>
+    ${sevTotals.high ? `<div class="sub">${highResolved} resolved · ${sevTotals.high} total</div>` : ''}
+  </div>
   <div class="ca-stat med"><div class="num">${sevTotals.medium}</div><div class="lbl">Medium</div></div>
   <div class="ca-stat low"><div class="num">${sevTotals.low}</div><div class="lbl">Low</div></div>
 </div>`;
@@ -612,13 +665,30 @@
     const slice = state.filtered.slice(start, start + state.pageSize);
     const rows = slice.map(e => {
       const sev = classify(e);
-      const sevPill = `<span class="ca-pill ${sev.sev === 'critical' ? 'crit' : sev.sev === 'high' ? 'high' : sev.sev === 'medium' ? 'med' : 'low'}">${sev.sev}</span>`;
+      const sevCls = sev.sev === 'critical' ? 'crit' : sev.sev === 'high' ? 'high' : sev.sev === 'medium' ? 'med' : 'low';
+      const sevPill = `<span class="ca-pill ${sevCls}">${sev.sev}</span>`;
       const tool = e.tool ? `<span class="ca-pill tool">${escHtml(e.tool)}</span>` : '';
       const evPill = `<span class="ca-pill event">${escHtml(e.event)}</span>`;
       const preview = escHtml((summarizeInput(e) || '').slice(0, 260));
       const fullJson = JSON.stringify({ event: e.event, tool: e.tool, input: e.input, response: e.response, cwd: e.cwd }, null, 2);
+      // Resolve UI for Critical / High alerts on actual tool intents.
+      const isAlert = e.event === 'PreToolUse' && (sev.sev === 'critical' || sev.sev === 'high');
+      let resolveBlock = '';
+      if (isAlert) {
+        if (isResolved(e)) {
+          resolveBlock = `
+            <div class="ca-row-resolve">
+              <strong>✓ Resolved</strong>
+              <span class="meta">by ${escHtml(e.resolved_by || 'admin')} · ${escHtml(fmtTs(e.resolved_at))}</span>
+              <button data-unresolve="${e.id}" title="Mark this alert active again">Reopen</button>
+              <div style="margin-top:4px;white-space:pre-wrap">${escHtml(e.resolution_notes || '')}</div>
+            </div>`;
+        } else {
+          resolveBlock = `<button class="ca-resolve-btn ${sevCls}" data-resolve="${e.id}">✓ Mark Resolved</button>`;
+        }
+      }
       return `
-<tr>
+<tr data-event-id="${e.id}">
   <td class="col-ts">${escHtml(fmtTs(e.ts))}</td>
   <td class="col-tool">${evPill} ${tool}</td>
   <td class="col-sev">${sevPill}</td>
@@ -627,6 +697,7 @@
       <summary class="preview">${preview || '<em style="opacity:0.5">(no input)</em>'}</summary>
       <pre>${escHtml(fullJson)}</pre>
     </details>
+    ${resolveBlock}
   </td>
 </tr>`;
     }).join('');
@@ -651,24 +722,101 @@
       else state.page = state.page + 1;
       renderActivePane(state);
     }));
+    pane.querySelectorAll('[data-resolve]').forEach(b => b.addEventListener('click', () => {
+      const id = Number(b.dataset.resolve);
+      const ev = state.events.find(x => x.id === id);
+      if (ev) showResolveModal(state, ev);
+    }));
+    pane.querySelectorAll('[data-unresolve]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Reopen this alert — clear the resolution so it shows as active again?')) return;
+      const id = Number(b.dataset.unresolve);
+      await applyResolution(state, id, null, null, null);
+    }));
+  }
+
+  /* ── Resolve modal + Supabase writes ─────────────────────────────────── */
+
+  function getResolverEmail(state) {
+    const u = (state.cfg.getUser && state.cfg.getUser()) || null;
+    return (u && u.email) ? String(u.email) : 'admin';
+  }
+
+  function showResolveModal(state, event) {
+    let overlay = document.getElementById('ca-resolve-modal');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'ca-resolve-modal';
+      overlay.className = 'ca-modal-overlay';
+      document.body.appendChild(overlay);
+    }
+    const sev = classify(event);
+    const sevCls = sev.sev === 'critical' ? 'crit' : 'high';
+    const summary = summarizeInput(event) || '(no input)';
+    overlay.innerHTML = `
+      <div class="ca-modal">
+        <h3>Resolve risk alert</h3>
+        <div class="sev-line"><span class="sev ${sevCls}">${sev.sev}</span> ${escHtml(sev.label)} · <span style="opacity:0.7">${escHtml(fmtTs(event.ts))}</span></div>
+        <div class="cmd-box">${escHtml(summary)}</div>
+        <label for="ca-resolve-notes">Steps taken to address</label>
+        <textarea id="ca-resolve-notes" placeholder="What did you do, confirm, or determine? e.g., 'Verified Keith intentionally ran brew install poppler to read a PDF. Memory rule added to ask before package installs.'"></textarea>
+        <div class="hint">Resolving drops this alert from the Active count on the overview. The note appears in the Full Log and the downloaded IT report. You can reopen it later.</div>
+        <div class="ca-modal-actions">
+          <button class="cancel" data-close>Cancel</button>
+          <button class="save" data-save>✓ Resolve</button>
+        </div>
+      </div>`;
+    overlay.classList.add('open');
+    const ta = overlay.querySelector('#ca-resolve-notes');
+    setTimeout(() => ta.focus(), 80);
+    overlay.querySelector('[data-close]').addEventListener('click', () => overlay.classList.remove('open'));
+    overlay.querySelector('[data-save]').addEventListener('click', async () => {
+      const notes = ta.value.trim();
+      if (!notes) { ta.style.borderColor = '#dc2626'; ta.focus(); return; }
+      overlay.querySelector('[data-save]').disabled = true;
+      const email = getResolverEmail(state);
+      const ok = await applyResolution(state, event.id, notes, new Date().toISOString(), email);
+      if (ok) overlay.classList.remove('open');
+      else overlay.querySelector('[data-save]').disabled = false;
+    });
+    overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.classList.remove('open'); }, { once: true });
+  }
+
+  async function applyResolution(state, id, notes, resolvedAt, resolvedBy) {
+    if (!state.cfg.db) return false;
+    try {
+      const { error } = await state.cfg.db.from('claude_audit_events')
+        .update({ resolution_notes: notes, resolved_at: resolvedAt, resolved_by: resolvedBy })
+        .eq('id', id);
+      if (error) throw error;
+      // Patch local cache so the UI updates immediately, then re-render.
+      const ev = state.events.find(x => x.id === id);
+      if (ev) { ev.resolution_notes = notes; ev.resolved_at = resolvedAt; ev.resolved_by = resolvedBy; }
+      applyFiltersAndRender(state);
+      return true;
+    } catch (e) {
+      alert('Resolution save failed: ' + (e.message || e) + '\n\nMake sure you have run the claude_audit_resolutions.sql migration in Supabase Studio.');
+      return false;
+    }
   }
 
   /* ── Risk assessment ─────────────────────────────────────────────────── */
 
   function buildRiskBuckets(events) {
     const buckets = {
-      critical: { count: 0, labels: new Map(), samples: [] },
-      high:     { count: 0, labels: new Map(), samples: [] },
-      medium:   { count: 0, labels: new Map(), samples: [] },
-      low:      { count: 0, labels: new Map(), samples: [] }
+      critical: { count: 0, active: 0, resolved: 0, labels: new Map(), samples: [] },
+      high:     { count: 0, active: 0, resolved: 0, labels: new Map(), samples: [] },
+      medium:   { count: 0, active: 0, resolved: 0, labels: new Map(), samples: [] },
+      low:      { count: 0, active: 0, resolved: 0, labels: new Map(), samples: [] }
     };
     for (const e of events) {
       if (e.event !== 'PreToolUse') continue;
       const c = classify(e);
       const b = buckets[c.sev];
       b.count++;
+      const resolved = isResolved(e);
+      if (resolved) b.resolved++; else b.active++;
       b.labels.set(c.label, (b.labels.get(c.label) || 0) + 1);
-      if (b.samples.length < 60) b.samples.push({ ts: e.ts, tool: e.tool, label: c.label, summary: summarizeInput(e) });
+      if (b.samples.length < 60) b.samples.push({ ts: e.ts, tool: e.tool, label: c.label, summary: summarizeInput(e), resolved });
     }
     return buckets;
   }
@@ -688,10 +836,14 @@
       const samplesHtml = b.samples.slice(0, 8).map(s =>
         `<div class="sample"><strong>${escHtml(s.label)}</strong> · ${escHtml(s.tool || '')} · <span style="opacity:0.65">${escHtml(fmtTs(s.ts))}</span><br>${escHtml((s.summary || '').slice(0, 240))}</div>`
       ).join('');
+      const showResolveSplit = (k === 'critical' || k === 'high') && b.count > 0;
+      const countLine = showResolveSplit
+        ? `<span class="count">· ${b.active} active · ${b.resolved} resolved · ${b.count} total</span>`
+        : `<span class="count">· ${b.count} event${b.count === 1 ? '' : 's'}</span>`;
       return `
 <div class="ca-risk-bucket ${cls[k]}">
-  <h4>${title[k]} <span class="count">· ${b.count} event${b.count === 1 ? '' : 's'}</span></h4>
-  <div class="explainer">${escHtml(RISK_EXPLAINER[k])}</div>
+  <h4>${title[k]} ${countLine}</h4>
+  <div class="explainer">${escHtml(RISK_EXPLAINER[k])}${showResolveSplit && b.active === 0 && b.count > 0 ? ' <strong style="color:#15803d">✓ All resolved.</strong>' : ''}</div>
   <div class="labels">${labelsHtml}</div>
   ${b.samples.length ? `<div class="samples"><details><summary>Show ${Math.min(8, b.samples.length)} sample event${b.samples.length === 1 ? '' : 's'}</summary>${samplesHtml}</details></div>` : ''}
 </div>`;
@@ -751,13 +903,22 @@
     const sessions = groupSessions(eventsToInclude);
 
     const sevTotals = { critical: 0, high: 0, medium: 0, low: 0 };
-    for (const e of eventsToInclude.filter(e => e.event === 'PreToolUse')) sevTotals[classify(e).sev]++;
+    const sevActive = { critical: 0, high: 0 };
+    for (const e of eventsToInclude.filter(e => e.event === 'PreToolUse')) {
+      const sev = classify(e).sev;
+      sevTotals[sev]++;
+      if ((sev === 'critical' || sev === 'high') && !isResolved(e)) sevActive[sev]++;
+    }
 
     const eventRows = eventsToInclude.slice(0, 5000).map(e => {
       const sev = e.event === 'PreToolUse' ? classify(e).sev : '';
       const input = escHtml((summarizeInput(e) || '').slice(0, 400));
       const fullInput = escHtml(JSON.stringify(e.input || {}));
-      return `<tr><td>${escHtml(fmtTs(e.ts))}</td><td>${escHtml(e.event)}</td><td>${escHtml(e.tool || '')}</td><td>${sev}</td><td>${input}</td><td class="full">${fullInput}</td></tr>`;
+      const status = isResolved(e)
+        ? `<span style="color:#15803d;font-weight:700">RESOLVED</span> · ${escHtml(e.resolved_by || '')} · ${escHtml(fmtTs(e.resolved_at))}`
+        : ((sev === 'critical' || sev === 'high') ? '<span style="color:#b91c1c;font-weight:700">ACTIVE</span>' : '');
+      const notes = e.resolution_notes ? escHtml(e.resolution_notes) : '';
+      return `<tr><td>${escHtml(fmtTs(e.ts))}</td><td>${escHtml(e.event)}</td><td>${escHtml(e.tool || '')}</td><td>${sev}</td><td>${status}</td><td>${input}</td><td class="full">${fullInput}</td><td class="full">${notes}</td></tr>`;
     }).join('');
 
     const sessionRows = sessions.map(s => {
@@ -780,10 +941,18 @@
       const b = buckets[k];
       const labels = Array.from(b.labels.entries()).sort((a, b) => b[1] - a[1])
         .map(([lbl, n]) => `<li>${escHtml(lbl)} — <strong>${n}</strong></li>`).join('') || '<li><em>(none)</em></li>';
+      const subtitle = (k === 'critical' || k === 'high') && b.count > 0
+        ? ` <span style="font-weight:600;font-size:12px;color:#444">· ${b.active} active · ${b.resolved} resolved</span>`
+        : '';
+      const resolvedSamples = b.samples.filter(s => s.resolved);
+      const resolutionNotes = (k === 'critical' || k === 'high') && resolvedSamples.length
+        ? `<p style="margin-top:10px;font-size:12px;color:#15803d"><strong>${resolvedSamples.length} resolved</strong> — see Full Event Log for the resolution notes per event.</p>`
+        : '';
       return `<section class="risk ${k}">
-  <h3>${k.toUpperCase()} (${b.count})</h3>
+  <h3>${k.toUpperCase()} (${b.count})${subtitle}</h3>
   <p>${escHtml(RISK_EXPLAINER[k])}</p>
   <ul>${labels}</ul>
+  ${resolutionNotes}
 </section>`;
     }).join('');
 
@@ -831,8 +1000,8 @@
   <div class="stat"><div class="n">${eventsToInclude.filter(e => e.event === 'UserPromptSubmit').length}</div><div class="l">Prompts</div></div>
   <div class="stat"><div class="n">${eventsToInclude.filter(e => e.event === 'PreToolUse').length}</div><div class="l">Tool calls</div></div>
   <div class="stat"><div class="n">${eventsToInclude.filter(e => e.event === 'PostToolUseFailure').length}</div><div class="l">Failures</div></div>
-  <div class="stat crit"><div class="n">${sevTotals.critical}</div><div class="l">Critical</div></div>
-  <div class="stat high"><div class="n">${sevTotals.high}</div><div class="l">High</div></div>
+  <div class="stat crit"><div class="n">${sevActive.critical}</div><div class="l">Active Critical</div>${sevTotals.critical ? `<div style="font-size:10px;color:#666;margin-top:3px">${sevTotals.critical - sevActive.critical}/${sevTotals.critical} resolved</div>` : ''}</div>
+  <div class="stat high"><div class="n">${sevActive.high}</div><div class="l">Active High</div>${sevTotals.high ? `<div style="font-size:10px;color:#666;margin-top:3px">${sevTotals.high - sevActive.high}/${sevTotals.high} resolved</div>` : ''}</div>
   <div class="stat med"><div class="n">${sevTotals.medium}</div><div class="l">Medium</div></div>
   <div class="stat low"><div class="n">${sevTotals.low}</div><div class="l">Low</div></div>
 </div>
@@ -850,10 +1019,10 @@ ${riskBuckets}
 </table>
 
 <h2>Full Event Log</h2>
-<p style="font-size:12.5px;color:#555;">Up to 5,000 most-recent events. Each row's <em>full</em> input JSON is in the last column so IT can grep for sensitive values without scrolling. For larger windows, regenerate with a wider date filter or use the JSONL export.</p>
+<p style="font-size:12.5px;color:#555;">Up to 5,000 most-recent events. Each row's <em>full</em> input JSON is in column 7 so IT can grep for sensitive values without scrolling. The <strong>Status</strong> column shows whether Critical/High alerts have been triaged: <span style="color:#b91c1c;font-weight:700">ACTIVE</span> = pending review, <span style="color:#15803d;font-weight:700">RESOLVED</span> = admin signed off (notes in the last column).</p>
 <table>
-  <thead><tr><th>When (local)</th><th>Event</th><th>Tool</th><th>Risk</th><th>Input summary</th><th>Full input JSON</th></tr></thead>
-  <tbody>${eventRows || '<tr><td colspan="6"><em>No events.</em></td></tr>'}</tbody>
+  <thead><tr><th>When (local)</th><th>Event</th><th>Tool</th><th>Risk</th><th>Status</th><th>Input summary</th><th>Full input JSON</th><th>Resolution notes</th></tr></thead>
+  <tbody>${eventRows || '<tr><td colspan="8"><em>No events.</em></td></tr>'}</tbody>
 </table>
 
 <div class="footer">

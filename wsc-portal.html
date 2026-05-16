@@ -898,7 +898,6 @@
       <!-- HELO encoder controls: manual fallback when ESPN macro automation isn't appropriate. -->
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:rgba(0,181,226,0.08);border:1px solid rgba(0,181,226,0.25);border-radius:8px">
         <div style="font-size:10px;color:var(--wsc-mute);letter-spacing:0.6px;text-transform:uppercase;font-weight:700">📡 HELO Plus</div>
-        <button class="toggle" type="button" id="heloOpenWebBtn"   onclick="openHeloWebUi()"  title="Open the HELO Plus web UI in a new tab — only works from the MC broadcast LAN.">🌐 Web UI</button>
         <span style="flex:1"></span>
         <button class="toggle" type="button" id="heloStartBtn"     onclick="heloStreaming('start')" title="Send Start Streaming via the relay (eParamID_ReplicatorCommand=3)">▶ Start Streaming</button>
         <button class="toggle" type="button" id="heloStopBtn"      onclick="heloStreaming('stop')"  title="Send Stop Streaming via the relay (eParamID_ReplicatorCommand=4)">⏹ Stop Streaming</button>
@@ -4806,6 +4805,7 @@ function buildRokuEncoderStrip() {
 }
 
 function selectRokuEncoder(id) {
+  const prevEncoder = _rokuActiveEncoder;
   _rokuActiveEncoder = id;
   const enc = (_config?.encoders || []).find(e => e.id === id);
   document.querySelectorAll('#rokuEncoderStrip .roku-encoder-pill').forEach(b => {
@@ -4816,6 +4816,41 @@ function selectRokuEncoder(id) {
   const heloEl = document.getElementById('rokuActiveHeloIp');
   if (heloEl) heloEl.textContent = enc?.aja_ip || enc?.helo_ip || '—';
   mountRokuPreview(id);
+
+  // Auto-load HELO Stream 1 + Stream 2 settings so the operator can confirm
+  // current Enable / URL / Key without having to click "↓ Load" each time.
+  // Clears the previous encoder's values first so stale data doesn't sit
+  // visible while the new values fetch.
+  if (id && id !== prevEncoder) {
+    _clearHeloStreamFields();
+    _autoLoadHeloStreams();
+  }
+}
+
+function _clearHeloStreamFields() {
+  for (const n of [1, 2]) {
+    const enableEl = document.getElementById('heloStream' + n + 'Enable');
+    const urlEl    = document.getElementById('heloStream' + n + 'Url');
+    const keyEl    = document.getElementById('heloStream' + n + 'Key');
+    if (enableEl) enableEl.value = '';
+    if (urlEl)    urlEl.value    = '';
+    if (keyEl)    { keyEl.value = ''; keyEl.type = 'password'; }
+    const stateEl = document.getElementById('heloStream' + n + 'State');
+    if (stateEl) { stateEl.textContent = '—'; stateEl.style.color = 'var(--wsc-mute)'; }
+  }
+}
+
+async function _autoLoadHeloStreams() {
+  // Skip if the prerequisites for a relay RPC aren't satisfied — heloLoadStream
+  // would surface its own error, but firing 8 RPCs that'll fail with
+  // "Missing super-admin credential" is just noise. Operator can still click
+  // ↓ Load manually if they want to see the surfaced error.
+  if (!_db) return;
+  if (!_currentUser?.email) return;
+  if (!localStorage.getItem('cusa_wsc_super_pw')) return;
+  if (typeof rokuAgentKey === 'function' && !rokuAgentKey()) return;
+  // Run both streams in parallel; each manages its own state badge + log line.
+  Promise.allSettled([heloLoadStream(1), heloLoadStream(2)]);
 }
 
 /* ── HELO Plus controls — manual fallback for the ESPN macro automation ── */
@@ -4826,18 +4861,10 @@ function _activeHeloIp() {
   return enc?.aja_ip || enc?.helo_ip || null;
 }
 
-function openHeloWebUi() {
-  const ip = _activeHeloIp();
-  if (!ip) { rokuLog('No HELO IP for the active encoder — set one in Settings → Encoder IP overrides.', 'err'); return; }
-  rokuLog(`${_rokuActiveEncoder} → opening HELO web UI at http://${ip}/`);
-  window.open(`http://${ip}/`, '_blank', 'noopener');
-}
-
-// (Stream 1/2 Output now have dedicated relay-backed panels below the
-// HELO Plus row. The earlier "deep-link to web UI" buttons for Stream
-// 1/2 were removed once the relay-backed fields landed — operators
-// reach the same fields directly in the portal instead of jumping out
-// to the HELO web UI. Web UI button remains as a manual fallback.)
+// (Stream 1/2 Output have dedicated relay-backed panels below the HELO
+// Plus row. The earlier "deep-link to web UI" buttons were removed
+// because remote operators won't be on the MC broadcast LAN where the
+// HELO web UI is reachable. All HELO control goes through the relay.)
 
 const HELO_STREAM_STATE_LABEL = {
   '0': '⏳ Initializing',

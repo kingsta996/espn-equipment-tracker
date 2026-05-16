@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Championships — Admin Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A; --gray: #BFCED6; --white: #FFFFFF; --red: #E40046;
+    --blue: #00B5E2; --green: #A7D500; --espn-red: #EF4035; --light: #f0f2f5;
+    --warn-bg: #fffbeb; --warn-border: #f59e0b;
+    --fall: #f59e0b; --winter: #0ea5e9; --spring: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; background: var(--light); min-height: 100vh; color: #222; padding-bottom: 60px; }
+
+  .header { background: var(--navy); padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 3px solid var(--espn-red); }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .header .admin-badge { background: rgba(167,213,0,0.18); color: var(--green); padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; border: 1px solid rgba(167,213,0,0.5); }
+
+  .content { max-width: 1300px; margin: 0 auto; padding: 24px 20px; }
+  .section { background: #fff; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 18px; overflow: hidden; }
+  .section header { padding: 14px 18px; border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: center; }
+  .section header h2 { font-size: 14px; color: var(--navy); flex: 1; }
+  .section .body { padding: 16px 18px; }
+  .section .body.flush { padding: 0; }
+
+  .btn { padding: 7px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700; font-family: inherit; color: #fff; }
+  .btn:hover { filter: brightness(0.92); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--espn-red); }
+  .btn-blue { background: var(--blue); color: var(--navy); }
+  .btn-navy { background: var(--navy); }
+  .btn-green { background: var(--green); color: var(--navy); }
+  .btn-outline { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+
+  /* Schedule editor */
+  table.editor { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.editor thead { background: var(--navy); color: #fff; }
+  table.editor th { padding: 9px 12px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.editor td { padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  table.editor tbody tr:hover td { background: #fff7ed; }
+  table.editor tr.season-divider td { background: #fafbfc; padding: 8px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #777; border-top: 2px solid #ddd; }
+  table.editor tr.season-divider .badge { padding: 2px 8px; border-radius: 3px; color: #fff; font-size: 9px; letter-spacing: 0.5px; }
+  table.editor tr.season-divider .badge.Fall { background: var(--fall); }
+  table.editor tr.season-divider .badge.Winter { background: var(--winter); }
+  table.editor tr.season-divider .badge.Spring { background: var(--spring); }
+  table.editor td.sport-cell { font-weight: 700; color: var(--navy); width: 220px; padding-left: 14px; }
+  table.editor td.sport-cell .multi-tag { display: inline-block; font-size: 9px; padding: 1px 6px; background: #eef; color: #335; border-radius: 3px; margin-left: 6px; font-weight: 700; letter-spacing: 0.5px; }
+  table.editor input, table.editor select { width: 100%; padding: 5px 6px; border: 1px solid transparent; border-radius: 3px; font-size: 11px; font-family: inherit; background: transparent; }
+  table.editor input:focus, table.editor select:focus { background: #fff; border-color: var(--blue); outline: none; }
+  table.editor th.colDate, table.editor td.colDate { min-width: 130px; }
+  table.editor th.colTime, table.editor td.colTime { min-width: 110px; }
+  table.editor th.colProd, table.editor td.colProd { min-width: 120px; }
+  table.editor th.colVenue, table.editor td.colVenue { min-width: 220px; }
+  table.editor th.colActions, table.editor td.colActions { width: 80px; text-align: right; padding-right: 14px; }
+  table.editor td.colActions button { border: none; background: transparent; cursor: pointer; padding: 2px 6px; font-size: 14px; color: #aaa; }
+  table.editor td.colActions button:hover { color: var(--espn-red); }
+  table.editor td.colActions .add-btn { background: var(--green); color: var(--navy); padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+
+  /* Break Clock form */
+  .bc-form { display: grid; grid-template-columns: 120px 1fr; gap: 12px 14px; align-items: center; max-width: 720px; }
+  .bc-form label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #555; }
+  .bc-form input { padding: 9px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; font-family: inherit; }
+  .bc-form input:focus { outline: none; border-color: var(--blue); }
+  .bc-actions { grid-column: 2; display: flex; gap: 10px; align-items: center; }
+  .bc-status { font-size: 11px; color: #777; }
+
+  /* Logo manager */
+  .logos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .logo-card { background: #fafbfc; border: 1px solid #eee; border-radius: 6px; padding: 12px; }
+  .logo-card .h { font-size: 12px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+  .logo-card .sub { font-size: 10px; color: #888; margin-bottom: 8px; }
+  .logo-card .files { font-size: 11px; color: #444; }
+  .logo-card .empty { color: #c00; font-style: italic; }
+
+  /* Password gate */
+  .pw-overlay { display:flex; position:fixed; inset:0; background:rgba(0,38,58,0.9); z-index:200; align-items:center; justify-content:center; padding:20px; }
+  .pw-overlay.hidden { display:none; }
+  .pw-box { background:#fff; border-radius:12px; padding:36px; max-width:400px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.4); }
+  .pw-box h2 { font-size:18px; color:var(--navy); margin-bottom:8px; }
+  .pw-box p { font-size:12px; color:#666; margin-bottom:20px; }
+  .pw-box input { width:100%; padding:11px 14px; border:2px solid #ddd; border-radius:8px; font-size:14px; font-family: inherit; margin-bottom:10px; }
+  .pw-box input:focus { outline:none; border-color:var(--blue); }
+  .pw-err { color:var(--espn-red); font-size:12px; margin-bottom:10px; display:none; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--navy); color: #fff; padding: 10px 16px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); font-size: 12px; font-weight: 600; z-index: 300; transition: opacity 0.3s; opacity: 0; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.warn { background: var(--warn-border); color: var(--navy); }
+  .toast.success { background: var(--green); color: var(--navy); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN" onerror="this.style.display='none'">
+  <h1>Championships — Admin Portal</h1>
+  <span class="admin-badge" id="signedInBadge" style="display:none">🔑 Admin</span>
+  <a href="championships.html">← Championships</a>
+  <a href="hub.html">← Hub</a>
+</div>
+
+<div class="content" id="content" style="display:none">
+
+  <div class="section">
+    <header>
+      <h2>📅 Schedule Editor</h2>
+      <span style="font-size:11px;color:#777;flex:1;margin-left:8px">Edits flow live to every sport tab on the public Championships page.</span>
+      <button class="btn btn-navy" id="exportXlsxBtn">📤 Export to Excel</button>
+      <button class="btn btn-blue" id="importXlsxBtn">📥 Import from Excel</button>
+      <input type="file" id="importXlsxFile" accept=".xlsx,.xls" style="display:none">
+    </header>
+    <div class="body flush">
+      <div id="editorRoot"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <header>
+      <h2>⏱ Global Break Clock</h2>
+      <span style="font-size:11px;color:#777;margin-left:8px">Single set of credentials shown on every sport tab.</span>
+    </header>
+    <div class="body">
+      <div class="bc-form">
+        <label for="bcUrl">URL</label>
+        <input type="url" id="bcUrl" placeholder="https://breakclock.example.com">
+        <label for="bcUser">Username</label>
+        <input type="text" id="bcUser" placeholder="cusa">
+        <label for="bcPass">Password</label>
+        <input type="text" id="bcPass" placeholder="••••••••">
+        <label for="bcNotes">Notes</label>
+        <input type="text" id="bcNotes" placeholder="Optional notes (shown only in admin)">
+        <div class="bc-actions">
+          <button class="btn btn-primary" id="bcSaveBtn">💾 Save Break Clock</button>
+          <span class="bc-status" id="bcStatus"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <header>
+      <h2>🏆 Championship Logos</h2>
+      <span style="font-size:11px;color:#777;margin-left:8px">Drop PNG/SVG files into <code>championships/logos/&lt;sport-key&gt;/</code> and list them in <code>manifest.json</code>.</span>
+    </header>
+    <div class="body">
+      <div class="logos-grid" id="logosGrid"></div>
+      <div style="font-size:11px;color:#666;margin-top:14px">
+        <strong>Setup:</strong> for each sport, create a <code>manifest.json</code> file like:
+        <pre style="background:#f7f8fa;border:1px solid #eee;padding:10px;border-radius:5px;margin-top:8px;font-family:'SF Mono',Menlo,monospace;font-size:11px;overflow:auto">{ "files": ["primary.png", "knockout.png", "wordmark.png"] }</pre>
+        The public Championships page bundles those files into a single ZIP on-demand.
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <header>
+      <h2>🔒 Admin Session</h2>
+    </header>
+    <div class="body" style="display:flex;gap:14px;align-items:center">
+      <span style="font-size:12px;color:#444">Signed in as admin on this device. Sign-out only clears the lock on this browser.</span>
+      <button class="btn btn-outline" id="signOutBtn" style="margin-left:auto">Sign out</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Password gate -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>🔑 Admin Sign-In Required</h2>
+    <p>Enter the admin password to access the Championships admin portal.</p>
+    <input type="password" id="pwInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitUnlock()">
+    <div class="pw-err" id="pwErr">Incorrect password.</div>
+    <button class="btn btn-primary" onclick="submitUnlock()" style="width:100%">Unlock</button>
+    <div style="margin-top:16px;text-align:center;font-size:11px;color:#888"><a href="hub.html" style="color:#888">← Back to Hub</a></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ── Sport catalog (kept in sync with championships.html) ── */
+  const SPORTS = [
+    { key:'cross-country',           name:'Cross Country',           season:'Fall',   multi:false },
+    { key:'soccer',                  name:'Soccer',                  season:'Fall',   multi:true  },
+    { key:'volleyball',              name:'Volleyball',              season:'Fall',   multi:true  },
+    { key:'football',                name:'Football',                season:'Fall',   multi:false },
+    { key:'indoor-track-and-field',  name:'Indoor Track and Field',  season:'Winter', multi:false },
+    { key:'basketball',              name:'Basketball',              season:'Winter', multi:true  },
+    { key:'bowling',                 name:'Bowling',                 season:'Winter', multi:false },
+    { key:'mens-tennis',             name:"Men's Tennis",            season:'Winter', multi:true  },
+    { key:'womens-tennis',           name:"Women's Tennis",          season:'Winter', multi:true  },
+    { key:'womens-golf',             name:"Women's Golf",            season:'Winter', multi:false },
+    { key:'beach-volleyball',        name:'Beach Volleyball',        season:'Winter', multi:true  },
+    { key:'mens-golf',               name:"Men's Golf",              season:'Winter', multi:false },
+    { key:'softball',                name:'Softball',                season:'Spring', multi:true  },
+    { key:'outdoor-track-and-field', name:'Outdoor Track and Field', season:'Spring', multi:false },
+    { key:'baseball',                name:'Baseball',                season:'Spring', multi:true  }
+  ];
+  const SEASONS = ['Fall', 'Winter', 'Spring'];
+  const PRODUCTION_TYPES = ['School', 'Packager'];
+
+  const ADMIN_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+  const ADMIN_UNLOCK_KEY = 'cusa_championships_admin_pub';
+
+  let _db = null;
+  let _rows = [];
+  let _bc = { url:'', username:'', password:'', notes:'' };
+  let _adminUnlocked = localStorage.getItem(ADMIN_UNLOCK_KEY) === 'true';
+
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function sportByKey(k) { return SPORTS.find(s => s.key === k); }
+  function sportRows(k) { return _rows.filter(r => r.sport === k).sort((a,b) => (a.row_index || 0) - (b.row_index || 0)); }
+  async function sha256(s) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  function showToast(msg, kind) {
+    const t = document.getElementById('toast');
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    t.textContent = msg;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  function initSupabase() {
+    if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+  }
+  async function loadAll() {
+    if (!_db) return;
+    try {
+      const [s, bc] = await Promise.all([
+        _db.from('championship_schedule').select('*'),
+        _db.from('championship_break_clock').select('*').eq('id', 'singleton').maybeSingle()
+      ]);
+      if (s.error) throw s.error;
+      _rows = s.data || [];
+      if (bc.data) _bc = { url: bc.data.url || '', username: bc.data.username || '', password: bc.data.password || '', notes: bc.data.notes || '' };
+    } catch (e) {
+      console.error(e);
+      showToast('Failed to load data', 'warn');
+    }
+  }
+  async function upsertRow(row) {
+    if (!_db) return null;
+    try {
+      const dbRow = {
+        id: row.id || undefined,
+        sport: row.sport, row_index: row.row_index || 0,
+        event_date: row.event_date || '', event_time: row.event_time || '',
+        production_type: row.production_type || '', venue: row.venue || '',
+        athletic_year: row.athletic_year || '2025-26'
+      };
+      let res;
+      if (row.id) res = await _db.from('championship_schedule').update(dbRow).eq('id', row.id).select().single();
+      else res = await _db.from('championship_schedule').insert(dbRow).select().single();
+      if (res.error) throw res.error;
+      const saved = res.data;
+      const idx = _rows.findIndex(r => r.id === saved.id);
+      if (idx === -1) _rows.push(saved); else _rows[idx] = saved;
+      return saved;
+    } catch (e) {
+      console.error(e);
+      showToast('Save failed', 'warn');
+      return null;
+    }
+  }
+  async function deleteRow(id) {
+    if (!_db || !id) return;
+    try {
+      const { error } = await _db.from('championship_schedule').delete().eq('id', id);
+      if (error) throw error;
+      _rows = _rows.filter(r => r.id !== id);
+    } catch (e) {
+      console.error(e);
+      showToast('Delete failed', 'warn');
+    }
+  }
+  async function saveBreakClock() {
+    if (!_db) { showToast('Database not connected', 'warn'); return; }
+    const payload = {
+      id: 'singleton',
+      url: document.getElementById('bcUrl').value.trim(),
+      username: document.getElementById('bcUser').value.trim(),
+      password: document.getElementById('bcPass').value,
+      notes: document.getElementById('bcNotes').value.trim()
+    };
+    try {
+      const { error } = await _db.from('championship_break_clock').upsert(payload);
+      if (error) throw error;
+      _bc = payload;
+      document.getElementById('bcStatus').textContent = '✅ Saved at ' + new Date().toLocaleTimeString();
+      showToast('Break Clock updated', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Save failed: ' + (e.message || e), 'warn');
+    }
+  }
+
+  /* ── Rendering ── */
+  function renderEditor() {
+    const root = document.getElementById('editorRoot');
+    const html = `
+      <table class="editor">
+        <thead><tr>
+          <th>Sport</th>
+          <th class="colDate">Date</th>
+          <th class="colTime">Time (ET)</th>
+          <th class="colProd">Production</th>
+          <th class="colVenue">Venue</th>
+          <th class="colActions"></th>
+        </tr></thead>
+        <tbody>${SEASONS.map(season => `
+          <tr class="season-divider"><td colspan="6"><span class="badge ${season}">${season}</span> &nbsp; ${season} Championships</td></tr>
+          ${SPORTS.filter(s => s.season === season).map(s => renderSportRows(s)).join('')}
+        `).join('')}</tbody>
+      </table>
+    `;
+    root.innerHTML = html;
+  }
+  function renderSportRows(sport) {
+    const rows = sportRows(sport.key);
+    if (!rows.length) {
+      if (sport.multi) {
+        return `
+          <tr>
+            <td class="sport-cell">${escapeHtml(sport.name)} <span class="multi-tag">BRACKET</span></td>
+            <td colspan="4" style="color:#999;font-style:italic">No sessions added yet</td>
+            <td class="colActions"><button class="add-btn" data-add="${sport.key}">+ Add</button></td>
+          </tr>
+        `;
+      } else {
+        return renderRow(sport, { sport: sport.key, row_index: 0 }, true);
+      }
+    }
+    return rows.map((r, idx) => renderRow(sport, r, idx === 0)).join('') +
+      (sport.multi ? `<tr><td colspan="6" class="colActions"><button class="add-btn" data-add="${sport.key}">+ Add session</button></td></tr>` : '');
+  }
+  function renderRow(sport, row, showSportName) {
+    return `
+      <tr data-id="${row.id || ''}" data-sport="${sport.key}" data-row-index="${row.row_index || 0}">
+        <td class="sport-cell">${showSportName ? escapeHtml(sport.name) + (sport.multi ? ' <span class="multi-tag">BRACKET</span>' : '') : ''}</td>
+        <td class="colDate"><input type="date" data-key="event_date" value="${escapeHtml(row.event_date || '')}"></td>
+        <td class="colTime"><input type="time" data-key="event_time" value="${escapeHtml(row.event_time || '')}"></td>
+        <td class="colProd">
+          <select data-key="production_type">
+            <option value=""></option>
+            ${PRODUCTION_TYPES.map(p => `<option ${p === row.production_type ? 'selected' : ''} value="${p}">${p}</option>`).join('')}
+          </select>
+        </td>
+        <td class="colVenue"><input type="text" data-key="venue" placeholder="Venue / Facility" value="${escapeHtml(row.venue || '')}"></td>
+        <td class="colActions">${sport.multi || row.id ? `<button data-del title="Delete">🗑</button>` : ''}</td>
+      </tr>
+    `;
+  }
+  function renderBreakClock() {
+    document.getElementById('bcUrl').value = _bc.url || '';
+    document.getElementById('bcUser').value = _bc.username || '';
+    document.getElementById('bcPass').value = _bc.password || '';
+    document.getElementById('bcNotes').value = _bc.notes || '';
+  }
+  async function renderLogos() {
+    const grid = document.getElementById('logosGrid');
+    grid.innerHTML = SPORTS.map(s => `<div class="logo-card" data-sport="${s.key}"><div class="h">${escapeHtml(s.name)}</div><div class="sub">championships/logos/${s.key}/</div><div class="files">Checking…</div></div>`).join('');
+    for (const s of SPORTS) {
+      try {
+        const r = await fetch(`championships/logos/${s.key}/manifest.json`, { cache: 'no-cache' });
+        const card = grid.querySelector(`[data-sport="${s.key}"] .files`);
+        if (!r.ok) { card.innerHTML = '<span class="empty">No manifest.json yet</span>'; continue; }
+        const j = await r.json();
+        const files = Array.isArray(j.files) ? j.files : [];
+        card.innerHTML = files.length ? files.map(f => `<div>📎 ${escapeHtml(f)}</div>`).join('') : '<span class="empty">Manifest is empty</span>';
+      } catch {
+        const card = grid.querySelector(`[data-sport="${s.key}"] .files`);
+        if (card) card.innerHTML = '<span class="empty">No manifest.json yet</span>';
+      }
+    }
+  }
+
+  /* ── XLSX import/export — identical to championships.html ── */
+  const XLSX_COLS = ['Sport', 'Season', 'Session #', 'Date', 'Time (ET)', 'Production Type', 'Venue'];
+  function exportToXlsx() {
+    const aoa = [XLSX_COLS];
+    SPORTS.forEach(sport => {
+      const rows = sportRows(sport.key);
+      if (!rows.length) {
+        aoa.push([sport.name, sport.season, 1, '', '', '', '']);
+      } else {
+        rows.forEach((r, i) => {
+          aoa.push([sport.name, sport.season, i + 1,
+            r.event_date ? (() => { const [y,m,d] = r.event_date.split('-').map(Number); return new Date(y, m-1, d); })() : '',
+            r.event_time || '', r.production_type || '', r.venue || '']);
+        });
+      }
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const navy = '062538';
+    for (let c = 0; c < XLSX_COLS.length; c++) {
+      const a = XLSX.utils.encode_cell({ r: 0, c });
+      if (ws[a]) ws[a].s = {
+        font: { name: 'Arial Narrow', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { patternType: 'solid', fgColor: { rgb: navy } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: { top: { style: 'thin', color: { rgb: navy } }, bottom: { style: 'thin', color: { rgb: navy } }, left: { style: 'thin', color: { rgb: navy } }, right: { style: 'thin', color: { rgb: navy } } }
+      };
+    }
+    for (let r = 1; r < aoa.length; r++) {
+      const a = XLSX.utils.encode_cell({ r, c: 3 });
+      if (ws[a] && ws[a].v instanceof Date) ws[a].z = 'mm/dd/yyyy';
+    }
+    ws['!cols'] = [{wch:30},{wch:9},{wch:9},{wch:14},{wch:14},{wch:14},{wch:32}];
+    ws['!rows'] = [{ hpt: 28 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Championships');
+    XLSX.writeFile(wb, `CUSA_Championships_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('Exported', 'success');
+  }
+  async function importFromXlsx(file) {
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+      if (!aoa.length) { showToast('Empty file', 'warn'); return; }
+      const headerRow = aoa[0].map(h => String(h || '').trim().toLowerCase());
+      const col = (label) => headerRow.indexOf(label.toLowerCase());
+      const idxSport = col('Sport'), idxSession = col('Session #'), idxDate = col('Date'),
+            idxTime = col('Time (ET)'), idxProd = col('Production Type'), idxVenue = col('Venue');
+      if (idxSport < 0) { showToast('Missing "Sport" column', 'warn'); return; }
+      if (!confirm('Import will overwrite existing rows for any sport present in the file. Continue?')) return;
+      const sportsTouched = new Set();
+      const newRows = [];
+      for (let r = 1; r < aoa.length; r++) {
+        const row = aoa[r];
+        if (!row || !row[idxSport]) continue;
+        const sportName = String(row[idxSport]).trim();
+        const sport = SPORTS.find(s => s.name.toLowerCase() === sportName.toLowerCase());
+        if (!sport) continue;
+        sportsTouched.add(sport.key);
+        const rowIdx = Math.max(0, (Number(row[idxSession]) || 1) - 1);
+        let dateStr = '';
+        const dateVal = idxDate >= 0 ? row[idxDate] : '';
+        if (dateVal instanceof Date && !isNaN(dateVal.getTime())) dateStr = dateVal.toISOString().slice(0,10);
+        else if (typeof dateVal === 'string' && dateVal.trim()) {
+          const d = new Date(dateVal);
+          if (!isNaN(d.getTime())) dateStr = d.toISOString().slice(0,10);
+          else dateStr = dateVal.trim();
+        }
+        let timeStr = '';
+        const timeVal = idxTime >= 0 ? row[idxTime] : '';
+        if (typeof timeVal === 'string' && timeVal.trim()) {
+          const m = timeVal.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+          if (m) {
+            let h = Number(m[1]); const min = m[2]; const ap = (m[3] || '').toUpperCase();
+            if (ap === 'PM' && h < 12) h += 12;
+            if (ap === 'AM' && h === 12) h = 0;
+            timeStr = `${String(h).padStart(2,'0')}:${min}`;
+          } else timeStr = timeVal.trim();
+        }
+        newRows.push({
+          sport: sport.key, row_index: rowIdx,
+          event_date: dateStr, event_time: timeStr,
+          production_type: idxProd >= 0 ? String(row[idxProd] || '').trim() : '',
+          venue: idxVenue >= 0 ? String(row[idxVenue] || '').trim() : ''
+        });
+      }
+      for (const sportKey of sportsTouched) {
+        const existing = _rows.filter(r => r.sport === sportKey);
+        for (const r of existing) await deleteRow(r.id);
+      }
+      for (const r of newRows) await upsertRow(r);
+      renderEditor();
+      showToast(`Imported ${newRows.length} row${newRows.length === 1 ? '' : 's'}`, 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Import failed', 'warn');
+    } finally {
+      document.getElementById('importXlsxFile').value = '';
+    }
+  }
+
+  /* ── Wire-up ── */
+  function wireEditor() {
+    const root = document.getElementById('editorRoot');
+    root.addEventListener('change', async e => {
+      const t = e.target;
+      if (!t.dataset.key) return;
+      const tr = t.closest('tr');
+      const sportKey = tr.dataset.sport;
+      const rowIndex = Number(tr.dataset.rowIndex || 0);
+      const id = tr.dataset.id;
+      let row = id ? _rows.find(r => r.id === id) : { sport: sportKey, row_index: rowIndex };
+      if (!row) row = { sport: sportKey, row_index: rowIndex };
+      row[t.dataset.key] = t.value;
+      const saved = await upsertRow(row);
+      if (saved && saved.id) {
+        tr.dataset.id = saved.id;
+        showToast('Saved', 'success');
+      }
+    });
+    root.addEventListener('click', async e => {
+      const addBtn = e.target.closest('[data-add]');
+      if (addBtn) {
+        const sportKey = addBtn.dataset.add;
+        const existing = sportRows(sportKey);
+        const nextIdx = existing.length ? Math.max(...existing.map(r => r.row_index || 0)) + 1 : 0;
+        await upsertRow({ sport: sportKey, row_index: nextIdx });
+        renderEditor();
+        return;
+      }
+      const delBtn = e.target.closest('[data-del]');
+      if (delBtn) {
+        const tr = delBtn.closest('tr');
+        const id = tr.dataset.id;
+        if (!id) { renderEditor(); return; }
+        if (!confirm('Delete this row?')) return;
+        await deleteRow(id);
+        renderEditor();
+      }
+    });
+  }
+
+  /* ── Auth gate ── */
+  async function submitUnlock() {
+    const pw = document.getElementById('pwInput').value;
+    const h = await sha256(pw);
+    if (h === ADMIN_PW_HASH) {
+      _adminUnlocked = true;
+      localStorage.setItem(ADMIN_UNLOCK_KEY, 'true');
+      enterAdmin();
+    } else {
+      document.getElementById('pwErr').style.display = 'block';
+    }
+  }
+  function enterAdmin() {
+    document.getElementById('pwOverlay').classList.add('hidden');
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('signedInBadge').style.display = 'inline-block';
+    boot();
+  }
+  function signOut() {
+    _adminUnlocked = false;
+    localStorage.removeItem(ADMIN_UNLOCK_KEY);
+    location.reload();
+  }
+
+  async function boot() {
+    initSupabase();
+    await loadAll();
+    renderEditor();
+    renderBreakClock();
+    renderLogos();
+    wireEditor();
+    document.getElementById('bcSaveBtn').addEventListener('click', saveBreakClock);
+    document.getElementById('exportXlsxBtn').addEventListener('click', exportToXlsx);
+    document.getElementById('importXlsxBtn').addEventListener('click', () => document.getElementById('importXlsxFile').click());
+    document.getElementById('importXlsxFile').addEventListener('change', e => importFromXlsx(e.target.files[0]));
+    document.getElementById('signOutBtn').addEventListener('click', signOut);
+
+    // Realtime — refresh editor if another admin tab makes a change
+    if (_db) {
+      _db.channel('champ-admin-schedule')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_schedule' }, async () => { await loadAll(); renderEditor(); })
+        .subscribe();
+      _db.channel('champ-admin-bc')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_break_clock' }, async () => { await loadAll(); renderBreakClock(); })
+        .subscribe();
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (_adminUnlocked) enterAdmin();
+    else setTimeout(() => document.getElementById('pwInput').focus(), 80);
+  });
+</script>
+
+</body>
+</html>

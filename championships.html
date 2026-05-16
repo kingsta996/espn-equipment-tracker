@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Championships — Schedule, Break Clock, Logos & Commercials</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A;
+    --gray: #BFCED6;
+    --white: #FFFFFF;
+    --red: #E40046;
+    --blue: #00B5E2;
+    --green: #A7D500;
+    --espn-red: #EF4035;
+    --light: #f0f2f5;
+    --warn-bg: #fffbeb;
+    --warn-border: #f59e0b;
+    --fall: #f59e0b;
+    --winter: #0ea5e9;
+    --spring: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; background: var(--light); min-height: 100vh; color: #222; padding-bottom: 60px; }
+
+  .header {
+    background: var(--navy);
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border-bottom: 3px solid var(--espn-red);
+  }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .header a.admin-link { color: #fff; background: rgba(239,64,53,0.85); padding: 5px 12px; border-radius: 6px; font-weight: 700; }
+  .header a.admin-link:hover { background: var(--espn-red); }
+
+  .tab-bar {
+    background: #fff;
+    border-bottom: 3px solid var(--espn-red);
+    display: flex; flex-wrap: wrap; padding: 0 12px;
+  }
+  .tab-bar button {
+    padding: 11px 13px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--navy);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -3px;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .tab-bar button.active { background: var(--espn-red); color: #fff; }
+  .tab-bar button:hover:not(.active) { background: #f5f5f5; }
+
+  .content { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+
+  .toolbar {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .toolbar .page-title { font-size: 18px; font-weight: 700; color: var(--navy); }
+  .toolbar .row-count { margin-left: auto; font-size: 11px; color: #555; }
+
+  .btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: inherit;
+    color: #fff;
+  }
+  .btn:hover { filter: brightness(0.92); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--espn-red); }
+  .btn-blue { background: var(--blue); color: var(--navy); }
+  .btn-navy { background: var(--navy); }
+  .btn-green { background: var(--green); color: var(--navy); }
+  .btn-gray { background: #888; }
+  .btn-outline { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+
+  /* ── Sport tab ── */
+  .sport-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .sport-grid { grid-template-columns: 1fr; } }
+  .card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .card header {
+    padding: 11px 16px; border-bottom: 1px solid #eee;
+    display: flex; gap: 10px; align-items: center;
+    background: #fafbfc;
+  }
+  .card header h3 { font-size: 13px; color: var(--navy); flex: 1; }
+  .card header .badge { font-size: 9px; padding: 2px 7px; border-radius: 3px; background: #eef; color: #335; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card .body { padding: 14px 16px; }
+  .card .body.dense { padding: 0; }
+
+  table.schedview { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.schedview th { padding: 8px 14px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #777; background: #f7f8fa; border-bottom: 1px solid #eee; }
+  table.schedview td { padding: 9px 14px; border-bottom: 1px solid #f0f0f0; }
+  table.schedview tr:last-child td { border-bottom: 0; }
+  table.schedview td.prod-school { color: var(--blue); font-weight: 700; }
+  table.schedview td.prod-packager { color: var(--espn-red); font-weight: 700; }
+  .empty-msg { text-align: center; padding: 28px 16px; color: var(--navy); opacity: 0.55; font-size: 13px; }
+
+  .bc-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+  .bc-row label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #777; min-width: 78px; }
+  .bc-row .value {
+    flex: 1; padding: 7px 9px; background: #f7f8fa; border: 1px solid #eee; border-radius: 4px;
+    font-size: 12px; color: #222; font-family: 'SF Mono', Menlo, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bc-row .value.empty { color: #aaa; font-style: italic; font-family: inherit; }
+  .bc-row button.copy {
+    border: none; background: var(--navy); color: #fff;
+    padding: 6px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 700;
+  }
+  .bc-row button.copy:hover { filter: brightness(1.15); }
+  .bc-row button.copy.copied { background: var(--green); color: var(--navy); }
+  .bc-row button.copy:disabled { background: #ccc; cursor: not-allowed; }
+  .bc-row .pw-toggle { font-size: 11px; color: var(--blue); cursor: pointer; padding: 6px 8px; }
+
+  .actions-card .body { display: grid; gap: 10px; }
+  .actions-card .body .btn { width: 100%; text-align: center; padding: 10px; font-size: 12px; }
+  .actions-card .body .btn.muted { background: #e5e7eb; color: #6b7280; }
+
+  .live-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: rgba(167,213,0,0.2); color: #4a6600; border: 1px solid var(--green); border-radius: 12px; font-size: 10px; font-weight: 700; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .live-badge::before { content: ''; width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: live-pulse 1.6s ease-in-out infinite; }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+  .live-badge.flash { background: var(--green); color: var(--navy); transition: background 0.4s, color 0.4s; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--navy); color: #fff;
+    padding: 10px 16px; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    font-size: 12px; font-weight: 600;
+    z-index: 300;
+    transition: opacity 0.3s;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.warn { background: var(--warn-border); color: var(--navy); }
+  .toast.success { background: var(--green); color: var(--navy); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN" onerror="this.style.display='none'">
+  <h1>CUSA Championships <span id="liveBadge" class="live-badge" style="display:none">Live</span></h1>
+  <a href="championships-admin.html" class="admin-link">🔒 Admin Portal</a>
+  <a href="hub.html">← Hub</a>
+</div>
+
+<div class="tab-bar" id="tabBar"></div>
+
+<div class="content" id="content"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ── Sport catalog (display order matches user's spec) ── */
+  const SPORTS = [
+    // Fall
+    { key:'cross-country',           name:'Cross Country',           season:'Fall',   multi:false, format:null },
+    { key:'soccer',                  name:'Soccer',                  season:'Fall',   multi:true,  format:'2025-26 Soccer E+ Commercial Format.xlsx' },
+    { key:'volleyball',              name:'Volleyball',              season:'Fall',   multi:true,  format:'2025-26 Volleyball E+ Commercial Format.xlsx' },
+    { key:'football',                name:'Football',                season:'Fall',   multi:false, format:'2025-26 CFB E+ Commercial Format.xlsx' },
+    // Winter
+    { key:'indoor-track-and-field',  name:'Indoor Track and Field',  season:'Winter', multi:false, format:'2025-26 Track & Field E+ Commercial Format.xlsx' },
+    { key:'basketball',              name:'Basketball',              season:'Winter', multi:true,  format:"2025-26 Men's Basketball E+ Commercial Format.xlsx" },
+    { key:'bowling',                 name:'Bowling',                 season:'Winter', multi:false, format:null },
+    { key:'mens-tennis',             name:"Men's Tennis",            season:'Winter', multi:true,  format:null },
+    { key:'womens-tennis',           name:"Women's Tennis",          season:'Winter', multi:true,  format:null },
+    { key:'womens-golf',             name:"Women's Golf",            season:'Winter', multi:false, format:null },
+    { key:'beach-volleyball',        name:'Beach Volleyball',        season:'Winter', multi:true,  format:'2025-26 Volleyball E+ Commercial Format.xlsx' },
+    { key:'mens-golf',               name:"Men's Golf",              season:'Winter', multi:false, format:null },
+    // Spring
+    { key:'softball',                name:'Softball',                season:'Spring', multi:true,  format:'2025-26 Softball E+ Commercial Format.xlsx' },
+    { key:'outdoor-track-and-field', name:'Outdoor Track and Field', season:'Spring', multi:false, format:'2025-26 Track & Field E+ Commercial Format.xlsx' },
+    { key:'baseball',                name:'Baseball',                season:'Spring', multi:true,  format:'2025-26 Baseball E+ Commercial Format.xlsx' }
+  ];
+  /* ── State ── */
+  let _db = null;
+  let _rows = [];        // championship_schedule rows
+  let _bc = { url:'', username:'', password:'' };
+  let _activeTab = SPORTS[0].key;
+
+  /* ── Helpers ── */
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function sportByKey(k) { return SPORTS.find(s => s.key === k); }
+  function sportRows(k) { return _rows.filter(r => r.sport === k).sort((a,b) => (a.row_index || 0) - (b.row_index || 0)); }
+  function fmtDate(v) {
+    if (!v) return '';
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const [y,m,d] = v.split('-').map(Number);
+      return new Date(y, m-1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    return v;
+  }
+  function fmtTime(v) {
+    if (!v) return '';
+    if (typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v)) {
+      const [h, m] = v.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = ((h + 11) % 12) + 1;
+      return `${h12}:${String(m).padStart(2,'0')} ${ampm} ET`;
+    }
+    return v;
+  }
+  function showToast(msg, kind) {
+    const t = document.getElementById('toast');
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    t.textContent = msg;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  /* ── Supabase ── */
+  function initSupabase() {
+    if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+  }
+  async function loadSchedule() {
+    if (!_db) return;
+    try {
+      const { data, error } = await _db.from('championship_schedule').select('*');
+      if (error) throw error;
+      _rows = data || [];
+    } catch (e) {
+      console.error('Schedule load error:', e);
+      showToast('Failed to load schedule', 'warn');
+    }
+  }
+  async function loadBreakClock() {
+    if (!_db) return;
+    try {
+      const { data, error } = await _db.from('championship_break_clock').select('*').eq('id', 'singleton').maybeSingle();
+      if (error) throw error;
+      if (data) _bc = { url: data.url || '', username: data.username || '', password: data.password || '' };
+    } catch (e) {
+      console.warn('Break clock load failed:', e);
+    }
+  }
+  /* ── Tab rendering ── */
+  function renderTabs() {
+    const bar = document.getElementById('tabBar');
+    const out = SPORTS.map(s => `<button class="${_activeTab === s.key ? 'active' : ''}" data-tab="${s.key}">${escapeHtml(s.name)}</button>`);
+    bar.innerHTML = out.join('');
+    bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  }
+  function switchTab(name) {
+    _activeTab = name;
+    renderTabs();
+    renderSport(name);
+  }
+
+  /* ── Sport tab ── */
+  function renderSport(key) {
+    const sport = sportByKey(key);
+    if (!sport) { document.getElementById('content').innerHTML = '<div class="empty-msg">Unknown sport.</div>'; return; }
+    const rows = sportRows(key);
+    const html = `
+      <div class="toolbar">
+        <div class="page-title">${escapeHtml(sport.name)}</div>
+        <span class="row-count">${rows.length} scheduled session${rows.length === 1 ? '' : 's'}</span>
+      </div>
+      <div class="sport-grid">
+        <div>
+          <div class="card">
+            <header><h3>📅 Schedule</h3><span class="badge">${sport.multi ? 'Bracket' : 'Single event'}</span></header>
+            <div class="body dense">${rows.length ? `
+              <table class="schedview">
+                <thead><tr><th>Date</th><th>Time (ET)</th><th>Production</th><th>Venue</th></tr></thead>
+                <tbody>
+                  ${rows.map(r => `
+                    <tr>
+                      <td>${escapeHtml(fmtDate(r.event_date)) || '<em style="color:#aaa">—</em>'}</td>
+                      <td>${escapeHtml(fmtTime(r.event_time)) || '<em style="color:#aaa">—</em>'}</td>
+                      <td class="prod-${(r.production_type || '').toLowerCase()}">${escapeHtml(r.production_type) || '<em style="color:#aaa">—</em>'}</td>
+                      <td>${escapeHtml(r.venue) || '<em style="color:#aaa">—</em>'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            ` : '<div class="empty-msg">Schedule details not yet entered. Visit the Schedule tab to add.</div>'}</div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <header><h3>⏱ Break Clock</h3><span class="badge">Global</span></header>
+            <div class="body">
+              <div class="bc-row">
+                <label>URL</label>
+                <div class="value ${_bc.url ? '' : 'empty'}">${_bc.url ? escapeHtml(_bc.url) : 'Not set by admin'}</div>
+                <button class="copy" data-copy="${escapeHtml(_bc.url)}" ${_bc.url ? '' : 'disabled'}>Copy</button>
+                ${_bc.url ? `<a class="copy" href="${escapeHtml(_bc.url)}" target="_blank" rel="noopener" style="background:var(--blue);color:var(--navy);text-decoration:none;padding:6px 10px;font-weight:700">Open</a>` : ''}
+              </div>
+              <div class="bc-row">
+                <label>Username</label>
+                <div class="value ${_bc.username ? '' : 'empty'}">${_bc.username ? escapeHtml(_bc.username) : 'Not set'}</div>
+                <button class="copy" data-copy="${escapeHtml(_bc.username)}" ${_bc.username ? '' : 'disabled'}>Copy</button>
+              </div>
+              <div class="bc-row">
+                <label>Password</label>
+                <div class="value ${_bc.password ? '' : 'empty'}" id="pwValue" data-real="${escapeHtml(_bc.password)}">${_bc.password ? '•'.repeat(Math.min(_bc.password.length, 12)) : 'Not set'}</div>
+                <span class="pw-toggle" id="pwToggle">${_bc.password ? '👁 Show' : ''}</span>
+                <button class="copy" data-copy="${escapeHtml(_bc.password)}" ${_bc.password ? '' : 'disabled'}>Copy</button>
+              </div>
+              <div style="font-size:10px;color:#999;margin-top:8px">Configure once in the Admin Portal — applies to every sport.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card actions-card">
+          <header><h3>📦 Resources</h3></header>
+          <div class="body">
+            <button class="btn btn-green" id="logoZipBtn">⬇ Download Championship Logos (ZIP)</button>
+            ${sport.format
+              ? `<button class="btn btn-navy" id="formatBtn">⬇ Download Commercial Format (XLSX)</button>`
+              : `<button class="btn muted" disabled title="No format file available for this sport">⬇ Commercial Format (none on file)</button>`}
+            <a class="btn btn-primary" id="commercialsBtn" href="commercials.html?sport=${encodeURIComponent(sport.name)}" target="_blank" rel="noopener" style="text-decoration:none;display:block">📺 Open Commercials Page</a>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('content').innerHTML = html;
+
+    // Wire copy buttons
+    document.querySelectorAll('.bc-row button.copy[data-copy]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const text = b.dataset.copy;
+        if (!text) return;
+        try { await navigator.clipboard.writeText(text); b.classList.add('copied'); b.textContent = '✓ Copied'; setTimeout(() => { b.classList.remove('copied'); b.textContent = 'Copy'; }, 1400); }
+        catch { showToast('Copy failed', 'warn'); }
+      });
+    });
+    const pwToggle = document.getElementById('pwToggle');
+    if (pwToggle && _bc.password) {
+      pwToggle.addEventListener('click', () => {
+        const v = document.getElementById('pwValue');
+        if (pwToggle.textContent.includes('Show')) { v.textContent = v.dataset.real; pwToggle.textContent = '🙈 Hide'; }
+        else { v.textContent = '•'.repeat(Math.min(_bc.password.length, 12)); pwToggle.textContent = '👁 Show'; }
+      });
+    }
+    document.getElementById('logoZipBtn').addEventListener('click', () => downloadLogoZip(sport));
+    document.getElementById('formatBtn')?.addEventListener('click', () => downloadFormat(sport));
+  }
+
+  /* ── Resource actions ── */
+  async function downloadLogoZip(sport) {
+    const base = `championships/logos/${sport.key}/`;
+    try {
+      const r = await fetch(base + 'manifest.json', { cache: 'no-cache' });
+      if (!r.ok) throw new Error('no manifest');
+      const manifest = await r.json();
+      const files = Array.isArray(manifest.files) ? manifest.files : [];
+      if (!files.length) throw new Error('manifest empty');
+      const zip = new JSZip();
+      for (const fname of files) {
+        const fr = await fetch(base + encodeURIComponent(fname));
+        if (!fr.ok) continue;
+        zip.file(fname, await fr.blob());
+      }
+      const out = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(out);
+      a.download = `CUSA_Championship_${sport.name.replace(/[^\w]+/g,'_')}_Logos.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      showToast('Logos downloaded', 'success');
+    } catch {
+      showToast(`No championship logos uploaded yet for ${sport.name}`, 'warn');
+    }
+  }
+  function downloadFormat(sport) {
+    if (!sport.format) return;
+    const a = document.createElement('a');
+    a.href = 'Formats/' + encodeURIComponent(sport.format);
+    a.download = sport.format;
+    a.click();
+  }
+
+  /* ── Realtime ── */
+  let _liveT = null;
+  function flashLive() {
+    const el = document.getElementById('liveBadge');
+    if (!el) return;
+    el.classList.add('flash');
+    clearTimeout(_liveT);
+    _liveT = setTimeout(() => el.classList.remove('flash'), 700);
+  }
+  function setupRealtime() {
+    if (!_db) return;
+    let t1 = null, t2 = null;
+    _db.channel('champ-schedule')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_schedule' }, () => {
+        clearTimeout(t1); t1 = setTimeout(async () => { await loadSchedule(); switchTab(_activeTab); flashLive(); }, 400);
+      })
+      .subscribe(status => { if (status === 'SUBSCRIBED') document.getElementById('liveBadge').style.display = 'inline-flex'; });
+    _db.channel('champ-bc')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_break_clock' }, () => {
+        clearTimeout(t2); t2 = setTimeout(async () => { await loadBreakClock(); switchTab(_activeTab); flashLive(); }, 400);
+      })
+      .subscribe();
+  }
+
+  /* ── Init ── */
+  document.addEventListener('DOMContentLoaded', async () => {
+    initSupabase();
+    await Promise.all([loadSchedule(), loadBreakClock()]);
+    renderTabs();
+    // Allow ?tab=<key> deep link
+    const params = new URLSearchParams(location.search);
+    const t = params.get('tab');
+    switchTab(t && sportByKey(t) ? t : SPORTS[0].key);
+    setupRealtime();
+  });
+</script>
+
+</body>
+</html>

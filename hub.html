@@ -19,98 +19,162 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: var(--navy);
+    background: #F4F6F8;
     min-height: 100vh;
     font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    color: var(--white);
-    padding: 40px 20px;
+    color: var(--navy);
+  }
+
+  /* Navy banner (matches the navy header bar on conferenceusa.com / other Hub pages). */
+  .hub-banner {
+    width: 100%;
+    background: var(--navy);
+    border-bottom: 3px solid var(--espn-red);
+    padding: 38px 20px 32px;
+    text-align: center;
   }
   .hub-logo {
     max-width: 380px;
     width: 85%;
-    margin-bottom: 8px;
+    margin: 0 auto 10px;
+    display: block;
   }
   .hub-tagline {
     font-size: 11px;
     color: var(--gray);
-    letter-spacing: 3px;
+    letter-spacing: 4px;
     text-transform: uppercase;
-    margin-bottom: 52px;
-    font-weight: 500;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  /* Body content area */
+  .hub-body {
+    width: 100%;
+    max-width: 1140px;
+    padding: 32px 20px 16px;
+  }
+
+  /* Section panel: gray-bordered white card with a red header strip. */
+  .hub-section {
+    width: 100%;
+    background: #fff;
+    border: 1px solid var(--gray);
+    border-radius: 6px;
+    margin-bottom: 24px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,38,58,0.04);
+  }
+  .hub-section-label {
+    background: var(--red);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 3.5px;
+    text-transform: uppercase;
+    padding: 11px 18px;
+    line-height: 1;
   }
   .hub-cards {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     flex-wrap: wrap;
-    justify-content: center;
-    max-width: 700px;
-    width: 100%;
+    justify-content: flex-start;
+    padding: 18px;
   }
+  .hub-section.featured .hub-cards { justify-content: center; padding: 22px; }
+  .hub-section.featured .hub-card { max-width: 420px; }
+
+  /* Tile: white with gray hairline border, navy text, red bottom strip on hover. */
   .hub-card {
     flex: 1;
     min-width: 240px;
     max-width: 320px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 14px;
-    padding: 36px 32px;
-    text-align: center;
+    background: #fff;
+    border: 1px solid #E1E7EA;
+    border-radius: 4px;
+    padding: 24px 22px 20px;
+    text-align: left;
     text-decoration: none;
-    color: var(--white);
-    transition: all 0.2s ease;
+    color: var(--navy);
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
     cursor: pointer;
-    display: block;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .hub-card::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: transparent;
+    transition: background 0.18s;
   }
   .hub-card:hover {
-    background: rgba(255,255,255,0.1);
-    border-color: var(--blue);
-    transform: translateY(-3px);
-    box-shadow: 0 8px 32px rgba(0,181,226,0.15);
+    border-color: var(--gray);
+    box-shadow: 0 6px 18px rgba(0,38,58,0.10);
+    transform: translateY(-2px);
   }
+  .hub-card:hover::after { background: var(--red); }
   .hub-card .card-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
+    width: 46px;
+    height: 46px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 18px;
-    font-size: 28px;
+    margin: 0 0 14px;
+    font-size: 22px;
+    background: rgba(0,38,58,0.06);
+    border: 1px solid rgba(0,38,58,0.08);
   }
-  .hub-card .card-icon.blue { background: rgba(0,181,226,0.2); border: 1px solid rgba(0,181,226,0.4); }
-  .hub-card .card-icon.red { background: rgba(239,64,53,0.2); border: 1px solid rgba(239,64,53,0.4); }
+  .hub-card .card-icon.blue { background: rgba(0,181,226,0.12); border-color: rgba(0,181,226,0.35); }
+  .hub-card .card-icon.red  { background: rgba(228,0,70,0.10);  border-color: rgba(228,0,70,0.30); }
   .hub-card .card-title {
-    font-size: 17px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    letter-spacing: -0.2px;
+    font-size: 15px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    letter-spacing: -0.1px;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
   }
   .hub-card .card-desc {
     font-size: 12px;
-    color: rgba(191,206,214,0.8);
+    color: #4a5b66;
     line-height: 1.5;
+    flex: 1;
   }
   .hub-card .card-arrow {
-    margin-top: 20px;
-    font-size: 12px;
-    color: var(--blue);
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
-  .hub-footer {
-    margin-top: 56px;
-    font-size: 10px;
-    color: rgba(255,255,255,0.2);
-    letter-spacing: 2px;
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--red);
+    font-weight: 700;
+    letter-spacing: 1px;
     text-transform: uppercase;
   }
+  /* Admin badge inside titles needs to stay legible on light bg */
+  .hub-card .card-title span {
+    text-transform: none;
+    letter-spacing: 0.3px;
+  }
+  .hub-footer {
+    margin: 16px 0 56px;
+    font-size: 10px;
+    color: rgba(0,38,58,0.45);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .hub-footer a { color: rgba(0,38,58,0.55) !important; }
   @media (max-width: 540px) {
     .hub-card { min-width: 100%; }
     .hub-logo { max-width: 280px; }
+    .hub-banner { padding: 28px 16px 22px; }
   }
 
   /* ── Support chat widget ── */
@@ -286,99 +350,125 @@
 </head>
 <body>
 
-<img class="hub-logo" src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
-     alt="CUSA ESPN"
-     onerror="this.style.display='none'; document.querySelector('.hub-fallback').style.display='block'">
-<div class="hub-fallback" style="display:none; margin-bottom:8px; text-align:center;">
-  <span style="font-size:28px;font-weight:900;letter-spacing:-1px;">CUSA</span>
-  <span style="font-size:16px;font-weight:700;color:var(--espn-red);margin:0 10px;">×</span>
-  <span style="font-size:28px;font-weight:900;color:var(--espn-red);">ESPN</span>
+<div class="hub-banner">
+  <img class="hub-logo" src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png"
+       alt="CUSA ESPN"
+       onerror="this.style.display='none'; document.querySelector('.hub-fallback').style.display='block'">
+  <div class="hub-fallback" style="display:none; margin-bottom:8px; text-align:center;">
+    <span style="font-size:28px;font-weight:900;letter-spacing:-1px;color:#fff;">CUSA</span>
+    <span style="font-size:16px;font-weight:700;color:var(--espn-red);margin:0 10px;">×</span>
+    <span style="font-size:28px;font-weight:900;color:var(--espn-red);">ESPN</span>
+  </div>
+  <p class="hub-tagline">Production Hub</p>
 </div>
 
-<p class="hub-tagline">Production Hub</p>
+<div class="hub-body">
 
-<div class="hub-cards">
-  <a class="hub-card" href="compliance.html">
-    <div class="card-icon blue">📡</div>
-    <div class="card-title">Production Compliance</div>
-    <div class="card-desc">Equipment tracking and ESPN standards compliance across CUSA member schools</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="commercials.html">
-    <div class="card-icon red">📺</div>
-    <div class="card-title">Commercials</div>
-    <div class="card-desc">ESPN+ commercial formats, ad schedule management, and Box resources</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="viewership.html">
-    <div class="card-icon" style="background:rgba(167,213,0,0.2);border:1px solid rgba(167,213,0,0.4);">📊</div>
-    <div class="card-title">Viewership Tracker</div>
-    <div class="card-desc">ESPN+ DTC viewership data by sport, school, and report period</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="schedule.html">
-    <div class="card-icon" style="background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.5);">🗓</div>
-    <div class="card-title">Schedule Submissions</div>
-    <div class="card-desc">School submissions for the ESPN broadcast schedule — Fall, Winter, and Spring</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="championships.html">
-    <div class="card-icon" style="background:rgba(255,215,0,0.18);border:1px solid rgba(255,215,0,0.5);color:#FFD700;">🏆</div>
-    <div class="card-title">Championships</div>
-    <div class="card-desc">Per-sport pages with schedule, break clock, championship logos, and commercial format — Fall, Winter, Spring</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="sponsorships.html">
-    <div class="card-icon" style="background:rgba(167,213,0,0.2);border:1px solid rgba(167,213,0,0.5);color:#A7D500;">💰</div>
-    <div class="card-title">Master Sponsorships <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
-    <div class="card-desc">Sponsor directory, per-championship assignments, ESPN sales inventory (max 6/event). Restricted to kking + jbryant.</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="xpression-hub.html">
-    <div class="card-icon" style="background:rgba(167,213,0,0.2);border:1px solid rgba(167,213,0,0.4);">📋</div>
-    <div class="card-title">Xpression Hub</div>
-    <div class="card-desc">Master Roster and Master Schedule generators for ESPN Xpression production templates</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="melts.html">
-    <div class="card-icon" style="background:rgba(228,0,70,0.2);border:1px solid rgba(228,0,70,0.5);">🎬</div>
-    <div class="card-title">Broadcast Melts</div>
-    <div class="card-desc">Filename builder + File Request links for school broadcast-melt uploads</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="archive.html">
-    <div class="card-icon" style="background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);">🗂</div>
-    <div class="card-title">Melt Archive</div>
-    <div class="card-desc">Browse 5,200+ historical game folders across 9 seasons; request access by access code</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" id="highlightTile" href="highlight.html" style="display:none">
-    <div class="card-icon" style="background:rgba(0,181,226,0.2);border:1px solid rgba(0,181,226,0.4);">🎯</div>
-    <div class="card-title">Highlight Request <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
-    <div class="card-desc">Request automated player highlights from a Box game film by jersey number and color</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" id="wscTile" href="wsc-portal.html">
-    <div class="card-icon" style="background:rgba(200,255,0,0.18);border:1px solid rgba(200,255,0,0.5);color:#C8FF00;">⚡</div>
-    <div class="card-title">WSC Capture Portal</div>
-    <div class="card-desc">Master Schedule (Tata SRT) + Manual Capture for WSC AI clipping ingest. Admins and member schools can sign in.</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-  <a class="hub-card" href="javascript:void(0)" onclick="openAdminAuditLogin();return false;">
-    <div class="card-icon" style="background:rgba(255,215,0,0.18);border:1px solid rgba(255,215,0,0.5);color:#FFD700;">🛡</div>
-    <div class="card-title">Hub Admin <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
-    <div class="card-desc">Creative Hub state override + Claude Code audit log. Legacy admin password required.</div>
-    <div class="card-arrow">Open →</div>
-  </a>
-</div>
+<section class="hub-section">
+  <div class="hub-section-label">Schools</div>
+  <div class="hub-cards">
+    <a class="hub-card" href="compliance.html">
+      <div class="card-icon blue">📡</div>
+      <div class="card-title">Production Compliance</div>
+      <div class="card-desc">Equipment tracking and ESPN standards compliance across CUSA member schools</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" href="commercials.html">
+      <div class="card-icon red">📺</div>
+      <div class="card-title">Commercials</div>
+      <div class="card-desc">ESPN+ commercial formats, ad schedule management, and Box resources</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" href="viewership.html">
+      <div class="card-icon" style="background:rgba(167,213,0,0.2);border:1px solid rgba(167,213,0,0.4);">📊</div>
+      <div class="card-title">Viewership Tracker</div>
+      <div class="card-desc">ESPN+ DTC viewership data by sport, school, and report period</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" href="schedule.html">
+      <div class="card-icon" style="background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.5);">🗓</div>
+      <div class="card-title">Schedule Submissions</div>
+      <div class="card-desc">School submissions for the ESPN broadcast schedule — Fall, Winter, and Spring</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" href="xpression-hub.html">
+      <div class="card-icon" style="background:rgba(167,213,0,0.2);border:1px solid rgba(167,213,0,0.4);">📋</div>
+      <div class="card-title">Xpression Hub</div>
+      <div class="card-desc">Master Roster and Master Schedule generators for ESPN Xpression production templates</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" href="melts.html">
+      <div class="card-icon" style="background:rgba(228,0,70,0.2);border:1px solid rgba(228,0,70,0.5);">🎬</div>
+      <div class="card-title">Broadcast Melts</div>
+      <div class="card-desc">Filename builder + File Request links for school broadcast-melt uploads</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+  </div>
+</section>
+
+<section class="hub-section featured">
+  <div class="hub-section-label">Championships</div>
+  <div class="hub-cards">
+    <a class="hub-card" href="championships.html">
+      <div class="card-icon" style="background:rgba(255,215,0,0.18);border:1px solid rgba(255,215,0,0.5);color:#FFD700;">🏆</div>
+      <div class="card-title">Championships</div>
+      <div class="card-desc">Per-sport pages with schedule, break clock, championship logos, and commercial format — Fall, Winter, Spring</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+  </div>
+</section>
+
+<section class="hub-section">
+  <div class="hub-section-label">Administrative</div>
+  <div class="hub-cards">
+    <a class="hub-card" href="sponsorships.html">
+      <div class="card-icon" style="background:rgba(167,213,0,0.2);border:1px solid rgba(167,213,0,0.5);color:#A7D500;">💰</div>
+      <div class="card-title">Master Sponsorships <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
+      <div class="card-desc">Sponsor directory, per-championship assignments, ESPN sales inventory (max 6/event). Restricted to kking + jbryant.</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" href="javascript:void(0)" onclick="openAdminAuditLogin();return false;">
+      <div class="card-icon" style="background:rgba(255,215,0,0.18);border:1px solid rgba(255,215,0,0.5);color:#FFD700;">🛡</div>
+      <div class="card-title">Hub Admin <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
+      <div class="card-desc">Creative Hub state override + Claude Code audit log. Legacy admin password required.</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" id="highlightTile" href="highlight.html" style="display:none">
+      <div class="card-icon" style="background:rgba(0,181,226,0.2);border:1px solid rgba(0,181,226,0.4);">🎯</div>
+      <div class="card-title">Highlight Request <span style="font-size:9px;background:var(--espn-red);color:#fff;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;vertical-align:middle">ADMIN</span></div>
+      <div class="card-desc">Request automated player highlights from a Box game film by jersey number and color</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+  </div>
+</section>
+
+<section class="hub-section">
+  <div class="hub-section-label">External</div>
+  <div class="hub-cards">
+    <a class="hub-card" href="archive.html">
+      <div class="card-icon" style="background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);">🗂</div>
+      <div class="card-title">Melt Archive</div>
+      <div class="card-desc">Browse 5,200+ historical game folders across 9 seasons; request access by access code</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+    <a class="hub-card" id="wscTile" href="wsc-portal.html">
+      <div class="card-icon" style="background:rgba(200,255,0,0.18);border:1px solid rgba(200,255,0,0.5);color:#C8FF00;">⚡</div>
+      <div class="card-title">WSC Capture Portal</div>
+      <div class="card-desc">Master Schedule (Tata SRT) + Manual Capture for WSC AI clipping ingest. Admins and member schools can sign in.</div>
+      <div class="card-arrow">Open →</div>
+    </a>
+  </div>
+</section>
 
 <div class="hub-footer">
   Conference USA &nbsp;·&nbsp; ESPN+ &nbsp;·&nbsp; 2025–26
   <span id="hubAdminFooter" style="display:none">
-    &nbsp;·&nbsp; <a href="faq.html" style="color:rgba(255,255,255,0.45);text-decoration:none;letter-spacing:1.2px">FAQ</a>
-    &nbsp;·&nbsp; <a id="hubChatLogsLink" href="chatlogs.html" style="color:rgba(255,255,255,0.45);text-decoration:none;letter-spacing:1.2px;display:none">CHAT LOGS</a>
+    &nbsp;·&nbsp; <a href="faq.html">FAQ</a>
+    &nbsp;·&nbsp; <a id="hubChatLogsLink" href="chatlogs.html" style="display:none">CHAT LOGS</a>
   </span>
 </div>
+
+</div><!-- /.hub-body -->
 
 <!-- Support chat widget (always visible; sign-in required on first open) -->
 <button id="supportChatBtn" class="support-chat-btn" type="button" onclick="openSupportChat()" aria-label="Chat with Support">

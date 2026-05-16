@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="claude-audit-ui.js"></script>
 <style>
   :root {
     --navy: #00263A;
@@ -475,6 +476,9 @@
   <button data-tab="activity">📋 Activity Log</button>
   <button data-tab="schools">🏫 Schools</button>
 </div>
+
+<!-- Claude Audit indicator (auto-hides when no Critical/High alerts) -->
+<div id="claudeAuditIndicator" style="max-width:1500px;margin:14px auto 0;padding:0 20px"></div>
 
 <!-- Tab content -->
 <div class="content">
@@ -1559,6 +1563,26 @@
     setupEventListeners();
     setupRealtime();
     if (rawData.length > 0) renderAllTabs();
+    mountAuditIndicator();
+  }
+
+  // Claude Audit indicator — surfaces pending Critical/High alerts at the
+  // top of the admin so Keith / admins see them without navigating to
+  // hub-admin.html. Hides when there are no active alerts.
+  function mountAuditIndicator() {
+    const container = document.getElementById('claudeAuditIndicator');
+    if (!container || !window.ClaudeAudit || !window.ClaudeAudit.mountIndicator) return;
+    if (!_db) return;
+    window.ClaudeAudit.mountIndicator({
+      db: _db,
+      container: container,
+      repoFilter: '%/ESPN Equipment Tracker%',
+      hubLabel: 'Production Hub',
+      linkUrl: 'hub-admin.html',
+      sessionKey: 'cusa_admin_current_user',
+      days: 7,
+      refreshMs: 60000
+    });
   }
 
   /* ── Live Sync (Supabase Realtime) ── */

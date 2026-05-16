@@ -1056,6 +1056,137 @@ ${riskBuckets}
     }
   };
 
+  /* ── Active-alert indicator (used by Hub landing pages) ──────────────────
+   * Lightweight surface showing "X active critical · Y active high" so the
+   * admin sees pending risk alerts without having to open the Audit tab.
+   * Hides when there are zero active alerts. */
+
+  async function fetchActiveAlerts(opts) {
+    const db = opts && opts.db;
+    if (!db) return { critical: 0, high: 0, criticalTotal: 0, highTotal: 0, error: 'no db' };
+    const days = (opts && opts.days) || 7;
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    try {
+      // Pull only PreToolUse events from the window for this repo. We need
+      // input/tool to classify (severity isn't stored in the DB) but skip
+      // response/cwd/host etc. to keep the payload small.
+      const { data, error } = await db.from('claude_audit_events')
+        .select('id, event, tool, input, resolved_at, ts')
+        .ilike('cwd', opts.repoFilter || '%')
+        .eq('event', 'PreToolUse')
+        .gte('ts', since)
+        .order('ts', { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      let crit = 0, high = 0, critTotal = 0, highTotal = 0;
+      for (const e of (data || [])) {
+        const sev = classify(e).sev;
+        if (sev === 'critical') { critTotal++; if (!isResolved(e)) crit++; }
+        else if (sev === 'high') { highTotal++; if (!isResolved(e)) high++; }
+      }
+      return { critical: crit, high: high, criticalTotal: critTotal, highTotal: highTotal, fetchedAt: Date.now() };
+    } catch (e) {
+      return { critical: 0, high: 0, criticalTotal: 0, highTotal: 0, error: e.message || String(e) };
+    }
+  }
+
+  function _hasAdminSession(sessionKey) {
+    if (!sessionKey) return true; // no gate
+    try {
+      const raw = localStorage.getItem(sessionKey);
+      if (!raw) return false;
+      try { const parsed = JSON.parse(raw); return !!(parsed && (parsed.email || parsed === true)); }
+      catch { return raw === 'true' || raw.length > 0; }
+    } catch { return false; }
+  }
+
+  function mountIndicator(opts) {
+    if (!opts || !opts.container) return () => {};
+    const refreshMs = opts.refreshMs || 60000;
+    const cont = opts.container;
+    cont.innerHTML = ''; // start hidden
+    mountIndicatorCss();
+    let timer = null, stopped = false;
+
+    async function tick() {
+      if (stopped) return;
+      if (!_hasAdminSession(opts.sessionKey)) { cont.innerHTML = ''; return; }
+      const r = await fetchActiveAlerts(opts);
+      if (stopped) return;
+      const total = (r.critical || 0) + (r.high || 0);
+      if (!total || r.error) { cont.innerHTML = ''; return; }
+      const link = opts.linkUrl || 'hub-admin.html';
+      const hubLabel = opts.hubLabel || 'Audit';
+      const parts = [];
+      if (r.critical) parts.push(`<strong>${r.critical}</strong> Critical`);
+      if (r.high)     parts.push(`<strong>${r.high}</strong> High`);
+      cont.innerHTML = `
+        <a class="ca-indicator" href="${link}" title="Open Claude Audit — Full Log to resolve">
+          <span class="ca-indicator-icon">⚠</span>
+          <span class="ca-indicator-text">
+            <span class="ca-indicator-title">Claude Audit · ${parts.join(' · ')} active</span>
+            <span class="ca-indicator-sub">${hubLabel} · ${total === 1 ? '1 alert' : total + ' alerts'} need review in the last ${(opts.days || 7)} days</span>
+          </span>
+          <span class="ca-indicator-cta">Review →</span>
+        </a>`;
+    }
+
+    tick();
+    timer = setInterval(tick, refreshMs);
+    // Re-check when the user returns to the tab (so a session that just
+    // signed in or out reflects immediately, and counts refresh).
+    function onVis() { if (document.visibilityState === 'visible') tick(); }
+    document.addEventListener('visibilitychange', onVis);
+
+    return function stop() {
+      stopped = true;
+      if (timer) clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }
+
+  let _indicatorCssMounted = false;
+  function mountIndicatorCss() {
+    if (_indicatorCssMounted) return;
+    const s = document.createElement('style');
+    s.setAttribute('data-claude-audit-indicator', '1');
+    s.textContent = `
+      .ca-indicator {
+        display: flex; align-items: center; gap: 14px;
+        padding: 12px 18px;
+        background: linear-gradient(90deg, rgba(220,38,38,0.95), rgba(234,88,12,0.95));
+        color: #fff !important; text-decoration: none;
+        border-radius: 8px;
+        box-shadow: 0 4px 14px rgba(220,38,38,0.25);
+        transition: transform .15s, box-shadow .15s;
+        font-family: inherit;
+        animation: ca-ind-pulse 2.4s ease-in-out infinite;
+      }
+      .ca-indicator:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(220,38,38,0.35);
+      }
+      .ca-indicator-icon { font-size: 22px; line-height: 1; }
+      .ca-indicator-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+      .ca-indicator-title { font-size: 13px; font-weight: 800; letter-spacing: 0.3px; }
+      .ca-indicator-sub { font-size: 11px; opacity: 0.92; font-weight: 500; }
+      .ca-indicator-cta {
+        font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+        background: rgba(255,255,255,0.18); padding: 6px 12px; border-radius: 4px;
+        white-space: nowrap;
+      }
+      @keyframes ca-ind-pulse {
+        0%, 100% { box-shadow: 0 4px 14px rgba(220,38,38,0.25); }
+        50%      { box-shadow: 0 4px 14px rgba(220,38,38,0.55); }
+      }
+    `;
+    document.head.appendChild(s);
+    _indicatorCssMounted = true;
+  }
+
+  global.ClaudeAudit.fetchActiveAlerts = fetchActiveAlerts;
+  global.ClaudeAudit.mountIndicator    = mountIndicator;
+
   // Replace shim with the real binding so download-json works.
   global.ClaudeAudit.init = async function (cfg) {
     mountCss();

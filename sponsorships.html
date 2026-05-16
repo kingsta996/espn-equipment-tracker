@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSA Master Sponsorships — Admin Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy:#00263A; --gray:#BFCED6; --white:#FFFFFF; --red:#E40046;
+    --blue:#00B5E2; --green:#A7D500; --espn-red:#EF4035; --light:#f0f2f5;
+    --warn-bg:#fffbeb; --warn-border:#f59e0b;
+    --st-pending:#FF9800; --st-confirmed:#4CAF50; --st-tbd:#9E9E9E; --st-cancelled:#F44336;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI','Helvetica Neue',sans-serif; background: var(--light); min-height: 100vh; color: #222; padding-bottom: 60px; }
+
+  .header { background: var(--navy); padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 3px solid var(--espn-red); }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .header .admin-badge { background: rgba(167,213,0,0.18); color: var(--green); padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; border: 1px solid rgba(167,213,0,0.5); }
+  .header .user-name { color: var(--white); font-size: 12px; opacity: 0.85; }
+
+  .tab-bar { background: #fff; border-bottom: 3px solid var(--espn-red); display: flex; flex-wrap: wrap; padding: 0 12px; }
+  .tab-bar button { padding: 11px 16px; border: none; cursor: pointer; font-size: 12px; font-weight: 700; background: transparent; color: var(--navy); border-bottom: 3px solid transparent; margin-bottom: -3px; font-family: inherit; }
+  .tab-bar button.active { background: var(--espn-red); color: #fff; }
+  .tab-bar button:hover:not(.active) { background: #f5f5f5; }
+
+  .content { max-width: 1400px; margin: 0 auto; padding: 22px 20px; }
+  .section { background: #fff; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+  .section header { padding: 12px 18px; border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .section header h2 { font-size: 14px; color: var(--navy); flex: 1; }
+  .section .body { padding: 16px 18px; }
+  .section .body.flush { padding: 0; }
+
+  .btn { padding: 7px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700; font-family: inherit; color: #fff; }
+  .btn:hover { filter: brightness(0.92); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--espn-red); }
+  .btn-blue { background: var(--blue); color: var(--navy); }
+  .btn-navy { background: var(--navy); }
+  .btn-green { background: var(--green); color: var(--navy); }
+  .btn-outline { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+  .btn-sm { padding: 4px 9px; font-size: 11px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table thead { background: var(--navy); color: #fff; }
+  table th { padding: 9px 12px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table td { padding: 8px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  table tbody tr:hover td { background: #fff7ed; }
+  table .actions { white-space: nowrap; text-align: right; }
+  table .actions button { border: none; background: transparent; cursor: pointer; padding: 2px 6px; font-size: 14px; color: #999; }
+  table .actions button:hover { color: var(--espn-red); }
+  .logo-thumb { width: 44px; height: 44px; object-fit: contain; background: #fff; border: 1px solid #eee; border-radius: 4px; padding: 2px; }
+  .logo-thumb.empty { display: inline-flex; align-items: center; justify-content: center; color: #bbb; font-size: 18px; }
+  .name-cell { font-weight: 700; color: var(--navy); }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+  .pill.pending   { background: #FFF3E0; color: #B65A00; border: 1px solid var(--st-pending); }
+  .pill.confirmed { background: #E8F5E9; color: #1B5E20; border: 1px solid var(--st-confirmed); }
+  .pill.tbd       { background: #F5F5F5; color: #555;    border: 1px solid var(--st-tbd); }
+  .pill.cancelled { background: #FFEBEE; color: #C62828; border: 1px solid var(--st-cancelled); }
+
+  .search-box { padding: 7px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 12px; font-family: inherit; width: 240px; }
+  .search-box:focus { outline: none; border-color: var(--blue); }
+  .count-pill { font-size: 11px; color: #555; background: #f0f2f5; padding: 4px 10px; border-radius: 12px; }
+
+  .empty-msg { text-align: center; padding: 36px 16px; color: var(--navy); opacity: 0.55; font-size: 13px; }
+
+  /* Assignments tab */
+  .sport-select { padding: 7px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 12px; font-family: inherit; font-weight: 700; color: var(--navy); }
+  .max-bar-wrap { background: #fafbfc; border: 1px solid #eee; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 14px; }
+  .max-bar { flex: 1; height: 12px; background: #f0f2f5; border-radius: 6px; overflow: hidden; position: relative; }
+  .max-bar .fill { height: 100%; background: var(--green); transition: width .2s; }
+  .max-bar.over .fill { background: var(--espn-red); }
+  .max-bar-label { font-size: 11px; font-weight: 700; color: var(--navy); }
+  .max-bar.over .max-bar-label { color: var(--espn-red); }
+
+  /* Overview tab */
+  .overview-row { cursor: pointer; }
+  .overview-row:hover td { background: #fff7ed; }
+  .stat-cell { text-align: center; font-weight: 700; font-size: 13px; }
+  .stat-cell.confirmed { color: var(--st-confirmed); }
+  .stat-cell.pending { color: var(--st-pending); }
+  .stat-cell.tbd { color: var(--st-tbd); }
+  .stat-cell.cancelled { color: var(--st-cancelled); }
+  .stat-cell.over { color: var(--espn-red); }
+
+  /* Modals */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,38,58,0.7); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px 26px; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 92vh; overflow-y: auto; }
+  .modal h3 { font-size: 16px; color: var(--navy); margin-bottom: 14px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 13px; font-family: inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--blue); }
+  .field textarea { min-height: 60px; resize: vertical; }
+  .field .hint { font-size: 11px; color: #888; margin-top: 4px; }
+  .logo-preview { width: 100%; max-width: 180px; height: 100px; background: #fafbfc; border: 2px dashed #ddd; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 11px; overflow: hidden; }
+  .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+  /* Sign-in gate */
+  .pw-overlay { display: flex; position: fixed; inset: 0; background: rgba(0,38,58,0.95); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
+  .pw-overlay.hidden { display: none; }
+  .pw-box { background: #fff; border-radius: 12px; padding: 36px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+  .pw-box h2 { font-size: 18px; color: var(--navy); margin-bottom: 6px; }
+  .pw-box p { font-size: 12px; color: #666; margin-bottom: 20px; }
+  .pw-box input { width: 100%; padding: 11px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; margin-bottom: 10px; }
+  .pw-box input:focus { outline: none; border-color: var(--blue); }
+  .pw-err { color: var(--espn-red); font-size: 12px; margin-bottom: 10px; display: none; }
+  .pw-info { font-size: 11px; color: #888; margin-top: 14px; text-align: center; }
+  .pw-info code { background: #f0f2f5; padding: 2px 6px; border-radius: 3px; font-family: 'SF Mono', Menlo, monospace; }
+
+  .live-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: rgba(167,213,0,0.2); color: #4a6600; border: 1px solid var(--green); border-radius: 12px; font-size: 10px; font-weight: 700; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .live-badge::before { content: ''; width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: live-pulse 1.6s ease-in-out infinite; }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--navy); color: #fff; padding: 10px 16px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); font-size: 12px; font-weight: 600; z-index: 400; transition: opacity 0.3s; opacity: 0; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.warn { background: var(--warn-border); color: var(--navy); }
+  .toast.success { background: var(--green); color: var(--navy); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Logos/Hub/cusa%20espn%20cobrand%201C%20white.png" alt="CUSA ESPN" onerror="this.style.display='none'">
+  <h1>Master Sponsorships <span id="liveBadge" class="live-badge" style="display:none">Live</span></h1>
+  <span class="admin-badge" id="signedInBadge" style="display:none">🔑 Admin</span>
+  <span class="user-name" id="userName"></span>
+  <a href="championships.html">← Championships</a>
+  <a href="hub.html">← Hub</a>
+</div>
+
+<div id="appWrap" style="display:none">
+  <div class="tab-bar" id="tabBar"></div>
+  <div class="content" id="content"></div>
+</div>
+
+<!-- Sponsor edit modal -->
+<div class="modal-overlay" id="sponsorModal">
+  <div class="modal">
+    <h3 id="sponsorModalTitle">Add Sponsor</h3>
+    <div class="field">
+      <label for="spName">Sponsor Name *</label>
+      <input type="text" id="spName" placeholder="ESPN Bowl Sponsor LLC">
+    </div>
+    <div class="field">
+      <label>Logo</label>
+      <div class="logo-preview" id="spLogoPreview">No logo</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input type="file" id="spLogoFile" accept="image/*" style="flex:1;font-size:11px">
+        <button type="button" class="btn btn-outline btn-sm" id="spLogoClear">Clear</button>
+      </div>
+      <div class="hint">PNG/SVG recommended. Stored inline (data URL) — keep under 200 KB for fast loads.</div>
+    </div>
+    <div class="field">
+      <label for="spCommercial">Linked Commercial Spot (optional)</label>
+      <select id="spCommercial"><option value="">— Not linked —</option></select>
+      <div class="hint">Pulls from the Commercials Hub. Operators can deep-link from each championship sport tab.</div>
+    </div>
+    <div class="field">
+      <label for="spNotes">Notes</label>
+      <textarea id="spNotes" placeholder="Contract terms, contact, anything else worth remembering"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeSponsorModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSponsor()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assignment edit modal -->
+<div class="modal-overlay" id="assignModal">
+  <div class="modal">
+    <h3 id="assignModalTitle">Add Assignment</h3>
+    <div class="field">
+      <label>Sport</label>
+      <input type="text" id="asSportLabel" disabled>
+    </div>
+    <div class="field">
+      <label for="asSponsor">Sponsor *</label>
+      <select id="asSponsor"></select>
+    </div>
+    <div class="field">
+      <label for="asUsage">Usage (ESPN Inventory) *</label>
+      <select id="asUsage"></select>
+      <div class="hint">ESPN allows up to <strong>6 sales features per event</strong>.</div>
+    </div>
+    <div class="field">
+      <label for="asStatus">Status</label>
+      <select id="asStatus">
+        <option value="pending">Pending</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="tbd">TBD</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="asNotes">Notes</label>
+      <textarea id="asNotes" placeholder="Run-of-show details, talent read, etc."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeAssignModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAssignment()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sign-in gate -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>🔑 Master Sponsorships</h2>
+    <p>Restricted to <strong>kking@conferenceusa.com</strong> and <strong>jbryant@conferenceusa.com</strong>.</p>
+    <input type="email" id="pwEmail" placeholder="email@conferenceusa.com" autocomplete="username">
+    <input type="password" id="pwPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()">
+    <div class="pw-err" id="pwErr">Incorrect email or password.</div>
+    <button class="btn btn-primary" onclick="submitLogin()" style="width:100%">Sign in</button>
+    <div class="pw-info">Password resets happen on <code>admin.html</code> after sign-in. <br>← <a href="hub.html" style="color:#888">Back to Hub</a></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ── Constants ── */
+  const SPORTS = [
+    { key:'cross-country',           name:'Cross Country' },
+    { key:'soccer',                  name:'Soccer' },
+    { key:'volleyball',              name:'Volleyball' },
+    { key:'football',                name:'Football' },
+    { key:'indoor-track-and-field',  name:'Indoor Track and Field' },
+    { key:'basketball',              name:'Basketball' },
+    { key:'bowling',                 name:'Bowling' },
+    { key:'mens-tennis',             name:"Men's Tennis" },
+    { key:'womens-tennis',           name:"Women's Tennis" },
+    { key:'womens-golf',             name:"Women's Golf" },
+    { key:'beach-volleyball',        name:'Beach Volleyball' },
+    { key:'mens-golf',               name:"Men's Golf" },
+    { key:'softball',                name:'Softball' },
+    { key:'outdoor-track-and-field', name:'Outdoor Track and Field' },
+    { key:'baseball',                name:'Baseball' }
+  ];
+
+  // From 2025-26 ESPN+ CUSA Sales Inventory Document
+  const USAGE_INVENTORY = {
+    'In-Game Features': [
+      'Starting Lineups',
+      'Keys to the Game',
+      'Players to Watch / Impact Players',
+      'First Half Stats',
+      'Conference Standings',
+      'Upcoming Schedule',
+      'Trivia Question',
+      'Series History',
+      'Player of the Game',
+      'Play of the Game',
+      'Game Track',
+      'Player Spotlight / Player Bio',
+      'Game Summary',
+      'Post-Game Interview'
+    ],
+    'Halftime Features': [
+      'First Half Tune-In',
+      'Halftime Report',
+      'First Half Highlights'
+    ]
+  };
+  const ALL_USAGES = Object.values(USAGE_INVENTORY).flat();
+  const ESPN_MAX_FEATURES = 6;
+
+  const ALLOWED_EMAILS = ['kking@conferenceusa.com', 'jbryant@conferenceusa.com'];
+  const SESSION_KEY = 'cusa_sponsorships_session';
+
+  /* ── State ── */
+  let _db = null;
+  let _sponsors = [];          // sponsors rows
+  let _assignments = [];       // championship_sponsorships rows
+  let _commercials = [];       // commercials.commercials rows (for the dropdown)
+  let _session = null;         // { email, name }
+  let _activeTab = 'sponsors';
+  let _selectedSport = SPORTS[0].key;
+  let _editingSponsorId = null;
+  let _editingAssignmentId = null;
+  let _sponsorSearch = '';
+
+  /* ── Helpers ── */
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function sportByKey(k) { return SPORTS.find(s => s.key === k); }
+  function sponsorById(id) { return _sponsors.find(s => s.id === id); }
+  function commercialById(id) { return _commercials.find(c => c.id === id); }
+  async function sha256(s) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  function showToast(msg, kind) {
+    const t = document.getElementById('toast');
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    t.textContent = msg;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+  function logoHtml(url, alt) {
+    if (url) return `<img class="logo-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(alt || '')}">`;
+    return `<span class="logo-thumb empty">—</span>`;
+  }
+
+  /* ── Supabase ── */
+  function initSupabase() {
+    if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+  }
+  async function loadAll() {
+    if (!_db) return;
+    try {
+      const [s, a, c] = await Promise.all([
+        _db.from('sponsors').select('*').order('name'),
+        _db.from('championship_sponsorships').select('*'),
+        _db.from('commercials').select('id, name, category, sports').eq('status', 'active').order('name')
+      ]);
+      if (s.error) throw s.error;
+      if (a.error) throw a.error;
+      _sponsors = s.data || [];
+      _assignments = a.data || [];
+      _commercials = c.data || [];
+    } catch (e) {
+      console.error(e);
+      showToast('Load failed: ' + (e.message || e), 'warn');
+    }
+  }
+
+  /* ── Tab rendering ── */
+  function renderTabs() {
+    const tabs = [
+      { key: 'sponsors',    label: '🏢 Sponsors' },
+      { key: 'assignments', label: '🏆 Per-Sport Assignments' },
+      { key: 'overview',    label: '📊 Overview' }
+    ];
+    document.getElementById('tabBar').innerHTML = tabs.map(t =>
+      `<button class="${_activeTab === t.key ? 'active' : ''}" data-tab="${t.key}">${t.label}</button>`
+    ).join('');
+    document.getElementById('tabBar').querySelectorAll('button').forEach(b =>
+      b.addEventListener('click', () => switchTab(b.dataset.tab))
+    );
+  }
+  function switchTab(name) {
+    _activeTab = name;
+    renderTabs();
+    if (name === 'sponsors') renderSponsorsTab();
+    else if (name === 'assignments') renderAssignmentsTab();
+    else if (name === 'overview') renderOverviewTab();
+  }
+
+  /* ── Tab 1: Sponsors ── */
+  function renderSponsorsTab() {
+    const filtered = _sponsors.filter(s => !_sponsorSearch || (s.name || '').toLowerCase().includes(_sponsorSearch.toLowerCase()));
+    const html = `
+      <div class="section">
+        <header>
+          <h2>🏢 Sponsor Directory</h2>
+          <input type="search" class="search-box" id="sponsorSearch" placeholder="Search sponsors…" value="${escapeHtml(_sponsorSearch)}">
+          <span class="count-pill">${filtered.length} of ${_sponsors.length}</span>
+          <button class="btn btn-primary" onclick="openSponsorModal(null)">+ Add Sponsor</button>
+        </header>
+        <div class="body flush">
+          ${filtered.length ? `
+            <table>
+              <thead><tr>
+                <th style="width:60px">Logo</th>
+                <th>Sponsor</th>
+                <th>Linked Commercial</th>
+                <th>Assignments</th>
+                <th>Notes</th>
+                <th class="actions">Actions</th>
+              </tr></thead>
+              <tbody>${filtered.map(s => {
+                const assignCount = _assignments.filter(a => a.sponsor_id === s.id).length;
+                const comm = s.commercial_id ? commercialById(s.commercial_id) : null;
+                return `
+                  <tr data-id="${s.id}">
+                    <td>${logoHtml(s.logo_url, s.name)}</td>
+                    <td class="name-cell">${escapeHtml(s.name)}</td>
+                    <td>${comm ? `<span style="color:var(--blue);font-weight:700">📺 ${escapeHtml(comm.name)}</span>` : '<span style="color:#aaa">—</span>'}</td>
+                    <td><span class="count-pill">${assignCount}</span></td>
+                    <td style="font-size:11px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis">${escapeHtml((s.notes || '').slice(0, 90))}${(s.notes || '').length > 90 ? '…' : ''}</td>
+                    <td class="actions">
+                      <button title="Edit" data-edit="${s.id}">✏</button>
+                      <button title="Delete" data-del="${s.id}">🗑</button>
+                    </td>
+                  </tr>`;
+              }).join('')}</tbody>
+            </table>
+          ` : `<div class="empty-msg">${_sponsorSearch ? 'No sponsors match the search.' : 'No sponsors yet — add your first to get started.'}</div>`}
+        </div>
+      </div>
+    `;
+    document.getElementById('content').innerHTML = html;
+    document.getElementById('sponsorSearch').addEventListener('input', e => { _sponsorSearch = e.target.value; renderSponsorsTab(); });
+    document.getElementById('content').addEventListener('click', e => {
+      const edit = e.target.closest('[data-edit]');
+      if (edit) return openSponsorModal(edit.dataset.edit);
+      const del = e.target.closest('[data-del]');
+      if (del) return deleteSponsor(del.dataset.del);
+    });
+  }
+
+  function openSponsorModal(id) {
+    _editingSponsorId = id;
+    const s = id ? sponsorById(id) : { name: '', logo_url: '', commercial_id: '', notes: '' };
+    document.getElementById('sponsorModalTitle').textContent = id ? 'Edit Sponsor' : 'Add Sponsor';
+    document.getElementById('spName').value = s.name || '';
+    document.getElementById('spNotes').value = s.notes || '';
+    const preview = document.getElementById('spLogoPreview');
+    if (s.logo_url) preview.innerHTML = `<img src="${escapeHtml(s.logo_url)}" alt="">`;
+    else preview.innerHTML = 'No logo';
+    preview.dataset.url = s.logo_url || '';
+    const sel = document.getElementById('spCommercial');
+    sel.innerHTML = '<option value="">— Not linked —</option>' + _commercials.map(c =>
+      `<option value="${c.id}" ${c.id === s.commercial_id ? 'selected' : ''}>${escapeHtml(c.name)}${c.category ? ' · ' + c.category : ''}</option>`
+    ).join('');
+    document.getElementById('spLogoFile').value = '';
+    document.getElementById('sponsorModal').classList.add('open');
+  }
+  function closeSponsorModal() { document.getElementById('sponsorModal').classList.remove('open'); _editingSponsorId = null; }
+  document.addEventListener('change', async e => {
+    if (e.target.id === 'spLogoFile') {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (f.size > 500 * 1024) { showToast('Logo file too large (max 500 KB)', 'warn'); e.target.value = ''; return; }
+      const url = await fileToDataUrl(f);
+      const preview = document.getElementById('spLogoPreview');
+      preview.innerHTML = `<img src="${url}" alt="">`;
+      preview.dataset.url = url;
+    }
+  });
+  document.addEventListener('click', e => {
+    if (e.target.id === 'spLogoClear') {
+      const preview = document.getElementById('spLogoPreview');
+      preview.innerHTML = 'No logo';
+      preview.dataset.url = '';
+      document.getElementById('spLogoFile').value = '';
+    }
+  });
+  async function saveSponsor() {
+    const name = document.getElementById('spName').value.trim();
+    if (!name) { showToast('Sponsor name required', 'warn'); return; }
+    const payload = {
+      name,
+      logo_url: document.getElementById('spLogoPreview').dataset.url || '',
+      commercial_id: document.getElementById('spCommercial').value || null,
+      notes: document.getElementById('spNotes').value.trim(),
+      updated_by: _session?.email || null
+    };
+    try {
+      let res;
+      if (_editingSponsorId) res = await _db.from('sponsors').update(payload).eq('id', _editingSponsorId).select().single();
+      else res = await _db.from('sponsors').insert(payload).select().single();
+      if (res.error) throw res.error;
+      const saved = res.data;
+      const idx = _sponsors.findIndex(s => s.id === saved.id);
+      if (idx === -1) _sponsors.push(saved); else _sponsors[idx] = saved;
+      _sponsors.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+      closeSponsorModal();
+      renderSponsorsTab();
+      showToast('Saved', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Save failed: ' + (e.message || e), 'warn');
+    }
+  }
+  async function deleteSponsor(id) {
+    const s = sponsorById(id);
+    if (!s) return;
+    const used = _assignments.filter(a => a.sponsor_id === id).length;
+    const msg = used
+      ? `Delete sponsor "${s.name}"?\nThis will also remove ${used} assignment${used === 1 ? '' : 's'} across sports.`
+      : `Delete sponsor "${s.name}"?`;
+    if (!confirm(msg)) return;
+    try {
+      const { error } = await _db.from('sponsors').delete().eq('id', id);
+      if (error) throw error;
+      _sponsors = _sponsors.filter(s => s.id !== id);
+      _assignments = _assignments.filter(a => a.sponsor_id !== id);
+      renderSponsorsTab();
+      showToast('Deleted', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Delete failed: ' + (e.message || e), 'warn');
+    }
+  }
+
+  /* ── Tab 2: Per-Sport Assignments ── */
+  function renderAssignmentsTab() {
+    const sport = sportByKey(_selectedSport);
+    const assigns = _assignments.filter(a => a.sport === _selectedSport);
+    const featuresUsed = assigns.filter(a => a.status !== 'cancelled').length;
+    const pct = Math.min(100, (featuresUsed / ESPN_MAX_FEATURES) * 100);
+    const overCap = featuresUsed > ESPN_MAX_FEATURES;
+
+    const html = `
+      <div class="section">
+        <header>
+          <h2>🏆 Per-Sport Assignments</h2>
+          <label style="font-size:11px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:0.5px">Sport</label>
+          <select class="sport-select" id="sportSelect">
+            ${SPORTS.map(s => `<option value="${s.key}" ${s.key === _selectedSport ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+          </select>
+          <button class="btn btn-primary" onclick="openAssignModal(null)">+ Add Assignment</button>
+        </header>
+        <div class="body">
+          <div class="max-bar-wrap">
+            <div class="max-bar-label">ESPN sales feature usage</div>
+            <div class="max-bar ${overCap ? 'over' : ''}"><div class="fill" style="width:${pct}%"></div></div>
+            <div class="max-bar-label">${featuresUsed} / ${ESPN_MAX_FEATURES}${overCap ? ' — OVER ESPN LIMIT' : ''}</div>
+          </div>
+          ${assigns.length ? `
+            <div style="overflow-x:auto"><table>
+              <thead><tr>
+                <th style="width:60px">Logo</th>
+                <th>Sponsor</th>
+                <th>Usage</th>
+                <th>Status</th>
+                <th>Commercial</th>
+                <th>Notes</th>
+                <th class="actions">Actions</th>
+              </tr></thead>
+              <tbody>${assigns.map(a => {
+                const s = sponsorById(a.sponsor_id);
+                if (!s) return '';
+                const comm = s.commercial_id ? commercialById(s.commercial_id) : null;
+                return `
+                  <tr data-id="${a.id}">
+                    <td>${logoHtml(s.logo_url, s.name)}</td>
+                    <td class="name-cell">${escapeHtml(s.name)}</td>
+                    <td>${escapeHtml(a.usage)}</td>
+                    <td><span class="pill ${a.status}">${a.status}</span></td>
+                    <td>${comm ? `<span style="color:var(--blue);font-weight:700;font-size:11px">📺 ${escapeHtml(comm.name)}</span>` : '<span style="color:#aaa">—</span>'}</td>
+                    <td style="font-size:11px;color:#666;max-width:240px;overflow:hidden;text-overflow:ellipsis">${escapeHtml((a.notes || '').slice(0, 80))}${(a.notes || '').length > 80 ? '…' : ''}</td>
+                    <td class="actions">
+                      <button title="Edit" data-edit="${a.id}">✏</button>
+                      <button title="Delete" data-del="${a.id}">🗑</button>
+                    </td>
+                  </tr>`;
+              }).join('')}</tbody>
+            </table></div>
+          ` : `<div class="empty-msg">No sponsors assigned to ${escapeHtml(sport.name)} yet.</div>`}
+        </div>
+      </div>
+    `;
+    document.getElementById('content').innerHTML = html;
+    document.getElementById('sportSelect').addEventListener('change', e => { _selectedSport = e.target.value; renderAssignmentsTab(); });
+    document.getElementById('content').addEventListener('click', e => {
+      const edit = e.target.closest('[data-edit]');
+      if (edit) return openAssignModal(edit.dataset.edit);
+      const del = e.target.closest('[data-del]');
+      if (del) return deleteAssignment(del.dataset.del);
+    });
+  }
+
+  function openAssignModal(id) {
+    _editingAssignmentId = id;
+    const sport = sportByKey(_selectedSport);
+    const a = id ? _assignments.find(x => x.id === id) : { sponsor_id: '', usage: '', status: 'pending', notes: '' };
+    document.getElementById('assignModalTitle').textContent = id ? 'Edit Assignment' : 'Add Assignment';
+    document.getElementById('asSportLabel').value = sport.name;
+    const sel = document.getElementById('asSponsor');
+    sel.innerHTML = '<option value="">— Select sponsor —</option>' + _sponsors.map(s =>
+      `<option value="${s.id}" ${s.id === a.sponsor_id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
+    ).join('');
+    const us = document.getElementById('asUsage');
+    us.innerHTML = '<option value="">— Select usage —</option>' + Object.entries(USAGE_INVENTORY).map(([group, items]) => `
+      <optgroup label="${escapeHtml(group)}">
+        ${items.map(it => `<option value="${escapeHtml(it)}" ${it === a.usage ? 'selected' : ''}>${escapeHtml(it)}</option>`).join('')}
+      </optgroup>`).join('');
+    document.getElementById('asStatus').value = a.status || 'pending';
+    document.getElementById('asNotes').value = a.notes || '';
+    document.getElementById('assignModal').classList.add('open');
+  }
+  function closeAssignModal() { document.getElementById('assignModal').classList.remove('open'); _editingAssignmentId = null; }
+  async function saveAssignment() {
+    const sponsor_id = document.getElementById('asSponsor').value;
+    const usage = document.getElementById('asUsage').value;
+    if (!sponsor_id) { showToast('Sponsor required', 'warn'); return; }
+    if (!usage) { showToast('Usage required', 'warn'); return; }
+    const payload = {
+      sport: _selectedSport,
+      sponsor_id,
+      usage,
+      status: document.getElementById('asStatus').value || 'pending',
+      notes: document.getElementById('asNotes').value.trim(),
+      updated_by: _session?.email || null
+    };
+    try {
+      let res;
+      if (_editingAssignmentId) res = await _db.from('championship_sponsorships').update(payload).eq('id', _editingAssignmentId).select().single();
+      else res = await _db.from('championship_sponsorships').insert(payload).select().single();
+      if (res.error) throw res.error;
+      const saved = res.data;
+      const idx = _assignments.findIndex(a => a.id === saved.id);
+      if (idx === -1) _assignments.push(saved); else _assignments[idx] = saved;
+      closeAssignModal();
+      renderAssignmentsTab();
+      showToast('Saved', 'success');
+    } catch (e) {
+      console.error(e);
+      const msg = (e.message || '').includes('duplicate') ? 'This sponsor is already assigned to that usage slot' : (e.message || e);
+      showToast('Save failed: ' + msg, 'warn');
+    }
+  }
+  async function deleteAssignment(id) {
+    if (!confirm('Delete this assignment?')) return;
+    try {
+      const { error } = await _db.from('championship_sponsorships').delete().eq('id', id);
+      if (error) throw error;
+      _assignments = _assignments.filter(a => a.id !== id);
+      renderAssignmentsTab();
+      showToast('Deleted', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Delete failed: ' + (e.message || e), 'warn');
+    }
+  }
+
+  /* ── Tab 3: Overview ── */
+  function renderOverviewTab() {
+    const rows = SPORTS.map(sport => {
+      const all = _assignments.filter(a => a.sport === sport.key);
+      const tally = { confirmed: 0, pending: 0, tbd: 0, cancelled: 0 };
+      all.forEach(a => { tally[a.status] = (tally[a.status] || 0) + 1; });
+      const used = all.filter(a => a.status !== 'cancelled').length;
+      return { sport, total: all.length, used, ...tally };
+    });
+    const totals = rows.reduce((acc, r) => {
+      acc.total += r.total; acc.used += r.used;
+      acc.confirmed += r.confirmed; acc.pending += r.pending; acc.tbd += r.tbd; acc.cancelled += r.cancelled;
+      return acc;
+    }, { total:0, used:0, confirmed:0, pending:0, tbd:0, cancelled:0 });
+    const html = `
+      <div class="section">
+        <header>
+          <h2>📊 All Championships</h2>
+          <span class="count-pill">${_sponsors.length} sponsors · ${totals.total} total assignments</span>
+        </header>
+        <div class="body flush">
+          <table>
+            <thead><tr>
+              <th>Sport</th>
+              <th class="stat-cell">Total</th>
+              <th class="stat-cell">Confirmed</th>
+              <th class="stat-cell">Pending</th>
+              <th class="stat-cell">TBD</th>
+              <th class="stat-cell">Cancelled</th>
+              <th class="stat-cell">vs ESPN Max ${ESPN_MAX_FEATURES}</th>
+            </tr></thead>
+            <tbody>${rows.map(r => `
+              <tr class="overview-row" data-sport="${r.sport.key}">
+                <td class="name-cell">${escapeHtml(r.sport.name)}</td>
+                <td class="stat-cell">${r.total}</td>
+                <td class="stat-cell confirmed">${r.confirmed}</td>
+                <td class="stat-cell pending">${r.pending}</td>
+                <td class="stat-cell tbd">${r.tbd}</td>
+                <td class="stat-cell cancelled">${r.cancelled}</td>
+                <td class="stat-cell ${r.used > ESPN_MAX_FEATURES ? 'over' : ''}">${r.used} / ${ESPN_MAX_FEATURES}</td>
+              </tr>`).join('')}
+              <tr style="background:#fafbfc;font-weight:700">
+                <td class="name-cell">All sports</td>
+                <td class="stat-cell">${totals.total}</td>
+                <td class="stat-cell confirmed">${totals.confirmed}</td>
+                <td class="stat-cell pending">${totals.pending}</td>
+                <td class="stat-cell tbd">${totals.tbd}</td>
+                <td class="stat-cell cancelled">${totals.cancelled}</td>
+                <td class="stat-cell">${totals.used} / ${SPORTS.length * ESPN_MAX_FEATURES}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    document.getElementById('content').innerHTML = html;
+    document.querySelectorAll('.overview-row').forEach(tr => tr.addEventListener('click', () => {
+      _selectedSport = tr.dataset.sport;
+      switchTab('assignments');
+    }));
+  }
+
+  /* ── Sign-in gate ── */
+  async function submitLogin() {
+    const email = document.getElementById('pwEmail').value.trim().toLowerCase();
+    const pw    = document.getElementById('pwPass').value;
+    if (!ALLOWED_EMAILS.includes(email)) {
+      document.getElementById('pwErr').textContent = 'This page is restricted to kking + jbryant.';
+      document.getElementById('pwErr').style.display = 'block';
+      return;
+    }
+    if (!_db) initSupabase();
+    if (!_db) { showToast('Database not connected', 'warn'); return; }
+    try {
+      const { data, error } = await _db.from('admin_users').select('email, pw_hash, display_name, is_active').eq('email', email).maybeSingle();
+      if (error) throw error;
+      if (!data || !data.is_active) {
+        document.getElementById('pwErr').textContent = `${email} is not registered in admin_users. Keith needs to add you in admin.html first (run the migration if you haven't yet).`;
+        document.getElementById('pwErr').style.display = 'block';
+        return;
+      }
+      const h = await sha256(pw);
+      if (h !== data.pw_hash) {
+        document.getElementById('pwErr').textContent = 'Incorrect password.';
+        document.getElementById('pwErr').style.display = 'block';
+        return;
+      }
+      _session = { email, name: data.display_name || email };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(_session));
+      enterApp();
+    } catch (e) {
+      console.error(e);
+      showToast('Sign-in failed: ' + (e.message || e), 'warn');
+    }
+  }
+  function signOut() {
+    _session = null;
+    localStorage.removeItem(SESSION_KEY);
+    location.reload();
+  }
+  function enterApp() {
+    document.getElementById('pwOverlay').classList.add('hidden');
+    document.getElementById('appWrap').style.display = 'block';
+    document.getElementById('signedInBadge').style.display = 'inline-block';
+    document.getElementById('userName').textContent = _session.name;
+    boot();
+  }
+
+  /* ── Realtime ── */
+  function setupRealtime() {
+    if (!_db) return;
+    let t1=null, t2=null, t3=null;
+    const debounce = (timer, fn) => { clearTimeout(timer); return setTimeout(fn, 400); };
+    _db.channel('spons-sponsors')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => {
+        t1 = debounce(t1, async () => { await loadAll(); switchTab(_activeTab); document.getElementById('liveBadge').style.display = 'inline-flex'; });
+      }).subscribe(s => { if (s === 'SUBSCRIBED') document.getElementById('liveBadge').style.display = 'inline-flex'; });
+    _db.channel('spons-assign')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_sponsorships' }, () => {
+        t2 = debounce(t2, async () => { await loadAll(); switchTab(_activeTab); });
+      }).subscribe();
+    _db.channel('spons-commercials')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commercials' }, () => {
+        t3 = debounce(t3, async () => { await loadAll(); switchTab(_activeTab); });
+      }).subscribe();
+  }
+
+  async function boot() {
+    if (!_db) initSupabase();
+    await loadAll();
+    renderTabs();
+    switchTab('sponsors');
+    setupRealtime();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      const cached = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+      if (cached && ALLOWED_EMAILS.includes((cached.email || '').toLowerCase())) {
+        _session = cached;
+        enterApp();
+        return;
+      }
+    } catch {}
+    setTimeout(() => document.getElementById('pwEmail').focus(), 80);
+  });
+
+  // Sign-out button is rendered globally so it's accessible from any tab
+  window.signOut = signOut;
+</script>
+
+</body>
+</html>

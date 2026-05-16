@@ -144,6 +144,13 @@
   .actions-card .body .btn { width: 100%; text-align: center; padding: 10px; font-size: 12px; }
   .actions-card .body .btn.muted { background: #e5e7eb; color: #6b7280; }
 
+  /* Sponsors card status pills */
+  .spons-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+  .spons-pending   { background: #FFF3E0; color: #B65A00; border: 1px solid #FF9800; }
+  .spons-confirmed { background: #E8F5E9; color: #1B5E20; border: 1px solid #4CAF50; }
+  .spons-tbd       { background: #F5F5F5; color: #555;    border: 1px solid #9E9E9E; }
+  .spons-cancelled { background: #FFEBEE; color: #C62828; border: 1px solid #F44336; }
+
   .live-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: rgba(167,213,0,0.2); color: #4a6600; border: 1px solid var(--green); border-radius: 12px; font-size: 10px; font-weight: 700; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
   .live-badge::before { content: ''; width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: live-pulse 1.6s ease-in-out infinite; }
   @keyframes live-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
@@ -206,6 +213,9 @@
   let _db = null;
   let _rows = [];        // championship_schedule rows
   let _bc = { url:'', username:'', password:'' };
+  let _sponsors = [];    // sponsors directory
+  let _spons = [];       // championship_sponsorships rows
+  let _commercials = []; // active commercials for deep-link names
   let _activeTab = SPORTS[0].key;
 
   /* ── Helpers ── */
@@ -265,6 +275,25 @@
       console.warn('Break clock load failed:', e);
     }
   }
+  async function loadSponsorships() {
+    if (!_db) return;
+    try {
+      const [s, a, c] = await Promise.all([
+        _db.from('sponsors').select('id, name, logo_url, commercial_id').order('name'),
+        _db.from('championship_sponsorships').select('*'),
+        _db.from('commercials').select('id, name').eq('status', 'active')
+      ]);
+      if (s.error) throw s.error;
+      if (a.error) throw a.error;
+      _sponsors = s.data || [];
+      _spons = a.data || [];
+      _commercials = c.data || [];
+    } catch (e) {
+      console.warn('Sponsorship load failed (tables may not exist yet):', e);
+    }
+  }
+  function sponsorById(id) { return _sponsors.find(s => s.id === id); }
+  function commercialById(id) { return _commercials.find(c => c.id === id); }
   /* ── Tab rendering ── */
   function renderTabs() {
     const bar = document.getElementById('tabBar');
@@ -307,6 +336,32 @@
                 </tbody>
               </table>
             ` : '<div class="empty-msg">Schedule details not yet entered. Visit the Schedule tab to add.</div>'}</div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <header><h3>💰 Sponsors</h3><span class="badge">${(() => { const n = _spons.filter(a => a.sport === sport.key && a.status !== 'cancelled').length; return n + ' active'; })()}</span></header>
+            <div class="body dense">${(() => {
+              const list = _spons.filter(a => a.sport === sport.key)
+                .map(a => ({ a, s: sponsorById(a.sponsor_id) }))
+                .filter(x => x.s);
+              if (!list.length) return '<div class="empty-msg">No sponsors assigned yet. Admin can add them in the Master Sponsorships page.</div>';
+              return `<table class="schedview">
+                <thead><tr><th style="width:60px"></th><th>Sponsor</th><th>Usage</th><th>Status</th><th>Commercial</th></tr></thead>
+                <tbody>${list.map(({ a, s }) => {
+                  const comm = s.commercial_id ? commercialById(s.commercial_id) : null;
+                  const logoHtml = s.logo_url
+                    ? `<img src="${escapeHtml(s.logo_url)}" alt="${escapeHtml(s.name)}" style="width:42px;height:42px;object-fit:contain;background:#fff;border:1px solid #eee;border-radius:4px;padding:2px">`
+                    : '<span style="display:inline-flex;width:42px;height:42px;align-items:center;justify-content:center;color:#bbb;background:#fafbfc;border:1px solid #eee;border-radius:4px">—</span>';
+                  return `<tr>
+                    <td>${logoHtml}</td>
+                    <td><strong>${escapeHtml(s.name)}</strong></td>
+                    <td>${escapeHtml(a.usage) || '<em style="color:#aaa">—</em>'}</td>
+                    <td><span class="spons-pill spons-${a.status}">${a.status}</span></td>
+                    <td>${comm ? `<a href="commercials.html?sponsor=${encodeURIComponent(s.name)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700;text-decoration:none;font-size:11px">📺 ${escapeHtml(comm.name)}</a>` : '<span style="color:#aaa">—</span>'}</td>
+                  </tr>`;
+                }).join('')}</tbody>
+              </table>`;
+            })()}</div>
           </div>
 
           <div class="card" style="margin-top:16px">
@@ -414,7 +469,7 @@
   }
   function setupRealtime() {
     if (!_db) return;
-    let t1 = null, t2 = null;
+    let t1 = null, t2 = null, t3 = null, t4 = null;
     _db.channel('champ-schedule')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_schedule' }, () => {
         clearTimeout(t1); t1 = setTimeout(async () => { await loadSchedule(); switchTab(_activeTab); flashLive(); }, 400);
@@ -425,12 +480,22 @@
         clearTimeout(t2); t2 = setTimeout(async () => { await loadBreakClock(); switchTab(_activeTab); flashLive(); }, 400);
       })
       .subscribe();
+    _db.channel('champ-sponsors')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => {
+        clearTimeout(t3); t3 = setTimeout(async () => { await loadSponsorships(); switchTab(_activeTab); flashLive(); }, 400);
+      })
+      .subscribe();
+    _db.channel('champ-spons')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_sponsorships' }, () => {
+        clearTimeout(t4); t4 = setTimeout(async () => { await loadSponsorships(); switchTab(_activeTab); flashLive(); }, 400);
+      })
+      .subscribe();
   }
 
   /* ── Init ── */
   document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
-    await Promise.all([loadSchedule(), loadBreakClock()]);
+    await Promise.all([loadSchedule(), loadBreakClock(), loadSponsorships()]);
     renderTabs();
     // Allow ?tab=<key> deep link
     const params = new URLSearchParams(location.search);

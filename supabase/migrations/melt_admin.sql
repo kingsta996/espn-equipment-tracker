@@ -8,10 +8,16 @@
 create table if not exists melt_config (
   sport text primary key,
   file_request_url text default '',
+  folder_id text,
   notes text,
   updated_at timestamptz default now(),
   updated_by text
 );
+
+-- Idempotent: adds folder_id (the Box folder the File Request points at) for
+-- installs that already ran the original migration. Used by the
+-- box-folder-audit function to detect uploads that bypassed the File Request.
+alter table melt_config add column if not exists folder_id text;
 
 alter table melt_config enable row level security;
 drop policy if exists "public read melt config"  on melt_config;

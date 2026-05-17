@@ -24,6 +24,9 @@ create table if not exists championship_box_links (
 
 -- Idempotent column add for installs that already ran the original migration.
 alter table championship_box_links add column if not exists subcategory text;
+-- folder_id is the Box folder ID the File Request URL points at. Needed by the
+-- box-folder-audit function to detect uploads that bypassed the File Request.
+alter table championship_box_links add column if not exists folder_id text;
 
 create index if not exists championship_box_links_sport_sort_idx
   on championship_box_links (sport, sort_order, created_at);

@@ -71,10 +71,12 @@
   /* Box Links table */
   .links-grid { display: grid; gap: 10px; }
   .link-row {
-    display: grid; grid-template-columns: 200px 1fr auto; gap: 10px;
+    display: grid; grid-template-columns: 200px 1fr 130px auto; gap: 10px;
     align-items: center; padding: 10px;
     border: 1px solid #e5e7eb; border-radius: 8px;
   }
+  .link-row input.folder-id-input { font-family: 'Courier New', monospace; font-size: 11px; color: #555; }
+  .link-row input.folder-id-input.empty { background: #fff8e1; border-color: #fbcf00; }
   .link-row .sport { font-weight: 700; color: var(--navy); font-size: 13px; }
   .link-row input {
     padding: 8px 10px; border: 1px solid var(--gray); border-radius: 6px;
@@ -203,6 +205,7 @@
   <h1>🎬 Broadcast Melts — Admin</h1>
   <span class="who" id="currentUser"></span>
   <a href="melts.html">View Public</a>
+  <a href="box-audit.html">🛡 Box Audit</a>
   <button class="signout" onclick="signOut()">Sign Out</button>
 </div>
 
@@ -493,31 +496,44 @@ function renderLinks() {
   grid.innerHTML = SPORTS.map(s => {
     const cfg = _config[s] || {};
     const live = !!(cfg.file_request_url || '').trim();
+    const folderEmpty = !((cfg.folder_id || '').trim());
     return `
       <div class="link-row ${live ? 'live' : 'tbd'}" data-sport="${escapeAttr(s)}">
         <div class="sport">${s}</div>
-        <input type="url" placeholder="https://app.box.com/f/…" value="${escapeAttr(cfg.file_request_url || '')}">
+        <input type="url" class="url-input" placeholder="https://app.box.com/f/…" value="${escapeAttr(cfg.file_request_url || '')}">
+        <input type="text" class="folder-id-input ${folderEmpty ? 'empty' : ''}" placeholder="Folder ID" title="Box folder ID (the number from the folder URL) used by the bypass audit" value="${escapeAttr(cfg.folder_id || '')}">
         <button class="save-btn" data-action="save">Save</button>
       </div>`;
   }).join('');
   grid.querySelectorAll('.link-row').forEach(row => {
     const sport = row.dataset.sport;
-    const input = row.querySelector('input');
-    const orig = input.value;
-    input.addEventListener('input', () => {
-      row.classList.toggle('changed', input.value !== orig);
+    const urlInput    = row.querySelector('input.url-input');
+    const folderInput = row.querySelector('input.folder-id-input');
+    const origUrl = urlInput.value;
+    const origFolder = folderInput.value;
+    const onChange = () => {
+      const changed = urlInput.value !== origUrl || folderInput.value !== origFolder;
+      row.classList.toggle('changed', changed);
+    };
+    urlInput.addEventListener('input', onChange);
+    folderInput.addEventListener('input', () => {
+      folderInput.classList.toggle('empty', !folderInput.value.trim());
+      onChange();
     });
-    row.querySelector('button[data-action="save"]').addEventListener('click', () => saveLink(sport, input.value, row));
+    row.querySelector('button[data-action="save"]').addEventListener('click',
+      () => saveLink(sport, urlInput.value, folderInput.value, row));
   });
 }
 
-async function saveLink(sport, url, row) {
+async function saveLink(sport, url, folderId, row) {
   if (!_db) return;
   const btn = row.querySelector('.save-btn');
   btn.disabled = true; const oldText = btn.textContent; btn.textContent = '⏳';
   try {
     const { error } = await _db.from('melt_config').upsert({
-      sport, file_request_url: (url || '').trim(),
+      sport,
+      file_request_url: (url || '').trim(),
+      folder_id: (folderId || '').trim() || null,
       updated_at: new Date().toISOString(),
       updated_by: _currentUser?.email || null
     }, { onConflict: 'sport' });
@@ -529,7 +545,7 @@ async function saveLink(sport, url, row) {
     await loadConfig();
     setTimeout(() => { btn.textContent = oldText; btn.disabled = false; }, 1500);
     showStatus(`Saved File Request URL for ${sport}`, 'ok');
-    logActivity('edit', `melt_config:${sport}`, `Updated File Request URL for ${sport}`);
+    logActivity('edit', `melt_config:${sport}`, `Updated File Request URL${folderId ? ' + Folder ID' : ''} for ${sport}`);
   } catch (e) {
     btn.textContent = oldText; btn.disabled = false;
     showStatus(`Save failed: ${e.message || e}`, 'err');

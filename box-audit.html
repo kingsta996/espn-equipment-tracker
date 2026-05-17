@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Box Audit — CUSA Production Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --navy: #00263A; --gray: #BFCED6; --white: #FFFFFF; --red: #E40046;
+    --blue: #00B5E2; --green: #A7D500; --espn-red: #EF4035; --light: #f0f2f5;
+    --warn-bg: #fffbeb; --warn-border: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; background: var(--light); min-height: 100vh; color: #222; padding-bottom: 60px; }
+
+  .header { background: var(--navy); padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 3px solid var(--espn-red); }
+  .header img { height: 26px; filter: brightness(0) invert(1); }
+  .header h1 { color: var(--white); font-size: 16px; flex: 1; font-weight: 700; }
+  .header a { color: var(--gray); font-size: 11px; text-decoration: none; padding: 4px 10px; border-radius: 5px; }
+  .header a:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+  .header .admin-badge { background: rgba(167,213,0,0.18); color: var(--green); padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; border: 1px solid rgba(167,213,0,0.5); }
+
+  .content { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+  .section { background: #fff; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 18px; overflow: hidden; }
+  .section header { padding: 14px 18px; border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: center; }
+  .section header h2 { font-size: 14px; color: var(--navy); flex: 1; }
+  .section .body { padding: 16px 18px; }
+
+  .btn { padding: 7px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700; font-family: inherit; color: #fff; }
+  .btn:hover { filter: brightness(0.92); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--espn-red); }
+  .btn-navy { background: var(--navy); }
+  .btn-outline { background: #fff; color: var(--navy); border: 1px solid var(--gray); }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .toolbar label { font-size: 11px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.5px; display: flex; flex-direction: column; gap: 4px; }
+  .toolbar input[type=number], .toolbar select { padding: 6px 9px; border: 1px solid #ddd; border-radius: 5px; font-size: 12px; font-family: inherit; min-width: 90px; }
+  .toolbar .meta { font-size: 11px; color: #777; margin-left: auto; }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .summary-card { background: #f7f8fa; border: 1px solid #eee; border-radius: 8px; padding: 14px; text-align: center; }
+  .summary-card .num { font-size: 28px; font-weight: 800; color: var(--navy); }
+  .summary-card .num.warn { color: var(--espn-red); }
+  .summary-card .num.ok { color: var(--green); }
+  .summary-card .lbl { font-size: 10px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }
+
+  /* Folder summary table */
+  table.summary-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.summary-tbl thead { background: var(--navy); color: #fff; }
+  table.summary-tbl th { padding: 8px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.summary-tbl td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+  table.summary-tbl tr.error td { background: #fef2f2; color: #b91c1c; }
+  table.summary-tbl .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
+  table.summary-tbl .badge.melt { background: rgba(0,181,226,0.15); color: #006a85; }
+  table.summary-tbl .badge.championship { background: rgba(167,213,0,0.2); color: #4d6300; }
+  table.summary-tbl .bypass-cell.has { color: var(--espn-red); font-weight: 800; }
+
+  /* Files table */
+  table.files-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.files-tbl thead { background: #f0f2f5; }
+  table.files-tbl th { padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; }
+  table.files-tbl td { padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+  table.files-tbl tr.bypass td { background: #fff5f5; }
+  table.files-tbl tr.bypass td:first-child { border-left: 3px solid var(--espn-red); }
+  table.files-tbl .filename { font-family: 'SF Mono', Menlo, monospace; font-size: 11px; word-break: break-all; }
+  table.files-tbl .flag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-right: 4px; }
+  table.files-tbl .flag.BYPASS    { background: var(--espn-red); color: #fff; }
+  table.files-tbl .flag.MOVED     { background: #f59e0b; color: #fff; }
+  table.files-tbl .flag.COPIED    { background: #fbbf24; color: #422; }
+  table.files-tbl .flag.NON_VIDEO { background: #6366f1; color: #fff; }
+
+  .empty-state { padding: 24px; text-align: center; color: #777; font-style: italic; font-size: 13px; }
+  .err-banner { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; padding: 10px 14px; border-radius: 6px; font-size: 12px; margin-bottom: 16px; }
+  .warn-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: #92400e; padding: 10px 14px; border-radius: 6px; font-size: 12px; margin-bottom: 16px; }
+
+  .status-bar { position: fixed; bottom: 16px; right: 16px; padding: 10px 16px; background: var(--navy); color: #fff; border-radius: 6px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.2); display: none; }
+  .status-bar.show { display: block; }
+  .status-bar.ok { background: var(--green); color: var(--navy); }
+  .status-bar.err { background: var(--espn-red); }
+
+  /* Password gate */
+  .pw-overlay { display: none; position: fixed; inset: 0; background: rgba(0,38,58,0.9); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .pw-overlay.open { display: flex; }
+  .pw-box { background: #fff; border-radius: 12px; padding: 36px; max-width: 400px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+  .pw-box h2 { font-size: 18px; color: var(--navy); margin-bottom: 8px; }
+  .pw-box p { font-size: 12px; color: #666; margin-bottom: 20px; }
+  .pw-box input { width: 100%; padding: 11px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; margin-bottom: 10px; }
+  .pw-box input:focus { outline: none; border-color: var(--blue); }
+  .pw-err { color: var(--espn-red); font-size: 12px; margin-bottom: 10px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🛡 Box Folder Audit</h1>
+  <span class="admin-badge" id="signedInBadge" style="display:none">🔑 Admin</span>
+  <span id="currentUser" style="color:rgba(255,255,255,0.6);font-size:11px"></span>
+  <a href="championships-admin.html">← Championships Admin</a>
+  <a href="melts-admin.html">← Melts Admin</a>
+  <a href="hub-admin.html">← Hub Admin</a>
+  <a href="#" onclick="signOut();return false;">Sign out</a>
+</div>
+
+<div class="content" id="content" style="display:none">
+
+  <div class="section">
+    <header><h2>Audit Window</h2></header>
+    <div class="body">
+      <div class="toolbar">
+        <label>Days back
+          <input type="number" id="daysBack" min="1" max="90" value="7">
+        </label>
+        <label>Source
+          <select id="sourceFilter">
+            <option value="all">All (Melts + Championships)</option>
+            <option value="melt">Melts only</option>
+            <option value="championship">Championships only</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" id="runBtn" onclick="runAudit()">▶ Run audit</button>
+        <span class="meta" id="lastRunMeta"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="errBanner"></div>
+  <div id="warnBanner"></div>
+
+  <div class="section" id="summarySection" style="display:none">
+    <header><h2>Summary</h2></header>
+    <div class="body">
+      <div class="summary-grid" id="summaryGrid"></div>
+    </div>
+  </div>
+
+  <div class="section" id="foldersSection" style="display:none">
+    <header><h2>Per-folder breakdown</h2></header>
+    <div class="body" style="padding:0;overflow-x:auto">
+      <table class="summary-tbl" id="foldersTbl"></table>
+    </div>
+  </div>
+
+  <div class="section" id="filesSection" style="display:none">
+    <header>
+      <h2>Files in window</h2>
+      <label style="font-size:11px;color:#666;font-weight:600">
+        <input type="checkbox" id="bypassOnly" onchange="renderFiles()"> Bypasses only
+      </label>
+    </header>
+    <div class="body" style="padding:0;overflow-x:auto">
+      <table class="files-tbl" id="filesTbl"></table>
+    </div>
+  </div>
+
+  <div class="section" id="pendingSection" style="display:none">
+    <header><h2>Pending broadcast events without an upload</h2></header>
+    <div class="body" style="padding:0;overflow-x:auto">
+      <table class="summary-tbl" id="pendingTbl"></table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Password gate -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box">
+    <h2>🔑 Admin Sign-In</h2>
+    <p>Box Folder Audit is admin-only. Use your Hub admin credentials.</p>
+    <input type="email" id="pwEmail" placeholder="email@conferenceusa.com" autocomplete="email">
+    <input type="password" id="pwInput" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr"></div>
+    <button class="btn btn-primary" onclick="submitPw()" style="width:100%">Unlock</button>
+    <div style="margin-top:16px;text-align:center;font-size:11px;color:#888"><a href="hub-admin.html" style="color:#888">← Back to Hub Admin</a></div>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar"></div>
+
+<script>
+const VW_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
+const UNLOCK_KEY      = 'cusa_box_audit_unlocked';
+const CURRENT_USER_KEY = 'cusa_box_audit_user';
+const PW_HASH_KEY     = 'cusa_box_audit_pw_hash';
+const FUNCTION_URL = '/.netlify/functions/box-folder-audit';
+
+let _db = null;
+let _currentUser = null;
+let _adminUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true';
+let _result = null;
+
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function fmtBytes(n) {
+  if (!n) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
+  if (n < 1024*1024*1024) return (n/1024/1024).toFixed(1) + ' MB';
+  return (n/1024/1024/1024).toFixed(2) + ' GB';
+}
+function fmtRel(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60)    return Math.floor(diff) + 's ago';
+  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 86400*14) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString();
+}
+function showStatus(msg, kind) {
+  const el = document.getElementById('statusBar');
+  el.className = 'status-bar show' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  clearTimeout(showStatus._t);
+  showStatus._t = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initSupabase();
+  loadCurrentUser();
+  if (!_adminUnlocked) { openPwModal(); return; }
+  enterPortal();
+});
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    _db = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  }
+}
+
+/* ── Auth ── */
+function openPwModal() { document.getElementById('pwOverlay').classList.add('open'); setTimeout(() => document.getElementById('pwEmail').focus(), 80); }
+function closePwModal() { document.getElementById('pwOverlay').classList.remove('open'); }
+
+async function hashPw(s) {
+  const buf = new TextEncoder().encode(s);
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function submitPw() {
+  const email = (document.getElementById('pwEmail').value || '').trim().toLowerCase();
+  const pw    = document.getElementById('pwInput').value;
+  const errEl = document.getElementById('pwErr');
+  if (!email || !pw) { errEl.textContent = 'Email and password required.'; errEl.style.display = 'block'; return; }
+  const h = await hashPw(pw);
+  let user = null;
+  if (_db) {
+    try {
+      const { data } = await _db.from('admin_users').select('email, pw_hash, display_name, is_active').eq('email', email).maybeSingle();
+      if (data && data.is_active && data.pw_hash === h) user = { email: data.email, display_name: data.display_name || data.email };
+    } catch (e) { console.warn('admin_users lookup failed:', e); }
+  }
+  if (!user && h === VW_PW_HASH) user = { email: email || 'legacy-admin', display_name: 'Legacy Admin' };
+  if (!user) { errEl.textContent = 'Incorrect email or password.'; errEl.style.display = 'block'; return; }
+  _currentUser = user;
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  localStorage.setItem(PW_HASH_KEY, h);
+  localStorage.setItem(UNLOCK_KEY, 'true');
+  closePwModal();
+  enterPortal();
+}
+
+function loadCurrentUser() {
+  try { _currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || 'null'); }
+  catch { _currentUser = null; }
+}
+
+function enterPortal() {
+  document.getElementById('content').style.display = 'block';
+  document.getElementById('signedInBadge').style.display = 'inline-block';
+  const cu = document.getElementById('currentUser');
+  if (cu && _currentUser) cu.textContent = _currentUser.display_name || _currentUser.email;
+  // Auto-run on load — folks expect fresh data.
+  runAudit();
+}
+
+function signOut() {
+  localStorage.removeItem(UNLOCK_KEY);
+  localStorage.removeItem(CURRENT_USER_KEY);
+  localStorage.removeItem(PW_HASH_KEY);
+  location.reload();
+}
+
+/* ── Run audit ── */
+async function runAudit() {
+  const email = _currentUser?.email;
+  const pwHash = localStorage.getItem(PW_HASH_KEY);
+  if (!email || !pwHash) { showStatus('Not signed in', 'err'); return; }
+  const days   = Math.max(1, Math.min(90, Number(document.getElementById('daysBack').value) || 7));
+  const source = document.getElementById('sourceFilter').value;
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Running…';
+  const errBanner = document.getElementById('errBanner');
+  errBanner.innerHTML = '';
+  try {
+    const res = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Email': email, 'X-Admin-Pw-Hash': pwHash },
+      body: JSON.stringify({ days, source })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      errBanner.innerHTML = `<div class="err-banner">Audit failed: ${escHtml(data.error || 'HTTP ' + res.status)}${data.detail ? '<br><small>' + escHtml(data.detail) + '</small>' : ''}</div>`;
+      return;
+    }
+    _result = data;
+    render();
+  } catch (e) {
+    errBanner.innerHTML = `<div class="err-banner">Network error: ${escHtml(e.message || e)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+/* ── Render ── */
+function render() {
+  if (!_result) return;
+  const d = _result;
+  const meta = document.getElementById('lastRunMeta');
+  meta.textContent = `Generated ${fmtRel(d.generated_at)} · window ${new Date(d.since_iso).toLocaleDateString()} → now`;
+
+  // Warn banner
+  const wb = document.getElementById('warnBanner');
+  wb.innerHTML = '';
+  if (!d.move_events_available) {
+    wb.innerHTML = `<div class="warn-banner">⚠ Move/copy detection unavailable: ${escHtml(d.move_events_error || 'The Box JWT app does not have the admin-logs scope.')} Bypass detection still works; consider adding the "Manage enterprise properties" scope to enable the secondary signal.</div>`;
+  }
+
+  // Summary
+  const s = d.summary;
+  document.getElementById('summarySection').style.display = 'block';
+  document.getElementById('summaryGrid').innerHTML = [
+    summaryCard('Folders audited', s.folders_total, s.folders_errored ? 'warn' : 'ok'),
+    summaryCard('Files in window', s.files_total),
+    summaryCard('Bypass uploads', s.bypass_total, s.bypass_total > 0 ? 'warn' : 'ok'),
+    summaryCard('Move-ins', s.move_total, s.move_total > 0 ? 'warn' : 'ok'),
+    summaryCard('Pending overdue', s.pending_total, s.pending_total > 0 ? 'warn' : 'ok')
+  ].join('');
+
+  // Folders
+  document.getElementById('foldersSection').style.display = d.folders.length ? 'block' : 'none';
+  document.getElementById('foldersTbl').innerHTML = renderFolders(d.folders);
+
+  // Files
+  renderFiles();
+
+  // Pending
+  document.getElementById('pendingSection').style.display = d.pending_overdue.length ? 'block' : 'none';
+  document.getElementById('pendingTbl').innerHTML = renderPending(d.pending_overdue);
+}
+
+function summaryCard(label, value, kind) {
+  return `<div class="summary-card">
+    <div class="num ${kind || ''}">${value}</div>
+    <div class="lbl">${escHtml(label)}</div>
+  </div>`;
+}
+
+function renderFolders(folders) {
+  if (!folders.length) return '';
+  return `
+    <thead><tr>
+      <th>Source</th><th>Sport</th><th>Label</th><th>Folder ID</th>
+      <th>Owner</th><th>Files</th><th>Bypass</th><th>Moved-in</th><th>Notes</th>
+    </tr></thead>
+    <tbody>
+      ${folders.map(f => `
+        <tr class="${f.error ? 'error' : ''}">
+          <td><span class="badge ${escHtml(f.source)}">${escHtml(f.source)}</span></td>
+          <td>${escHtml(f.sport)}${f.subcategory ? ' <span style="color:#888;font-size:10px">(' + escHtml(f.subcategory) + ')</span>' : ''}</td>
+          <td>${escHtml(f.label)}</td>
+          <td style="font-family:'SF Mono',Menlo,monospace;font-size:11px">${escHtml(f.folder_id)}</td>
+          <td style="font-size:11px">${escHtml(f.folder_owner || '—')}</td>
+          <td>${f.file_count}</td>
+          <td class="bypass-cell ${f.bypass_count ? 'has' : ''}">${f.bypass_count}</td>
+          <td>${f.events_available ? f.move_count : '—'}</td>
+          <td style="font-size:11px;color:#777">${escHtml(f.error || '')}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+}
+
+function renderFiles() {
+  if (!_result) return;
+  const filter = document.getElementById('bypassOnly').checked;
+  const rows = _result.files.filter(f => !filter || f.is_bypass);
+  const section = document.getElementById('filesSection');
+  if (!rows.length) {
+    section.style.display = 'block';
+    document.getElementById('filesTbl').innerHTML = '<tbody><tr><td><div class="empty-state">No files match the current filter.</div></td></tr></tbody>';
+    return;
+  }
+  section.style.display = 'block';
+  document.getElementById('filesTbl').innerHTML = `
+    <thead><tr>
+      <th>Source</th><th>Sport</th><th>Filename</th><th>Size</th>
+      <th>Uploader</th><th>Created</th><th>Flags</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(f => `
+        <tr class="${f.is_bypass ? 'bypass' : ''}">
+          <td><span class="flag ${escHtml(f.source.toUpperCase())}" style="background:${f.source === 'melt' ? '#0369a1' : '#4d6300'}">${escHtml(f.source)}</span></td>
+          <td>${escHtml(f.sport)}${f.subcategory ? ' <span style="color:#888;font-size:10px">(' + escHtml(f.subcategory) + ')</span>' : ''}</td>
+          <td class="filename">${escHtml(f.filename)}</td>
+          <td>${fmtBytes(f.size_bytes)}</td>
+          <td style="font-size:11px">
+            <strong>${escHtml(f.created_by_name || '—')}</strong>
+            ${f.created_by_email && f.created_by_email !== f.created_by_name ? '<br><span style="color:#888">' + escHtml(f.created_by_email) + '</span>' : ''}
+          </td>
+          <td style="font-size:11px;color:#666">${fmtRel(f.created_at)}<br><span style="color:#aaa">${new Date(f.created_at).toLocaleString()}</span></td>
+          <td>${(f.flags || []).map(flag => '<span class="flag ' + escHtml(flag) + '">' + escHtml(flag) + '</span>').join('')}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+}
+
+function renderPending(items) {
+  if (!items.length) return '';
+  return `
+    <thead><tr>
+      <th>Sport</th><th>Event Date</th><th>Match</th><th>Days overdue</th>
+    </tr></thead>
+    <tbody>
+      ${items.map(p => `
+        <tr class="${p.days_overdue > 14 ? 'error' : ''}">
+          <td>${escHtml(p.sport)}</td>
+          <td>${escHtml(p.event_date)}</td>
+          <td>${escHtml((p.away || '') + ' @ ' + (p.home || ''))}</td>
+          <td>${p.days_overdue}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+}
+</script>
+
+</body>
+</html>

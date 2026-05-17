@@ -107,10 +107,12 @@
   .boxlinks-card .h .season-pill.Spring { background: var(--spring); }
   .boxlinks-card .sub { font-size: 10px; color: #888; margin-bottom: 10px; }
   .boxlinks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-  .boxlinks-row { display: grid; grid-template-columns: 130px 1fr 28px; gap: 6px; align-items: center; }
-  .boxlinks-row.has-sub { grid-template-columns: 80px 130px 1fr 28px; }
+  .boxlinks-row { display: grid; grid-template-columns: 130px 1fr 110px 28px; gap: 6px; align-items: center; }
+  .boxlinks-row.has-sub { grid-template-columns: 80px 130px 1fr 110px 28px; }
   .boxlinks-row input, .boxlinks-row select { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; font-family: inherit; background: #fff; }
   .boxlinks-row input.url-input { font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; }
+  .boxlinks-row input.folder-input { font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; color: #666; }
+  .boxlinks-row input.folder-input.empty { background: #fff8e1; border-color: #f5d784; }
   .boxlinks-row input:focus, .boxlinks-row select:focus { outline: none; border-color: var(--blue); }
   .boxlinks-row .del-btn { border: none; background: transparent; cursor: pointer; color: #bbb; font-size: 14px; padding: 0; }
   .boxlinks-row .del-btn:hover { color: var(--espn-red); }
@@ -129,6 +131,7 @@
   <span class="admin-badge" id="signedInBadge" style="display:none">🔑 Admin</span>
   <a href="championships.html">← Championships</a>
   <a href="hub.html">← Hub</a>
+  <a href="box-audit.html">🛡 Box Audit</a>
 </div>
 
 <div class="content" id="content" style="display:none">
@@ -315,6 +318,7 @@
         label:       (link.label || '').trim(),
         url:         (link.url || '').trim(),
         subcategory: link.subcategory || null,
+        folder_id:   link.folder_id || null,
         sort_order:  link.sort_order || 0
       };
       if (!dbRow.label || !dbRow.url) return null;   // incomplete row, skip
@@ -465,11 +469,13 @@
     const subOptions = subs
       ? `<select data-key="subcategory">${subs.map(o => `<option value="${o.value}" ${link.subcategory === o.value ? 'selected' : ''}>${escapeHtml(o.short)}</option>`).join('')}</select>`
       : '';
+    const folderEmpty = !((link.folder_id || '').trim());
     return `
       <div class="boxlinks-row ${subs ? 'has-sub' : ''}" data-id="${link.id || ''}" data-sport="${sport.key}">
         ${subOptions}
         <input type="text" data-key="label" class="label-input" placeholder="Label (e.g. Broadcast Melts)" value="${escapeHtml(link.label || '')}">
         <input type="url"  data-key="url"   class="url-input"   placeholder="https://app.box.com/f/..." value="${escapeHtml(link.url || '')}">
+        <input type="text" data-key="folder_id" class="folder-input ${folderEmpty ? 'empty' : ''}" placeholder="Folder ID" title="Box folder ID for the audit (number from the folder URL, e.g. 123456789)" value="${escapeHtml(link.folder_id || '')}">
         <button class="del-btn" data-del title="Remove">🗑</button>
       </div>
     `;
@@ -515,10 +521,12 @@
 
   function readRowFields(row) {
     const subEl = row.querySelector('select[data-key="subcategory"]');
+    const folderEl = row.querySelector('input[data-key="folder_id"]');
     return {
       label:       (row.querySelector('input[data-key="label"]').value || '').trim(),
       url:         (row.querySelector('input[data-key="url"]').value || '').trim(),
-      subcategory: subEl ? (subEl.value || null) : null
+      subcategory: subEl ? (subEl.value || null) : null,
+      folder_id:   folderEl ? ((folderEl.value || '').trim() || null) : null
     };
   }
   async function saveRowFromEl(row) {
@@ -530,7 +538,8 @@
     if (existing
         && existing.label === fields.label
         && existing.url === fields.url
-        && (existing.subcategory || null) === (fields.subcategory || null)) return;
+        && (existing.subcategory || null) === (fields.subcategory || null)
+        && (existing.folder_id || null) === (fields.folder_id || null)) return;
     const sortOrder = existing ? (existing.sort_order || 0) : linksForSport(sportKey).length;
     const saved = await upsertBoxLink({
       id: id || null,
@@ -538,6 +547,7 @@
       label: fields.label,
       url: fields.url,
       subcategory: fields.subcategory,
+      folder_id: fields.folder_id,
       sort_order: sortOrder
     });
     if (saved && !id) {
@@ -589,6 +599,7 @@
           ${subSelect}
           <input type="text" data-key="label" class="label-input" placeholder="Label (e.g. Broadcast Melts)" value="">
           <input type="url"  data-key="url"   class="url-input"   placeholder="https://app.box.com/f/..." value="">
+          <input type="text" data-key="folder_id" class="folder-input empty" placeholder="Folder ID" title="Box folder ID for the audit (number from the folder URL)" value="">
           <button class="del-btn" data-del title="Remove">🗑</button>
         `;
         list.appendChild(wrap);

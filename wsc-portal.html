@@ -734,6 +734,7 @@
   <button data-tab="manual">🎯 Manual Capture <span style="opacity:0.6;font-weight:500;font-size:11px;margin-left:4px">(Sam Houston)</span></button>
   <button data-tab="championship" data-school-hidden>🏆 Championships</button>
   <button data-tab="past">🗄 Past Events</button>
+  <button data-tab="requests" data-school-hidden>📥 Requests</button>
   <button data-tab="streamsheet">📊 WSC Stream Sheet</button>
   <button data-tab="multi"    data-multiviewer-only>📺 Multiviewer</button>
   <button data-tab="roku"     data-super-admin-only>🎮 Roku Control <span style="font-size:9px;background:rgba(200,255,0,0.25);color:#C8FF00;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;margin-left:4px;font-weight:800">SUPER</span></button>
@@ -842,6 +843,29 @@
     <button class="toggle" type="button" onclick="exportPast()">⇣ CSV</button>
   </div>
   <div id="pastTable"></div>
+</section>
+
+<!-- Requests — log of staff-submitted captures from wsc-request.html -->
+<section class="tab-content" id="tab-requests" data-school-hidden>
+  <div class="support-note">
+    <span>Log of every confirmed self-service capture request submitted from <a href="wsc-request.html" target="_blank" rel="noopener" style="color:var(--wsc-green);text-decoration:none;font-weight:700">wsc-request.html</a>. One row per request that made it through the "Confirm scheduled in Clipro" step. Linked to the underlying ESPN macro when available.</span>
+  </div>
+  <div class="stats-strip">
+    <div class="stat"><div class="num" id="requestsCount">—</div><div class="lbl">Requests in view</div></div>
+    <div class="stat"><div class="num" id="requestsWeek">—</div><div class="lbl">Last 7 days</div></div>
+    <div class="stat"><div class="num" id="requestsUpcoming">—</div><div class="lbl">Kickoff ≥ today</div></div>
+  </div>
+  <div class="toolbar">
+    <span class="pill">SELF-SERVICE PORTAL</span>
+    <input id="requestsSearch" placeholder="Search staff, school, opponent, notes…">
+    <select id="requestsEncoder"><option value="">All Encoders</option></select>
+    <input id="requestsFrom" type="date" title="Submitted from">
+    <input id="requestsTo"   type="date" title="Submitted to">
+    <button class="toggle" id="requestsUpcomingOnly" type="button">Upcoming only</button>
+    <span class="grow"></span>
+    <button class="toggle" type="button" onclick="exportRequests()">⇣ CSV</button>
+  </div>
+  <div id="requestsTable"></div>
 </section>
 
 <!-- WSC Stream Sheet (Google Sheets embed) -->
@@ -1524,8 +1548,10 @@ let _filters = {
   master:       { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
   manual:       { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
   past:         { search: '', sport: '', school: '', from: '', to: '', hideConf: false },
-  championship: { search: '', sport: '', from: '', to: '' }
+  championship: { search: '', sport: '', from: '', to: '' },
+  requests:     { search: '', encoder: '', from: '', to: '', upcomingOnly: false }
 };
+let _requests = []; // wsc_requests rows for the 📥 Requests tab
 let _pastView = 'master';     // Past Events tab sub-view: 'master' | 'manual'
 
 // Roku Control tab state — local agent at http://localhost:5050,
@@ -2686,6 +2712,159 @@ async function loadChampionships() {
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════
+ *  📥 REQUESTS TAB — self-service capture submissions
+ * ══════════════════════════════════════════════════════════════════ */
+async function loadRequests() {
+  if (!_db) { _requests = []; return; }
+  try {
+    // Pull the last 6 months by default — wide enough to cover a season
+    // while keeping the payload sensible. The toolbar's date range filters
+    // client-side; if Keith ever needs older rows we can add an "All" toggle.
+    const earliest = new Date(); earliest.setMonth(earliest.getMonth() - 6);
+    const { data, error } = await _db.from('wsc_requests')
+      .select('*')
+      .gte('created_at', earliest.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(2000);
+    if (error) throw error;
+    _requests = data || [];
+  } catch (e) {
+    console.warn('wsc_requests load:', e?.message || e);
+    _requests = [];
+  }
+}
+
+function fmtEt(iso, opts) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-US', Object.assign({
+      timeZone: 'America/New_York',
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit'
+    }, opts || {}));
+  } catch { return iso; }
+}
+
+function _matchedRequests() {
+  const f = _filters.requests;
+  const q = (f.search || '').toLowerCase().trim();
+  const fromMs = f.from ? Date.parse(f.from + 'T00:00:00') : 0;
+  const toMs   = f.to   ? Date.parse(f.to   + 'T23:59:59') : Infinity;
+  const todayMs = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); })();
+  return _requests.filter(r => {
+    if (q) {
+      const hay = (
+        (r.staff_initials || '') + ' ' + (r.staff_name || '') + ' ' +
+        (r.school || '') + ' ' + (r.opponent || '') + ' ' + (r.sport || '') + ' ' +
+        (r.search_query || '') + ' ' + (r.notes || '')
+      ).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (f.encoder && r.encoder_id !== f.encoder) return false;
+    const createdMs = Date.parse(r.created_at || 0);
+    if (createdMs < fromMs || createdMs > toMs) return false;
+    if (f.upcomingOnly) {
+      const koMs = Date.parse(r.kickoff_at || 0);
+      if (!koMs || koMs < todayMs) return false;
+    }
+    return true;
+  });
+}
+
+function _refreshRequestsEncoderSelect() {
+  const sel = document.getElementById('requestsEncoder');
+  if (!sel) return;
+  const cur = sel.value;
+  const used = Array.from(new Set(_requests.map(r => r.encoder_id).filter(Boolean)))
+    .sort((a, b) => Number(a.replace('CUSA','')) - Number(b.replace('CUSA','')));
+  sel.innerHTML = '<option value="">All Encoders</option>' +
+    used.map(e => `<option value="${e}" ${cur === e ? 'selected' : ''}>${e}</option>`).join('');
+}
+
+function renderRequests() {
+  _refreshRequestsEncoderSelect();
+  const rows = _matchedRequests();
+  document.getElementById('requestsCount').textContent = String(rows.length);
+
+  const weekAgoMs = Date.now() - 7 * 86400 * 1000;
+  document.getElementById('requestsWeek').textContent = String(
+    _requests.filter(r => Date.parse(r.created_at || 0) >= weekAgoMs).length
+  );
+  const todayMs = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); })();
+  document.getElementById('requestsUpcoming').textContent = String(
+    _requests.filter(r => Date.parse(r.kickoff_at || 0) >= todayMs).length
+  );
+
+  const host = document.getElementById('requestsTable');
+  if (!rows.length) {
+    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--wsc-mute);font-style:italic;font-size:13px;border:1px dashed var(--wsc-line);border-radius:10px">No requests match the current filters.</div>';
+    return;
+  }
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const html = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead style="background:rgba(255,255,255,0.04);color:var(--wsc-mute)">
+        <tr>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Submitted (ET)</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Staff</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Matchup</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Sport</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Encoder</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Kickoff (ET)</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">ESPN search</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr style="border-top:1px solid var(--wsc-line)">
+            <td style="padding:8px 10px;color:var(--wsc-text);white-space:nowrap">${esc(fmtEt(r.created_at))}</td>
+            <td style="padding:8px 10px">
+              <div style="font-weight:700;color:var(--wsc-text)">${esc(r.staff_initials || '—')}</div>
+              ${r.staff_name ? '<div style="font-size:10.5px;color:var(--wsc-mute)">' + esc(r.staff_name) + '</div>' : ''}
+            </td>
+            <td style="padding:8px 10px;color:var(--wsc-text)">
+              <div><strong>${esc(r.school || '—')}</strong></div>
+              <div style="font-size:11px;color:var(--wsc-mute)">vs ${esc(r.opponent || '—')}</div>
+            </td>
+            <td style="padding:8px 10px;color:var(--wsc-mute)">${esc(r.sport || '—')}</td>
+            <td style="padding:8px 10px"><span style="font-family:'SF Mono',Menlo,monospace;font-size:11px;background:rgba(200,255,0,0.12);color:var(--wsc-green);padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:0.4px">${esc(r.encoder_id || '—')}</span></td>
+            <td style="padding:8px 10px;color:var(--wsc-text);white-space:nowrap">${esc(fmtEt(r.kickoff_at))}</td>
+            <td style="padding:8px 10px;color:var(--wsc-mute);font-family:'SF Mono',Menlo,monospace;font-size:11px">${esc(r.search_query || '—')}${r.result_index != null ? ' <span style="color:var(--wsc-green)">[' + r.result_index + ']</span>' : ''}</td>
+            <td style="padding:8px 10px;color:var(--wsc-mute);max-width:240px;word-wrap:break-word">${esc(r.notes || '')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  host.innerHTML = html;
+}
+
+function exportRequests() {
+  const rows = _matchedRequests();
+  if (!rows.length) return;
+  const header = ['Submitted (ET)', 'Staff Initials', 'Staff Name', 'School', 'Opponent', 'Sport', 'Encoder', 'Kickoff (ET)', 'ESPN Search', 'Result Index', 'Notes', 'ESPN Macro ID'];
+  const cells = rows.map(r => [
+    fmtEt(r.created_at), r.staff_initials || '', r.staff_name || '',
+    r.school || '', r.opponent || '', r.sport || '',
+    r.encoder_id || '', fmtEt(r.kickoff_at),
+    r.search_query || '', r.result_index != null ? String(r.result_index) : '',
+    (r.notes || '').replace(/[\r\n]+/g, ' '),
+    r.espn_macro_id || ''
+  ]);
+  const csv = [header, ...cells].map(row => row.map(c => {
+    const s = String(c == null ? '' : c);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `wsc_requests_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
 // Decides whether an ESPN API row is a CUSA championship. We use this to
 // auto-surface ESPN-discovered championships on the Championships tab
 // alongside manually-added entries.
@@ -3393,6 +3572,7 @@ function wireTabs() {
       if (tab === 'manual')        renderManual();
       if (tab === 'championship')  renderChampionships();
       if (tab === 'past')          renderPast();
+      if (tab === 'requests')      { loadRequests().then(renderRequests); }
       if (tab === 'settings')      renderSettings();
       if (tab === 'roku')          enterRokuTab();
       else                         leaveRokuTab();
@@ -3449,6 +3629,20 @@ function bindFilterControls() {
   // HLS hint mirrors whichever encoder is picked.
   const encSel = document.getElementById('champEncoder');
   if (encSel) encSel.addEventListener('change', refreshChampHlsHint);
+
+  // Requests tab filters
+  const rf = _filters.requests;
+  const rReRender = () => renderRequests();
+  document.getElementById('requestsSearch')?.addEventListener('input',  e => { rf.search  = e.target.value; rReRender(); });
+  document.getElementById('requestsEncoder')?.addEventListener('change', e => { rf.encoder = e.target.value; rReRender(); });
+  document.getElementById('requestsFrom')?.addEventListener('change',   e => { rf.from    = e.target.value; rReRender(); });
+  document.getElementById('requestsTo')?.addEventListener('change',     e => { rf.to      = e.target.value; rReRender(); });
+  const rUpcoming = document.getElementById('requestsUpcomingOnly');
+  if (rUpcoming) rUpcoming.addEventListener('click', () => {
+    rf.upcomingOnly = !rf.upcomingOnly;
+    rUpcoming.classList.toggle('active', rf.upcomingOnly);
+    rReRender();
+  });
 }
 
 function setPastView(v) {
@@ -4459,6 +4653,18 @@ function setupRealtime() {
      .on('postgres_changes', { event: '*', schema: 'public', table: 'wsc_championship_events' }, async () => {
        await loadChampionships();
        renderChampionships();
+     })
+     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wsc_requests' }, async (payload) => {
+       await loadRequests();
+       if (document.getElementById('tab-requests')?.classList.contains('active')) renderRequests();
+       // Quiet toast so admins know a fresh request just landed even if
+       // they're on another tab.
+       try {
+         const r = payload?.new;
+         if (r && typeof showToast === 'function') {
+           showToast(`📥 New request: ${r.staff_initials || '?'} → ${r.school || ''} vs ${r.opponent || ''} (${r.encoder_id || ''})`);
+         }
+       } catch (_) {}
      })
      .subscribe();
 }

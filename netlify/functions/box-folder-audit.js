@@ -112,6 +112,12 @@ async function verifyCaller(event) {
 
 /* ── Source loading ─────────────────────────────────────────────────── */
 
+const COMMERCIAL_LABELS = {
+  school_psa: 'School PSA',
+  cusa_psa:   'CUSA Produced PSA',
+  sponsor:    'Sponsorship Spot'
+};
+
 async function loadAuditSources() {
   // melt_config rows
   const meltRes = await supabase()
@@ -126,6 +132,13 @@ async function loadAuditSources() {
     .select('id, sport, label, subcategory, url, folder_id')
     .not('folder_id', 'is', null);
   if (champRes.error) throw new Error('championship_box_links load: ' + champRes.error.message);
+
+  // psa_config rows (commercials — School PSA / CUSA PSA / Sponsorship Spot)
+  const commRes = await supabase()
+    .from('psa_config')
+    .select('category, file_request_url, folder_id')
+    .not('folder_id', 'is', null);
+  if (commRes.error) throw new Error('psa_config load: ' + commRes.error.message);
 
   const sources = [];
   (meltRes.data || []).forEach(r => {
@@ -150,6 +163,19 @@ async function loadAuditSources() {
       subcategory: r.subcategory || null,
       folder_id: fid,
       request_url: r.url || null
+    });
+  });
+  (commRes.data || []).forEach(r => {
+    const fid = (r.folder_id || '').trim();
+    if (!fid) return;
+    const friendly = COMMERCIAL_LABELS[r.category] || r.category;
+    sources.push({
+      source: 'commercial',
+      sport: friendly,         // surfaces in the Sport column on the audit page
+      label: friendly,
+      subcategory: null,       // category info is already in sport/label; don't double-print
+      folder_id: fid,
+      request_url: r.file_request_url || null
     });
   });
   return sources;
@@ -330,7 +356,11 @@ exports.handler = async (event) => {
       const moveType = moveLookup && moveLookup.ok ? moveLookup.map.get(String(it.id)) : null;
       const isMove = !!moveType;
       const ext = (it.name || '').split('.').pop().toLowerCase();
-      const isNonVideo = ext && !VIDEO_EXTS.has(ext);
+      // Commercial folders mix slates (PNG/JPG) with TV spots (MP4), so the
+      // non-video flag is meaningless there. Melt + championship folders
+      // are video-only by convention.
+      const checkVideo = src.source !== 'commercial';
+      const isNonVideo = checkVideo && ext && !VIDEO_EXTS.has(ext);
       const flags = [];
       if (isBypass) flags.push('BYPASS');
       if (isMove)   flags.push(moveType === 'ITEM_COPY' ? 'COPIED' : 'MOVED');
@@ -368,7 +398,10 @@ exports.handler = async (event) => {
     return String(b.modified_at || b.created_at || '').localeCompare(String(a.modified_at || a.created_at || ''));
   });
 
-  const pendingOverdue = (sourceFilter !== 'championship') ? await loadPendingOverdue(sinceIso) : [];
+  // Pending-overdue is melt-specific (depends on schedule_events + melt_uploads).
+  const pendingOverdue = (sourceFilter === 'all' || sourceFilter === 'melt')
+    ? await loadPendingOverdue(sinceIso)
+    : [];
 
   // Best-effort log
   try {

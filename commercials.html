@@ -144,6 +144,11 @@
     flex: 1; padding: 7px 10px; border: 1px solid #ddd; border-radius: 5px;
     font-size: 12px; font-family: inherit;
   }
+  .psa-url-row input.folder-id-input {
+    flex: 0 0 140px;
+    font-family: 'SF Mono', Menlo, monospace; font-size: 11px; color: #555;
+  }
+  .psa-url-row input.folder-id-input.empty { background: #fff8e1; border-color: #fbcf00; }
   .psa-url-row input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
   .psa-config-status { margin-top: 6px; font-size: 12px; font-weight: 600; min-height: 16px; }
   .psa-config-status.ok  { color: #15803d; }
@@ -1393,19 +1398,25 @@
         <div class="psa-url-row">
           <label>School PSA</label>
           <input type="url" id="adminSchoolPsaUrl" placeholder="https://app.box.com/f/…">
+          <input type="text" id="adminSchoolPsaFolderId" class="folder-id-input" placeholder="Folder ID" title="Box folder ID used by the bypass audit (the number from the folder URL)">
           <button class="btn btn-add" onclick="savePsaConfig('school_psa')">Save</button>
         </div>
         <div class="psa-url-row">
           <label>CUSA Produced PSA</label>
           <input type="url" id="adminCusaPsaUrl" placeholder="https://app.box.com/f/…">
+          <input type="text" id="adminCusaPsaFolderId" class="folder-id-input" placeholder="Folder ID" title="Box folder ID used by the bypass audit (the number from the folder URL)">
           <button class="btn btn-add" onclick="savePsaConfig('cusa_psa')">Save</button>
         </div>
         <div class="psa-url-row">
           <label>Sponsorship Spot</label>
           <input type="url" id="adminSponsorUrl" placeholder="https://app.box.com/f/…">
+          <input type="text" id="adminSponsorFolderId" class="folder-id-input" placeholder="Folder ID" title="Box folder ID used by the bypass audit (the number from the folder URL)">
           <button class="btn btn-add" onclick="savePsaConfig('sponsor')">Save</button>
         </div>
         <div id="psaConfigStatus" class="psa-config-status"></div>
+        <div style="font-size:11px;color:#888;line-height:1.5;margin-top:6px">
+          Tip: the Folder ID is the number in the Box folder's URL (e.g. <code>app.box.com/folder/123456789</code> → <code>123456789</code>). Used by the <a href="box-audit.html" style="color:var(--blue);text-decoration:none">Box Audit</a> page to detect uploads that bypassed the File Request.
+        </div>
       </div>
 
       <!-- School Codes — used to build School PSA filenames -->
@@ -4360,14 +4371,20 @@ function openAdminModal() {
   loadActivityLog();
   renderSchoolCodesTable();
   renderAdvertiserTable();
-  // Populate the PSA URL inputs from the cached psa_config so admins always
-  // see the current value when the panel opens.
-  const sEl = document.getElementById('adminSchoolPsaUrl');
-  const cEl = document.getElementById('adminCusaPsaUrl');
-  const spEl = document.getElementById('adminSponsorUrl');
-  if (sEl) sEl.value = (state.psaConfig?.school_psa?.file_request_url || '').trim();
-  if (cEl) cEl.value = (state.psaConfig?.cusa_psa?.file_request_url || '').trim();
-  if (spEl) spEl.value = (state.psaConfig?.sponsor?.file_request_url || '').trim();
+  // Populate the PSA URL + folder_id inputs from the cached psa_config so
+  // admins always see the current values when the panel opens.
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v || '').trim(); };
+  const markFolder = id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('empty', !el.value.trim());
+  };
+  setVal('adminSchoolPsaUrl',       state.psaConfig?.school_psa?.file_request_url);
+  setVal('adminSchoolPsaFolderId',  state.psaConfig?.school_psa?.folder_id);
+  setVal('adminCusaPsaUrl',         state.psaConfig?.cusa_psa?.file_request_url);
+  setVal('adminCusaPsaFolderId',    state.psaConfig?.cusa_psa?.folder_id);
+  setVal('adminSponsorUrl',         state.psaConfig?.sponsor?.file_request_url);
+  setVal('adminSponsorFolderId',    state.psaConfig?.sponsor?.folder_id);
+  ['adminSchoolPsaFolderId','adminCusaPsaFolderId','adminSponsorFolderId'].forEach(markFolder);
   const stat = document.getElementById('psaConfigStatus');
   if (stat) { stat.textContent = ''; stat.className = 'psa-config-status'; }
   document.getElementById('adminModal').classList.add('open');
@@ -4379,6 +4396,11 @@ const PSA_CONFIG_INPUT_IDS = {
   cusa_psa:   'adminCusaPsaUrl',
   sponsor:    'adminSponsorUrl'
 };
+const PSA_CONFIG_FOLDER_IDS = {
+  school_psa: 'adminSchoolPsaFolderId',
+  cusa_psa:   'adminCusaPsaFolderId',
+  sponsor:    'adminSponsorFolderId'
+};
 const PSA_CONFIG_LABELS = {
   school_psa: 'School PSA',
   cusa_psa:   'CUSA Produced PSA',
@@ -4388,16 +4410,23 @@ const PSA_CONFIG_LABELS = {
 async function savePsaConfig(category) {
   if (!isAdmin() || !_db) return;
   const inputId = PSA_CONFIG_INPUT_IDS[category];
+  const folderInputId = PSA_CONFIG_FOLDER_IDS[category];
   if (!inputId) return;
   const url = (document.getElementById(inputId)?.value || '').trim();
+  const folderId = (document.getElementById(folderInputId)?.value || '').trim();
   const stat = document.getElementById('psaConfigStatus');
   if (url && !/^https?:\/\//i.test(url)) {
     if (stat) { stat.textContent = 'URL must start with http:// or https://'; stat.className = 'psa-config-status err'; }
     return;
   }
+  if (folderId && !/^\d+$/.test(folderId)) {
+    if (stat) { stat.textContent = 'Folder ID must be the numeric part of the Box folder URL.'; stat.className = 'psa-config-status err'; }
+    return;
+  }
   const { error } = await _db.from('psa_config').upsert({
     category,
     file_request_url: url,
+    folder_id: folderId || null,
     updated_at: new Date().toISOString(),
     updated_by: 'admin'
   }, { onConflict: 'category' });
@@ -4408,13 +4437,21 @@ async function savePsaConfig(category) {
   // Refresh local cache so the Upload tab's button-disabled state and the
   // school-PSA modal both pick up the new URL without a full reload.
   state.psaConfig = state.psaConfig || {};
-  state.psaConfig[category] = { ...(state.psaConfig[category] || {}), category, file_request_url: url };
+  state.psaConfig[category] = {
+    ...(state.psaConfig[category] || {}),
+    category,
+    file_request_url: url,
+    folder_id: folderId || null
+  };
+  // Sync the "Folder ID empty?" yellow highlight for the input we just saved.
+  const folderEl = document.getElementById(folderInputId);
+  if (folderEl) folderEl.classList.toggle('empty', !folderId);
   if (stat) {
     const label = PSA_CONFIG_LABELS[category] || category;
-    stat.textContent = `${label} URL saved.`;
+    stat.textContent = `${label} ${folderId ? 'URL + Folder ID' : 'URL'} saved.`;
     stat.className = 'psa-config-status ok';
   }
-  showToast('File Request URL saved');
+  showToast('File Request settings saved');
   if (state.tab === 'upload') renderCurrentTab();
 }
 

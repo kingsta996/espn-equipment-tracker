@@ -8,10 +8,16 @@
 create table if not exists psa_config (
   category text primary key,
   file_request_url text default '',
+  folder_id text,
   notes text,
   updated_at timestamptz default now(),
   updated_by text
 );
+
+-- Idempotent: adds folder_id (the Box folder the File Request points at) for
+-- installs that already ran the original migration. Used by the
+-- box-folder-audit function to detect uploads that bypassed the File Request.
+alter table psa_config add column if not exists folder_id text;
 
 alter table psa_config enable row level security;
 drop policy if exists "public read psa config"  on psa_config;
@@ -54,5 +60,9 @@ create policy "public write psa uploads" on psa_uploads for all    using (true) 
 do $$ begin alter publication supabase_realtime add table psa_config;  exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table psa_uploads; exception when duplicate_object then null; end $$;
 
+-- Force PostgREST to re-read the schema so the newly-added folder_id column
+-- is visible to the JS client without a manual API restart.
+notify pgrst, 'reload schema';
+
 -- Sanity check
-select category, file_request_url from psa_config order by category;
+select category, file_request_url, folder_id from psa_config order by category;

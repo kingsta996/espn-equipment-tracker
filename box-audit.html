@@ -58,6 +58,7 @@
   table.summary-tbl .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
   table.summary-tbl .badge.melt { background: rgba(0,181,226,0.15); color: #006a85; }
   table.summary-tbl .badge.championship { background: rgba(167,213,0,0.2); color: #4d6300; }
+  table.summary-tbl .badge.commercial { background: rgba(239,64,53,0.15); color: #8b1d12; }
   table.summary-tbl .bypass-cell.has { color: var(--espn-red); font-weight: 800; }
 
   /* Files table */
@@ -117,9 +118,10 @@
         </label>
         <label>Source
           <select id="sourceFilter">
-            <option value="all">All (Melts + Championships)</option>
+            <option value="all">All (Melts + Championships + Commercials)</option>
             <option value="melt">Melts only</option>
             <option value="championship">Championships only</option>
+            <option value="commercial">Commercials only</option>
           </select>
         </label>
         <button class="btn btn-primary" id="runBtn" onclick="runAudit()">▶ Run audit</button>
@@ -405,7 +407,7 @@ function renderFiles() {
     <tbody>
       ${rows.map(f => `
         <tr class="${f.is_bypass ? 'bypass' : ''}">
-          <td><span class="flag ${escHtml(f.source.toUpperCase())}" style="background:${f.source === 'melt' ? '#0369a1' : '#4d6300'}">${escHtml(f.source)}</span></td>
+          <td><span class="flag" style="background:${f.source === 'melt' ? '#0369a1' : (f.source === 'commercial' ? '#8b1d12' : '#4d6300')}">${escHtml(f.source)}</span></td>
           <td>${escHtml(f.sport)}${f.subcategory ? ' <span style="color:#888;font-size:10px">(' + escHtml(f.subcategory) + ')</span>' : ''}</td>
           <td class="filename">${escHtml(f.filename)}</td>
           <td>${fmtBytes(f.size_bytes)}</td>

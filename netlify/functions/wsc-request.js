@@ -217,7 +217,7 @@ async function actionConfirmClipro(body) {
   const staff_name      = body.staff_name ? String(body.staff_name).slice(0, 120) : null;
   const school          = String(body.school   || '').trim().slice(0, 80);
   const opponent        = String(body.opponent || '').trim().slice(0, 80);
-  const sport           = String(body.sport    || '').trim().slice(0, 40);
+  const sport           = body.sport ? String(body.sport).trim().slice(0, 40) : null;
   const encoder_id      = String(body.encoder_id || '').trim();
   const search_query    = body.search_query ? String(body.search_query).slice(0, 100) : null;
   const result_index    = Number.isFinite(body.result_index) ? body.result_index : null;
@@ -228,7 +228,7 @@ async function actionConfirmClipro(body) {
   if (!staff_initials) return jsonResponse(400, { error: 'Staff initials required' });
   if (!school)         return jsonResponse(400, { error: 'School required' });
   if (!opponent)       return jsonResponse(400, { error: 'Opponent required' });
-  if (!sport)          return jsonResponse(400, { error: 'Sport required' });
+  // Sport is optional — the search process surfaces the game regardless of sport.
   if (!/^CUSA([1-9]|10)$/.test(encoder_id)) return jsonResponse(400, { error: 'Invalid encoder' });
   const kickoffMs = Date.parse(kickoff_at);
   if (!Number.isFinite(kickoffMs)) return jsonResponse(400, { error: 'Invalid kickoff time' });

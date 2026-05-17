@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>CUSA × WSC Capture Request</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <style>
   :root {
@@ -74,7 +75,7 @@
   .header button.signout:hover { color: var(--wsc-green); border-color: var(--wsc-green); }
 
   /* ── Layout ── */
-  .container { max-width: 760px; margin: 24px auto; padding: 0 18px 60px; }
+  .container { max-width: 820px; margin: 24px auto; padding: 0 18px 60px; }
   .step {
     background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 12px;
     padding: 22px 24px; margin-bottom: 18px;
@@ -99,6 +100,7 @@
     letter-spacing: 1px; display: block; margin-bottom: 4px;
   }
   label.fl small { text-transform: none; letter-spacing: 0; color: var(--wsc-mute); font-weight: 400; }
+  label.fl .et-pill { color: var(--wsc-green); font-weight: 600; text-transform: none; letter-spacing: 0; }
   input.fi, select.fi, textarea.fi {
     width: 100%; padding: 9px 10px; background: rgba(0,0,0,0.35);
     border: 1px solid var(--wsc-line); color: var(--wsc-text);
@@ -118,15 +120,49 @@
     padding: 11px 22px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px;
   }
   .btn-secondary:hover { border-color: var(--wsc-green); color: var(--wsc-green); }
+  .btn-copy {
+    background: rgba(200,255,0,0.08); color: var(--wsc-green); border: 1px solid rgba(200,255,0,0.35);
+    padding: 9px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px;
+    font-weight: 600;
+  }
+  .btn-copy:hover { background: var(--wsc-green); color: #000; }
+  .btn-copy:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-copy.copied { background: var(--ok); color: #fff; border-color: var(--ok); }
 
   .row-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
   .err-msg { color: #ff7d8a; font-size: 12px; min-height: 18px; margin-top: 10px; }
   .ok-msg  { color: var(--ok); font-size: 12px; min-height: 18px; margin-top: 10px; }
 
+  /* Encoder status panel */
+  .enc-status-help {
+    font-size: 11px; color: var(--wsc-mute); margin: -6px 0 8px;
+  }
+  .enc-option-busy { color: #ff9aa3; }
+  .enc-option-ok   { color: var(--wsc-text); }
+
+  /* Clipro paste block */
+  .clipro-row {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    background: rgba(0,0,0,0.25); border: 1px solid var(--wsc-line); border-radius: 8px;
+    margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .clipro-row .label {
+    font-size: 11px; color: var(--wsc-mute); text-transform: uppercase; letter-spacing: 1px;
+    flex: 0 0 110px;
+  }
+  .clipro-row .value {
+    font-family: 'SF Mono', monospace; font-size: 12px; color: var(--wsc-text);
+    flex: 1; word-break: break-all; min-width: 200px;
+  }
+  .clipro-row .label small {
+    display: block; color: var(--wsc-mute); font-weight: 400; text-transform: none;
+    letter-spacing: 0; margin-top: 2px; font-size: 10px;
+  }
+
   .summary-line {
     font-size: 12px; color: var(--wsc-mute); display: flex; gap: 6px; padding: 2px 0;
   }
-  .summary-line b { color: var(--wsc-text); font-weight: 600; min-width: 90px; }
+  .summary-line b { color: var(--wsc-text); font-weight: 600; min-width: 110px; }
 
   .success-card {
     background: linear-gradient(135deg, rgba(52,208,88,0.12), rgba(200,255,0,0.04));
@@ -167,12 +203,12 @@
 <!-- Main -->
 <div class="container" id="mainContainer" style="display:none">
 
-  <!-- Step 1: Schedule Roku -->
+  <!-- Step 1: Schedule the Roku -->
   <div class="step" id="step1">
     <div class="step-head">
       <span class="step-num">1</span>
-      <h2>Schedule the Roku</h2>
-      <span class="hint">Fires the ESPN search macro at trigger time.</span>
+      <h2>Schedule the Roku capture</h2>
+      <span class="hint">The macro fires automatically at kickoff − 4 min.</span>
     </div>
 
     <div class="field-grid">
@@ -186,7 +222,7 @@
       </div>
 
       <div>
-        <label class="fl">CUSA school</label>
+        <label class="fl">CUSA school <small>(also the ESPN search term)</small></label>
         <input class="fi" id="fSchool" type="text" maxlength="80" placeholder="e.g. FIU">
       </div>
       <div>
@@ -195,47 +231,22 @@
       </div>
 
       <div>
-        <label class="fl">Sport</label>
-        <select class="fi" id="fSport">
-          <option value="">— pick sport —</option>
-          <option>Football</option>
-          <option>Men's Basketball</option>
-          <option>Women's Basketball</option>
-          <option>Baseball</option>
-          <option>Softball</option>
-          <option>Volleyball</option>
-          <option>Soccer</option>
-          <option>Other</option>
-        </select>
+        <label class="fl">Date</label>
+        <input class="fi mono" id="fDate" type="date">
       </div>
       <div>
+        <label class="fl">Time <small>(your local TZ)</small> <span class="et-pill" id="fTimeEastern"></span></label>
+        <input class="fi mono" id="fTime" type="time">
+      </div>
+
+      <div class="full">
         <label class="fl">Encoder</label>
         <select class="fi" id="fEncoder">
           <option value="">— pick encoder —</option>
-          <option>CUSA1</option><option>CUSA2</option><option>CUSA3</option>
-          <option>CUSA4</option><option>CUSA5</option><option>CUSA6</option>
-          <option>CUSA7</option><option>CUSA8</option><option>CUSA9</option>
-          <option>CUSA10</option>
         </select>
-      </div>
-
-      <div class="full">
-        <label class="fl">ESPN search query <small>(typed into the Roku ESPN app)</small></label>
-        <input class="fi mono" id="fQuery" type="text" maxlength="100" placeholder='e.g. "FIU Football"'>
-      </div>
-
-      <div>
-        <label class="fl">Result index <small>(0 = top result)</small></label>
-        <input class="fi mono" id="fResultIdx" type="number" min="0" max="20" value="0">
-      </div>
-      <div>
-        <label class="fl">Kickoff <small>(your local time)</small></label>
-        <input class="fi mono" id="fKickoff" type="datetime-local">
-      </div>
-
-      <div class="full">
-        <label class="fl">Trigger time <small>(macro fires here — defaults to kickoff − 4 min)</small></label>
-        <input class="fi mono" id="fTrigger" type="datetime-local">
+        <div class="enc-status-help" id="encStatusHelp">
+          Pick a date + time first to see which encoders are free at that slot.
+        </div>
       </div>
     </div>
 
@@ -246,17 +257,33 @@
     </div>
   </div>
 
-  <!-- Step 2: Schedule in WSC Clipro -->
+  <!-- Step 2: Clipro -->
   <div class="step disabled" id="step2">
     <div class="step-head">
       <span class="step-num">2</span>
       <h2>Schedule the event in WSC Clipro</h2>
-      <span class="hint">Open Clipro, schedule the event, then confirm.</span>
+      <span class="hint">Copy these two values into Clipro, then confirm.</span>
     </div>
 
     <div id="step1Summary" style="margin-bottom:14px"></div>
 
-    <div class="row-actions">
+    <div class="clipro-row">
+      <div class="label">HLS URL
+        <small>paste into Clipro's <em>source feed</em> field</small>
+      </div>
+      <div class="value" id="cliproHls">—</div>
+      <button class="btn-copy" id="copyHlsBtn" onclick="copyHls()" disabled>📋 Copy HLS</button>
+    </div>
+
+    <div class="clipro-row">
+      <div class="label">Start time (ET)
+        <small>paste into Clipro's <em>start time</em> field — 24-hour Eastern</small>
+      </div>
+      <div class="value" id="cliproEt">—</div>
+      <button class="btn-copy" id="copyEtBtn" onclick="copyEt()" disabled>📋 Copy Time</button>
+    </div>
+
+    <div class="row-actions" style="margin-top:18px">
       <button class="btn-secondary" onclick="openClipro()">Open WSC Clipro ↗</button>
       <button class="btn-primary" id="step2Submit" onclick="submitStep2()">Confirm Scheduled in Clipro</button>
     </div>
@@ -278,8 +305,7 @@
 </div>
 
 <script>
-  // Clipro URL — matches the wsc-portal.html admin tool so admins and
-  // staff land on the same library view.
+  // Clipro URL — matches wsc-portal.html so admins and staff land in the same library view.
   const WSC_CLIPRO_URL = 'https://www.clipro.tv/clipro/clipro/?system=50876&group=105340&activeTab=pbp&libraryFilter_minRating=2&libraryFilter_mediaTypes=project%2Cvideo%2Cgraphics%2CimageGraphic%2CvideoGraphic%2Cimage%2Caudio%2Cgif&libraryFilter_assetTypes=10%2C9%2C0%2C15%2C1%2C16%2C13%2C3%2C11%2C5%2C6%2C12%2C2%2C4%2C17%2C19%2C20&lpbpFilter_minRating=2&lpbpFilter_sortPolicy=DateCreatedDesc';
 
   const FN = '/.netlify/functions/wsc-request';
@@ -287,12 +313,16 @@
   const EMAIL_KEY  = 'wsc_request_email';
   const EXPIRY_KEY = 'wsc_request_expires';
 
-  // Local-mode helper: when opened via file:// (no Netlify functions), the
-  // page degrades to "form-only" so Keith can eyeball layout. Form submits
-  // will fail; that's expected during local visual testing.
+  const ENCODER_CONFLICT_WINDOW_MS = 4 * 60 * 60 * 1000; // 4 hours, matches wsc-portal
+
   const isLocal = location.protocol === 'file:' ||
                   location.hostname === 'localhost' ||
                   location.hostname === '127.0.0.1';
+
+  let _sb       = null;
+  let _encoders = [];  // [{id, hls}]
+  let _macros   = [];  // pending/fired wsc_espn_macros rows (encoder_id, kickoff_at, matchup_label, search_query)
+  let _captures = [];  // active wsc_capture_status rows (encoder)
 
   let state = {
     macroId: null,
@@ -337,7 +367,7 @@
         return;
       }
       setSession(data.token, email, data.expiresAt);
-      showPortal(email);
+      await showPortal(email);
     } catch (e) {
       errEl.textContent = isLocal
         ? 'Sign-in needs the Netlify deployment (functions don\'t run on file://).'
@@ -352,38 +382,171 @@
     location.reload();
   }
 
-  function showPortal(email) {
+  async function showPortal(email) {
     document.getElementById('pwOverlay').classList.remove('open');
     document.getElementById('headerBar').style.display    = 'flex';
     document.getElementById('mainContainer').style.display = 'block';
     document.getElementById('whoLabel').textContent = email;
+    await loadReferenceData();
   }
 
-  // ── Step 1: Schedule Roku ───────────────────────────────────────────────
+  // ── Reference data: encoders + conflict sources ─────────────────────────
+  async function loadReferenceData() {
+    // Encoders (id + HLS URL) from public wsc_data.json
+    try {
+      const r = await fetch('wsc_data.json', { cache: 'no-store' });
+      if (r.ok) {
+        const cfg = await r.json();
+        _encoders = (cfg.encoders || []).filter(e => /^CUSA([1-9]|10)$/.test(e.id));
+      }
+    } catch (e) { /* keep _encoders empty; dropdown will show empty list */ }
+
+    // Conflict data (anon SELECT is allowed on both tables)
+    if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && typeof supabase !== 'undefined') {
+      try {
+        _sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+        const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        const [statusRes, macroRes] = await Promise.all([
+          _sb.from('wsc_capture_status').select('schedule_event_id, encoder'),
+          _sb.from('wsc_espn_macros')
+            .select('encoder_id, kickoff_at, status, matchup_label, search_query')
+            .in('status', ['pending', 'fired'])
+            .gte('kickoff_at', since)
+        ]);
+        _captures = (statusRes.data || []).filter(r => r.encoder);
+        _macros   = macroRes.data || [];
+      } catch (e) { /* offline / RLS / table missing — degrade silently */ }
+    }
+    refreshEncoderDropdown();
+  }
+
+  // ── Encoder dropdown with conflict labels ───────────────────────────────
+  function readKickoffMs() {
+    const date = document.getElementById('fDate').value;
+    const time = document.getElementById('fTime').value;
+    if (!date || !time) return null;
+    const ms = Date.parse(`${date}T${time}`);
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  function encoderConflictsAt(kickoffMs) {
+    // Returns Map<encoderId, conflictLabel>
+    const map = new Map();
+    if (!kickoffMs) return map;
+    for (const m of _macros) {
+      if (!m.encoder_id) continue;
+      const mMs = Date.parse(m.kickoff_at);
+      if (!Number.isFinite(mMs)) continue;
+      if (Math.abs(mMs - kickoffMs) < ENCODER_CONFLICT_WINDOW_MS) {
+        if (!map.has(m.encoder_id)) {
+          const label = m.matchup_label || m.search_query || 'ESPN macro';
+          map.set(m.encoder_id, label);
+        }
+      }
+    }
+    return map;
+  }
+
+  function refreshEncoderDropdown() {
+    const sel  = document.getElementById('fEncoder');
+    const help = document.getElementById('encStatusHelp');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— pick encoder —</option>';
+
+    if (!_encoders.length) {
+      help.textContent = 'Encoder list unavailable.';
+      return;
+    }
+    const kickoffMs = readKickoffMs();
+    const conflicts = encoderConflictsAt(kickoffMs);
+    let busyCount = 0;
+
+    _encoders.forEach(enc => {
+      const conflict = conflicts.get(enc.id);
+      const opt = document.createElement('option');
+      opt.value = enc.id;
+      if (conflict) {
+        busyCount += 1;
+        opt.textContent = `${enc.id} — ⛔ in use (${conflict})`;
+        opt.className = 'enc-option-busy';
+        opt.disabled = true;
+      } else if (kickoffMs) {
+        opt.textContent = `${enc.id} — ✓ available`;
+        opt.className = 'enc-option-ok';
+      } else {
+        opt.textContent = enc.id;
+      }
+      sel.appendChild(opt);
+    });
+
+    if (prev && !conflicts.get(prev)) sel.value = prev;
+
+    if (!kickoffMs) {
+      help.textContent = 'Pick a date + time to see which encoders are free at that slot.';
+    } else {
+      help.textContent = busyCount
+        ? `${_encoders.length - busyCount} available, ${busyCount} in use within ±4 hours of your time.`
+        : `All ${_encoders.length} encoders available at that time.`;
+    }
+  }
+
+  // ── ET formatter (matches wsc-portal _fmtEastern24) ─────────────────────
+  function fmtEastern24(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false,
+        hourCycle: 'h23'
+      }).formatToParts(date);
+      let hh = parts.find(p => p.type === 'hour')?.value || '0';
+      const mm = parts.find(p => p.type === 'minute')?.value || '0';
+      if (hh === '24') hh = '00';
+      return hh.padStart(2, '0') + ':' + mm.padStart(2, '0');
+    } catch { return ''; }
+  }
+
+  function fmtEasternFull(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true
+      }).format(date) + ' ET';
+    } catch { return ''; }
+  }
+
+  function refreshEtPill() {
+    const ms = readKickoffMs();
+    const span = document.getElementById('fTimeEastern');
+    if (!ms) { span.textContent = ''; return; }
+    const et = fmtEastern24(new Date(ms));
+    span.textContent = et ? `= ${et} ET` : '';
+  }
+
+  // ── Step 1 ──────────────────────────────────────────────────────────────
   function readStep1() {
     return {
       staff_initials: document.getElementById('fStaff').value.trim(),
       staff_name:     document.getElementById('fStaffName').value.trim() || null,
       school:         document.getElementById('fSchool').value.trim(),
       opponent:       document.getElementById('fOpponent').value.trim(),
-      sport:          document.getElementById('fSport').value,
       encoder_id:     document.getElementById('fEncoder').value,
-      search_query:   document.getElementById('fQuery').value.trim(),
-      result_index:   parseInt(document.getElementById('fResultIdx').value, 10) || 0,
-      kickoff_at:     document.getElementById('fKickoff').value,
-      trigger_at:     document.getElementById('fTrigger').value
+      date:           document.getElementById('fDate').value,
+      time:           document.getElementById('fTime').value
     };
   }
 
   function validateStep1(p) {
     if (!p.staff_initials) return 'Your initials are required.';
-    if (!p.school)         return 'CUSA school is required.';
+    if (!p.school)         return 'CUSA school is required (also used as the ESPN search term).';
+    if (p.school.length > 100) return 'School name too long for ESPN search (max 100 chars).';
     if (!p.opponent)       return 'Opponent is required.';
-    if (!p.sport)          return 'Pick a sport.';
+    if (!p.date || !p.time) return 'Date and time are required.';
     if (!p.encoder_id)     return 'Pick an encoder.';
-    if (!p.search_query || p.search_query.length > 100) return 'ESPN search query is required (≤ 100 chars).';
-    if (p.result_index < 0 || p.result_index > 20)      return 'Result index must be 0–20.';
-    if (!p.kickoff_at)     return 'Kickoff time is required.';
     return null;
   }
 
@@ -399,9 +562,12 @@
     const token = getToken();
     if (!token) { errEl.textContent = 'Session expired. Please sign in again.'; clearSession(); location.reload(); return; }
 
+    const kickoffMs  = Date.parse(`${p.date}T${p.time}`);
+    const kickoffIso = new Date(kickoffMs).toISOString();
+    const matchup_label = `${p.opponent} @ ${p.school}`;
+
     btn.disabled = true; btn.textContent = 'Scheduling…';
     try {
-      const matchup_label = `${p.opponent} @ ${p.school}`;
       const r = await fetch(`${FN}?action=submit-roku`, {
         method: 'POST',
         headers: {
@@ -410,12 +576,11 @@
         },
         body: JSON.stringify({
           encoder_id:   p.encoder_id,
-          search_query: p.search_query,
-          result_index: p.result_index,
-          kickoff_at:   new Date(p.kickoff_at).toISOString(),
-          trigger_at:   p.trigger_at ? new Date(p.trigger_at).toISOString() : null,
-          matchup_label,
-          sport: p.sport
+          search_query: p.school,    // school IS the ESPN search term
+          // result_index defaults to 0 server-side
+          kickoff_at:   kickoffIso,
+          // trigger_at omitted → server uses kickoff − 4 min
+          matchup_label
         })
       });
       const data = await r.json().catch(() => ({}));
@@ -425,8 +590,9 @@
       }
       state.macroId = data.macroId;
       state.pendingPayload = Object.assign({}, p, {
-        kickoff_at_iso: new Date(p.kickoff_at).toISOString(),
-        trigger_at_iso: p.trigger_at ? new Date(p.trigger_at).toISOString() : data.trigger_at
+        kickoff_at_iso: data.kickoff_at,
+        trigger_at_iso: data.trigger_at,
+        matchup_label
       });
       markStep1Done(p, data);
     } catch (e) {
@@ -443,26 +609,64 @@
     document.getElementById('step1Submit').disabled = true;
     document.getElementById('step1Submit').textContent = '✓ Scheduled';
 
-    // Lock all step-1 inputs so staff can't change them after submit.
-    ['fStaff','fStaffName','fSchool','fOpponent','fSport','fEncoder','fQuery','fResultIdx','fKickoff','fTrigger']
+    ['fStaff','fStaffName','fSchool','fOpponent','fEncoder','fDate','fTime']
       .forEach(id => document.getElementById(id).disabled = true);
 
+    const kickoffDate = new Date(data.kickoff_at);
+    const triggerDate = new Date(data.trigger_at);
+
     const summary = document.getElementById('step1Summary');
-    const fmt = iso => new Date(iso).toLocaleString();
     summary.innerHTML = `
-      <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)} (${esc(p.sport)})</div>
+      <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)}</div>
       <div class="summary-line"><b>Encoder:</b> ${esc(p.encoder_id)}</div>
-      <div class="summary-line"><b>Kickoff:</b> ${fmt(data.kickoff_at)}</div>
-      <div class="summary-line"><b>Macro fires:</b> ${fmt(data.trigger_at)}</div>
-      <div class="summary-line"><b>Search:</b> "${esc(p.search_query)}" → result #${p.result_index}</div>
+      <div class="summary-line"><b>Kickoff:</b> ${esc(fmtEasternFull(kickoffDate))}</div>
+      <div class="summary-line"><b>Macro fires:</b> ${esc(fmtEasternFull(triggerDate))}</div>
+      <div class="summary-line"><b>ESPN search:</b> "${esc(p.school)}" → top result</div>
     `;
 
+    // Populate Clipro paste values
+    const enc = _encoders.find(e => e.id === p.encoder_id);
+    const hlsValue = enc?.hls || '(HLS URL not configured for this encoder)';
+    const etValue  = fmtEastern24(kickoffDate);
+    document.getElementById('cliproHls').textContent = hlsValue;
+    document.getElementById('cliproEt').textContent  = etValue ? `${etValue} ET` : '—';
+    const copyHlsBtn = document.getElementById('copyHlsBtn');
+    const copyEtBtn  = document.getElementById('copyEtBtn');
+    copyHlsBtn.disabled = !enc?.hls;
+    copyEtBtn.disabled  = !etValue;
+    copyHlsBtn.dataset.value = enc?.hls || '';
+    copyEtBtn.dataset.value  = etValue || '';
+
     document.getElementById('step2').classList.remove('disabled');
+    document.getElementById('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // ── Step 2: Clipro confirm ──────────────────────────────────────────────
+  // ── Step 2 ──────────────────────────────────────────────────────────────
   function openClipro() {
     window.open(WSC_CLIPRO_URL, '_blank', 'noopener');
+  }
+
+  async function copyText(text, btn) {
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      // Fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } finally { ta.remove(); }
+    }
+    const original = btn.textContent;
+    btn.classList.add('copied');
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = original; }, 1400);
+  }
+  function copyHls() {
+    const btn = document.getElementById('copyHlsBtn');
+    copyText(btn.dataset.value, btn);
+  }
+  function copyEt() {
+    const btn = document.getElementById('copyEtBtn');
+    copyText(btn.dataset.value, btn);
   }
 
   async function submitStep2() {
@@ -489,10 +693,9 @@
           staff_name:     p.staff_name,
           school:         p.school,
           opponent:       p.opponent,
-          sport:          p.sport,
+          // sport omitted intentionally — wsc_requests.sport is nullable per v2 migration
           encoder_id:     p.encoder_id,
-          search_query:   p.search_query,
-          result_index:   p.result_index,
+          search_query:   p.school,
           kickoff_at:     p.kickoff_at_iso,
           trigger_at:     p.trigger_at_iso
         })
@@ -517,12 +720,11 @@
     document.getElementById('step2Submit').disabled = true;
     document.getElementById('step2Submit').textContent = '✓ Confirmed';
 
-    const fmt = iso => new Date(iso).toLocaleString();
     document.getElementById('successDetails').innerHTML = `
-      <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)} (${esc(p.sport)})</div>
+      <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)}</div>
       <div class="summary-line"><b>Encoder:</b> ${esc(p.encoder_id)}</div>
-      <div class="summary-line"><b>Kickoff:</b> ${fmt(p.kickoff_at_iso)}</div>
-      <div class="summary-line"><b>Macro fires:</b> ${fmt(p.trigger_at_iso)}</div>
+      <div class="summary-line"><b>Kickoff:</b> ${esc(fmtEasternFull(new Date(p.kickoff_at_iso)))}</div>
+      <div class="summary-line"><b>Macro fires:</b> ${esc(fmtEasternFull(new Date(p.trigger_at_iso)))}</div>
       <div class="summary-line"><b>Requested by:</b> ${esc(p.staff_initials)}${p.staff_name ? ' — ' + esc(p.staff_name) : ''}</div>
     `;
     document.getElementById('successCard').style.display = 'block';
@@ -537,16 +739,15 @@
   }
 
   function resetForAnother() {
-    // Soft-reset: clear form fields, re-enable, hide step 2 + success.
     state = { macroId: null, pendingPayload: null };
-    ['fStaff','fStaffName','fSchool','fOpponent','fSport','fEncoder','fQuery','fResultIdx','fKickoff','fTrigger']
+    ['fStaff','fStaffName','fSchool','fOpponent','fEncoder','fDate','fTime']
       .forEach(id => {
         const el = document.getElementById(id);
         el.disabled = false;
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
-        else if (el.id === 'fResultIdx') el.value = '0';
         else el.value = '';
       });
+    document.getElementById('fTimeEastern').textContent = '';
     document.getElementById('step1').classList.remove('done');
     document.getElementById('step1Submit').disabled = false;
     document.getElementById('step1Submit').textContent = 'Schedule Roku';
@@ -557,25 +758,23 @@
     document.getElementById('step2Submit').textContent = 'Confirm Scheduled in Clipro';
     document.getElementById('step2Err').textContent = '';
     document.getElementById('step1Summary').innerHTML = '';
+    document.getElementById('cliproHls').textContent = '—';
+    document.getElementById('cliproEt').textContent  = '—';
+    document.getElementById('copyHlsBtn').disabled = true;
+    document.getElementById('copyEtBtn').disabled  = true;
     document.getElementById('successCard').style.display = 'none';
     document.getElementById('successDetails').innerHTML = '';
+    // Reload conflict data so the new request sees the macro we just created.
+    loadReferenceData();
     document.getElementById('fStaff').focus();
   }
 
-  // Trigger default tracker: when kickoff changes, fill trigger with -4min.
-  document.getElementById('fKickoff').addEventListener('change', () => {
-    const k = document.getElementById('fKickoff').value;
-    const t = document.getElementById('fTrigger');
-    if (k && !t.value) {
-      const dt = new Date(k);
-      dt.setMinutes(dt.getMinutes() - 4);
-      // datetime-local needs YYYY-MM-DDTHH:MM (no seconds, no TZ)
-      const pad = n => String(n).padStart(2, '0');
-      t.value = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-    }
-  });
+  // Date/Time change → refresh encoder dropdown + ET pill
+  document.getElementById('fDate').addEventListener('change', () => { refreshEncoderDropdown(); refreshEtPill(); });
+  document.getElementById('fTime').addEventListener('change', () => { refreshEncoderDropdown(); refreshEtPill(); });
+  document.getElementById('fTime').addEventListener('input',  refreshEtPill);
 
-  // Auto-resume if session still valid.
+  // Auto-resume if session still valid
   (function init() {
     const t = getToken();
     if (t) {

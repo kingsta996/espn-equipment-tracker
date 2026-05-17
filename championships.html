@@ -219,6 +219,16 @@
   let _boxLinks = [];    // championship_box_links rows
   let _activeTab = SPORTS[0].key;
 
+  // Mirror of BOXLINK_SUBCATEGORIES in championships-admin.html. Sports whose
+  // Box upload links are grouped by team on the public sport tab.
+  const BOXLINK_SUBCATEGORIES = {
+    'basketball': [
+      { value: 'mens',   label: "Men's Basketball"   },
+      { value: 'womens', label: "Women's Basketball" }
+    ]
+  };
+  function subcategoriesFor(sportKey) { return BOXLINK_SUBCATEGORIES[sportKey] || null; }
+
   /* ── Helpers ── */
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function sportByKey(k) { return SPORTS.find(s => s.key === k); }
@@ -417,15 +427,33 @@
             ${(() => {
               const links = boxLinksForSport(sport.key);
               if (!links.length) return '';
+              const subs = subcategoriesFor(sport.key);
+              const linkBtn = l => `<a class="btn btn-blue" href="${escapeHtml(l.url)}" target="_blank" rel="noopener" style="text-decoration:none;display:block;margin-bottom:6px">⬆ ${escapeHtml(l.label)}</a>`;
+              let inner;
+              if (subs) {
+                const sections = subs.map(o => {
+                  const group = links.filter(l => l.subcategory === o.value);
+                  if (!group.length) return '';
+                  return `
+                    <div style="font-size:10px;font-weight:800;color:#444;text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px">${escapeHtml(o.label)}</div>
+                    ${group.map(linkBtn).join('')}
+                  `;
+                }).filter(Boolean).join('');
+                const orphans = links.filter(l => !l.subcategory || !subs.find(o => o.value === l.subcategory));
+                const orphanSection = orphans.length
+                  ? `<div style="font-size:10px;font-weight:800;color:#444;text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px">Other</div>${orphans.map(linkBtn).join('')}`
+                  : '';
+                inner = sections + orphanSection;
+              } else {
+                inner = links.map(linkBtn).join('');
+              }
               return `
                 <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e9ed">
                   <div style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
                     📤 Upload Destinations
                     <span style="font-size:9px;font-weight:600;background:#eef9ff;color:#0369a1;padding:1px 6px;border-radius:3px;letter-spacing:0.4px">Box File Request</span>
                   </div>
-                  ${links.map(l => `
-                    <a class="btn btn-blue" href="${escapeHtml(l.url)}" target="_blank" rel="noopener" style="text-decoration:none;display:block;margin-bottom:6px">⬆ ${escapeHtml(l.label)}</a>
-                  `).join('')}
+                  ${inner}
                 </div>
               `;
             })()}

@@ -98,6 +98,8 @@
   /* Box file-request links editor */
   .boxlinks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
   .boxlinks-card { background: #fafbfc; border: 1px solid #eee; border-radius: 8px; padding: 14px; }
+  .boxlinks-card.split-card { grid-column: span 2; }
+  @media (max-width: 800px) { .boxlinks-card.split-card { grid-column: span 1; } }
   .boxlinks-card .h { font-size: 13px; font-weight: 800; color: var(--navy); margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
   .boxlinks-card .h .season-pill { font-size: 9px; padding: 1px 7px; border-radius: 3px; color: #fff; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
   .boxlinks-card .h .season-pill.Fall { background: var(--fall); }
@@ -106,14 +108,17 @@
   .boxlinks-card .sub { font-size: 10px; color: #888; margin-bottom: 10px; }
   .boxlinks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
   .boxlinks-row { display: grid; grid-template-columns: 130px 1fr 28px; gap: 6px; align-items: center; }
-  .boxlinks-row input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; font-family: inherit; }
+  .boxlinks-row.has-sub { grid-template-columns: 80px 130px 1fr 28px; }
+  .boxlinks-row input, .boxlinks-row select { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; font-family: inherit; background: #fff; }
   .boxlinks-row input.url-input { font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; }
-  .boxlinks-row input:focus { outline: none; border-color: var(--blue); }
+  .boxlinks-row input:focus, .boxlinks-row select:focus { outline: none; border-color: var(--blue); }
   .boxlinks-row .del-btn { border: none; background: transparent; cursor: pointer; color: #bbb; font-size: 14px; padding: 0; }
   .boxlinks-row .del-btn:hover { color: var(--espn-red); }
   .boxlinks-row.empty-hint { color: #aaa; font-style: italic; font-size: 11px; padding: 6px 0; grid-template-columns: 1fr; }
   .boxlinks-card .add-row { font-size: 11px; font-weight: 700; color: var(--navy); background: #eef9ff; border: 1px dashed var(--blue); border-radius: 4px; padding: 5px 10px; cursor: pointer; }
   .boxlinks-card .add-row:hover { background: #dff1ff; }
+  .boxlinks-card .sub-divider { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 1px; padding: 6px 0 2px; border-top: 1px dashed #ddd; margin-top: 4px; }
+  .boxlinks-card .sub-divider:first-child { border-top: 0; margin-top: 0; }
 </style>
 </head>
 <body>
@@ -240,6 +245,16 @@
   const SEASONS = ['Fall', 'Winter', 'Spring'];
   const PRODUCTION_TYPES = ['School', 'Packager'];
 
+  // Sports whose Box upload links split into multiple teams. Basketball is the
+  // only combined sport key in SPORTS; tennis / golf already have separate keys.
+  const BOXLINK_SUBCATEGORIES = {
+    'basketball': [
+      { value: 'mens',   label: "Men's Basketball",   short: "Men's"   },
+      { value: 'womens', label: "Women's Basketball", short: "Women's" }
+    ]
+  };
+  function subcategoriesFor(sportKey) { return BOXLINK_SUBCATEGORIES[sportKey] || null; }
+
   const ADMIN_PW_HASH = '9a874f8b06ebb0eb63336db78b70ca149513a237de8395d8e858ee8f0c702ae2';
   const ADMIN_UNLOCK_KEY = 'cusa_championships_admin_pub';
 
@@ -295,11 +310,12 @@
     if (!_db) return null;
     try {
       const dbRow = {
-        id:         link.id || undefined,
-        sport:      link.sport,
-        label:      (link.label || '').trim(),
-        url:        (link.url || '').trim(),
-        sort_order: link.sort_order || 0
+        id:          link.id || undefined,
+        sport:       link.sport,
+        label:       (link.label || '').trim(),
+        url:         (link.url || '').trim(),
+        subcategory: link.subcategory || null,
+        sort_order:  link.sort_order || 0
       };
       if (!dbRow.label || !dbRow.url) return null;   // incomplete row, skip
       let res;
@@ -445,70 +461,132 @@
     document.getElementById('bcPass').value = _bc.password || '';
     document.getElementById('bcNotes').value = _bc.notes || '';
   }
+  function renderBoxLinkRow(sport, link, subs) {
+    const subOptions = subs
+      ? `<select data-key="subcategory">${subs.map(o => `<option value="${o.value}" ${link.subcategory === o.value ? 'selected' : ''}>${escapeHtml(o.short)}</option>`).join('')}</select>`
+      : '';
+    return `
+      <div class="boxlinks-row ${subs ? 'has-sub' : ''}" data-id="${link.id || ''}" data-sport="${sport.key}">
+        ${subOptions}
+        <input type="text" data-key="label" class="label-input" placeholder="Label (e.g. Broadcast Melts)" value="${escapeHtml(link.label || '')}">
+        <input type="url"  data-key="url"   class="url-input"   placeholder="https://app.box.com/f/..." value="${escapeHtml(link.url || '')}">
+        <button class="del-btn" data-del title="Remove">🗑</button>
+      </div>
+    `;
+  }
+
   function renderBoxLinks() {
     const grid = document.getElementById('boxlinksGrid');
     if (!grid) return;
     grid.innerHTML = SPORTS.map(s => {
       const links = linksForSport(s.key);
-      const rowsHtml = links.length
-        ? links.map(l => `
-            <div class="boxlinks-row" data-id="${l.id}" data-sport="${s.key}">
-              <input type="text" data-key="label" class="label-input" placeholder="Label (e.g. Broadcast Melts)" value="${escapeHtml(l.label || '')}">
-              <input type="url"  data-key="url"   class="url-input"   placeholder="https://app.box.com/f/..." value="${escapeHtml(l.url || '')}">
-              <button class="del-btn" data-del title="Remove">🗑</button>
-            </div>
-          `).join('')
-        : '<div class="boxlinks-row empty-hint">No upload destinations yet — click + Add link below.</div>';
+      const subs = subcategoriesFor(s.key);
+      let listHtml;
+      if (!links.length) {
+        listHtml = '<div class="boxlinks-row empty-hint">No upload destinations yet — click + Add link below.</div>';
+      } else if (subs) {
+        // Group rows under sub-headers (Men's / Women's). Links without a
+        // subcategory show under "Unassigned" so they're visible + fixable.
+        const groups = subs.map(o => ({
+          opt: o,
+          rows: links.filter(l => l.subcategory === o.value)
+        }));
+        const unassigned = links.filter(l => !l.subcategory || !subs.find(o => o.value === l.subcategory));
+        listHtml = groups.map(g => `
+          <div class="sub-divider">${escapeHtml(g.opt.label)}</div>
+          ${g.rows.length ? g.rows.map(l => renderBoxLinkRow(s, l, subs)).join('') : '<div class="boxlinks-row empty-hint">No links yet.</div>'}
+        `).join('') + (unassigned.length ? `
+          <div class="sub-divider" style="color:#c94">Unassigned (pick a team)</div>
+          ${unassigned.map(l => renderBoxLinkRow(s, l, subs)).join('')}
+        ` : '');
+      } else {
+        listHtml = links.map(l => renderBoxLinkRow(s, l, null)).join('');
+      }
       return `
-        <div class="boxlinks-card" data-sport="${s.key}">
-          <div class="h"><span class="season-pill ${s.season}">${s.season}</span> ${escapeHtml(s.name)}</div>
-          <div class="sub">Shown in the Resources card on the ${escapeHtml(s.name)} sport tab.</div>
-          <div class="boxlinks-list">${rowsHtml}</div>
+        <div class="boxlinks-card ${subs ? 'split-card' : ''}" data-sport="${s.key}">
+          <div class="h"><span class="season-pill ${s.season}">${s.season}</span> ${escapeHtml(s.name)}${subs ? ' <span style="font-size:9px;font-weight:700;background:#eef;color:#335;padding:1px 6px;border-radius:3px;letter-spacing:0.5px">M / W</span>' : ''}</div>
+          <div class="sub">Shown in the Resources card on the ${escapeHtml(s.name)} sport tab${subs ? ', grouped by team.' : '.'}</div>
+          <div class="boxlinks-list">${listHtml}</div>
           <button class="add-row" data-add="${s.key}">+ Add link</button>
         </div>
       `;
     }).join('');
   }
 
+  function readRowFields(row) {
+    const subEl = row.querySelector('select[data-key="subcategory"]');
+    return {
+      label:       (row.querySelector('input[data-key="label"]').value || '').trim(),
+      url:         (row.querySelector('input[data-key="url"]').value || '').trim(),
+      subcategory: subEl ? (subEl.value || null) : null
+    };
+  }
+  async function saveRowFromEl(row) {
+    const id = row.dataset.id;
+    const sportKey = row.dataset.sport;
+    const fields = readRowFields(row);
+    if (!fields.label || !fields.url) return;   // wait for both
+    const existing = id ? _boxLinks.find(l => l.id === id) : null;
+    if (existing
+        && existing.label === fields.label
+        && existing.url === fields.url
+        && (existing.subcategory || null) === (fields.subcategory || null)) return;
+    const sortOrder = existing ? (existing.sort_order || 0) : linksForSport(sportKey).length;
+    const saved = await upsertBoxLink({
+      id: id || null,
+      sport: sportKey,
+      label: fields.label,
+      url: fields.url,
+      subcategory: fields.subcategory,
+      sort_order: sortOrder
+    });
+    if (saved && !id) {
+      row.dataset.id = saved.id;
+      showToast('Link saved', 'success');
+    } else if (saved) {
+      showToast('Link updated', 'success');
+    }
+  }
+
   function wireBoxLinks() {
     const grid = document.getElementById('boxlinksGrid');
     if (!grid) return;
-    // Save on blur so partial typing doesn't spam the DB.
+    // Save on blur so partial typing doesn't spam the DB. Subcategory dropdown
+    // saves on change too.
     grid.addEventListener('blur', async e => {
       const t = e.target;
       if (!t || !t.dataset || !t.dataset.key) return;
       const row = t.closest('.boxlinks-row');
-      if (!row) return;
-      const id = row.dataset.id;
-      const sportKey = row.dataset.sport;
-      const label = (row.querySelector('input[data-key="label"]').value || '').trim();
-      const url   = (row.querySelector('input[data-key="url"]').value || '').trim();
-      if (!label || !url) return;   // wait until both are filled
-      const existing = id ? _boxLinks.find(l => l.id === id) : null;
-      if (existing && existing.label === label && existing.url === url) return;
-      const sortOrder = id ? (existing && existing.sort_order || 0) : linksForSport(sportKey).length;
-      const saved = await upsertBoxLink({ id: id || null, sport: sportKey, label, url, sort_order: sortOrder });
-      if (saved && !id) {
-        row.dataset.id = saved.id;
-        showToast('Link saved', 'success');
-      } else if (saved) {
-        showToast('Link updated', 'success');
-      }
+      if (row) await saveRowFromEl(row);
     }, true);
+    grid.addEventListener('change', async e => {
+      const t = e.target;
+      if (!t || !t.dataset || t.dataset.key !== 'subcategory') return;
+      const row = t.closest('.boxlinks-row');
+      if (!row) return;
+      // If row already has an id, persist the new subcategory. If not, the
+      // blur handler on label/url will pick it up.
+      if (row.dataset.id) await saveRowFromEl(row);
+      // Re-render so the row jumps under its new subcategory header.
+      if (row.dataset.id) renderBoxLinks();
+    });
     grid.addEventListener('click', async e => {
       const addBtn = e.target.closest('[data-add]');
       if (addBtn) {
         const sportKey = addBtn.dataset.add;
-        // Optimistic: insert a blank row in the DOM; persistence happens on blur once both fields are filled.
+        const subs = subcategoriesFor(sportKey);
         const card = grid.querySelector(`.boxlinks-card[data-sport="${sportKey}"]`);
         const list = card.querySelector('.boxlinks-list');
-        // If the only child is the empty-hint, clear it first.
         const hint = list.querySelector('.empty-hint');
-        if (hint) hint.remove();
+        if (hint && hint.parentElement === list) hint.remove();
         const wrap = document.createElement('div');
-        wrap.className = 'boxlinks-row';
+        wrap.className = 'boxlinks-row' + (subs ? ' has-sub' : '');
         wrap.dataset.sport = sportKey;
+        const subSelect = subs
+          ? `<select data-key="subcategory">${subs.map(o => `<option value="${o.value}">${escapeHtml(o.short)}</option>`).join('')}</select>`
+          : '';
         wrap.innerHTML = `
+          ${subSelect}
           <input type="text" data-key="label" class="label-input" placeholder="Label (e.g. Broadcast Melts)" value="">
           <input type="url"  data-key="url"   class="url-input"   placeholder="https://app.box.com/f/..." value="">
           <button class="del-btn" data-del title="Remove">🗑</button>

@@ -14,12 +14,16 @@ create table if not exists championship_box_links (
   sport       text not null,             -- sport key (matches championship_schedule.sport)
   label       text not null,             -- e.g. "Broadcast Melts", "Highlight Reel"
   url         text not null,             -- Box File Request URL
+  subcategory text,                      -- optional split, e.g. 'mens' / 'womens' for basketball
   sort_order  int  not null default 0,
   notes       text default '',
   created_at  timestamptz default now(),
   updated_at  timestamptz default now(),
   updated_by  text
 );
+
+-- Idempotent column add for installs that already ran the original migration.
+alter table championship_box_links add column if not exists subcategory text;
 
 create index if not exists championship_box_links_sport_sort_idx
   on championship_box_links (sport, sort_order, created_at);

@@ -95,6 +95,39 @@
   .toast.warn { background: var(--warn-border); color: var(--navy); }
   .toast.success { background: var(--green); color: var(--navy); }
 
+  /* Commercial format uploads */
+  .formats-grid { display: flex; flex-direction: column; gap: 8px; }
+  .format-row {
+    display: grid;
+    grid-template-columns: 220px 1fr 200px;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 12px;
+    background: #fafbfc;
+    border: 1px solid #eee;
+    border-radius: 6px;
+  }
+  .format-row.has-file { border-left: 3px solid var(--green); }
+  .format-row.empty { border-left: 3px solid #ddd; }
+  .format-row .sport-cell { font-size: 12px; font-weight: 700; color: var(--navy); display: flex; gap: 8px; align-items: center; }
+  .format-row .sport-cell .season-pill { font-size: 9px; padding: 1px 7px; border-radius: 3px; color: #fff; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .format-row .sport-cell .season-pill.Fall { background: var(--fall); }
+  .format-row .sport-cell .season-pill.Winter { background: var(--winter); }
+  .format-row .sport-cell .season-pill.Spring { background: var(--spring); }
+  .format-row .file-cell { font-size: 11.5px; color: #444; min-width: 0; }
+  .format-row .file-cell .filename { font-family: 'SF Mono', Menlo, monospace; font-size: 11px; color: var(--navy); word-break: break-all; }
+  .format-row .file-cell .meta { font-size: 10.5px; color: #888; margin-top: 3px; }
+  .format-row .file-cell .empty-hint { color: #999; font-style: italic; }
+  .format-row .actions-cell { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .format-row .actions-cell .btn { padding: 6px 10px; font-size: 11px; }
+  .format-row .actions-cell .btn-remove { background: transparent; color: #999; border: 1px solid #ddd; }
+  .format-row .actions-cell .btn-remove:hover { color: var(--espn-red); border-color: var(--espn-red); background: #fff; }
+  .format-row.uploading { opacity: 0.6; pointer-events: none; }
+  @media (max-width: 800px) {
+    .format-row { grid-template-columns: 1fr; gap: 8px; }
+    .format-row .actions-cell { justify-content: flex-start; }
+  }
+
   /* Box file-request links editor */
   .boxlinks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
   .boxlinks-card { background: #fafbfc; border: 1px solid #eee; border-radius: 8px; padding: 14px; }
@@ -198,6 +231,19 @@
 
   <div class="section">
     <header>
+      <h2>📊 Commercial Formats</h2>
+      <span style="font-size:11px;color:#777;flex:1;margin-left:8px">Per-sport ESPN+ commercial format XLSX. Latest upload appears on the public Championships page; older versions are overwritten.</span>
+    </header>
+    <div class="body">
+      <div style="font-size:11.5px;color:#555;line-height:1.5;margin-bottom:14px;background:#fffbeb;border:1px solid #f5d784;padding:10px 12px;border-radius:5px">
+        <strong>Tip:</strong> Use the original ESPN+ commercial format Excel layout. Files are stored in Supabase and replace the repo-committed defaults from <code>Formats/</code>. Max size 10&nbsp;MB.
+      </div>
+      <div class="formats-grid" id="formatsGrid"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <header>
       <h2>📤 Upload Destinations (Box File Requests)</h2>
       <span style="font-size:11px;color:#777;flex:1;margin-left:8px">Per-sport list of Box File Request URLs — shown as upload buttons on each sport tab.</span>
     </header>
@@ -274,7 +320,13 @@
   let _rows = [];
   let _bc = { url:'', username:'', password:'', notes:'' };
   let _boxLinks = [];   // championship_box_links rows
+  let _formats = new Map(); // sport_key → championship_formats row
   let _adminUnlocked = localStorage.getItem(ADMIN_UNLOCK_KEY) === 'true';
+
+  // Storage bucket for the per-sport XLSX uploads. Matches the Supabase
+  // bucket created in supabase/migrations/championship_formats.sql.
+  const FORMATS_BUCKET = 'championship-formats';
+  const FORMATS_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function sportByKey(k) { return SPORTS.find(s => s.key === k); }
@@ -299,15 +351,23 @@
   async function loadAll() {
     if (!_db) return;
     try {
-      const [s, bc, bl] = await Promise.all([
+      const [s, bc, bl, fmt] = await Promise.all([
         _db.from('championship_schedule').select('*'),
         _db.from('championship_break_clock').select('*').eq('id', 'singleton').maybeSingle(),
-        _db.from('championship_box_links').select('*').order('sort_order').order('created_at')
+        _db.from('championship_box_links').select('*').order('sort_order').order('created_at'),
+        _db.from('championship_formats').select('*')
       ]);
       if (s.error) throw s.error;
       _rows = s.data || [];
       if (bc.data) _bc = { url: bc.data.url || '', username: bc.data.username || '', password: bc.data.password || '', notes: bc.data.notes || '' };
       if (bl && !bl.error) _boxLinks = bl.data || [];
+      // championship_formats may not exist yet if the migration hasn't run —
+      // degrade gracefully so the rest of the page still renders.
+      if (fmt && !fmt.error) {
+        _formats = new Map((fmt.data || []).map(r => [r.sport_key, r]));
+      } else {
+        _formats = new Map();
+      }
     } catch (e) {
       console.error(e);
       showToast('Failed to load data', 'warn');
@@ -718,6 +778,141 @@
     }
   }
 
+  /* ── Commercial Formats: per-sport XLSX upload to Supabase Storage ── */
+  function formatRowHtml(sport) {
+    const f = _formats.get(sport.key);
+    const hasFile = !!f;
+    const updated = f?.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '';
+    const sizeKb  = f?.size_bytes ? Math.max(1, Math.round(f.size_bytes / 1024)) + ' KB' : '';
+    const meta = hasFile
+      ? `<div class="meta">Updated ${escapeHtml(updated)}${sizeKb ? ' · ' + sizeKb : ''}${f.uploaded_by ? ' · by ' + escapeHtml(f.uploaded_by) : ''}</div>`
+      : '';
+    const fileBlock = hasFile
+      ? `<div class="filename">${escapeHtml(f.filename)}</div>${meta}`
+      : `<div class="empty-hint">— no format uploaded —</div>`;
+
+    return `
+      <div class="format-row ${hasFile ? 'has-file' : 'empty'}" data-sport="${escapeHtml(sport.key)}">
+        <div class="sport-cell">
+          <span>${escapeHtml(sport.name)}</span>
+          <span class="season-pill ${sport.season}">${escapeHtml(sport.season)}</span>
+        </div>
+        <div class="file-cell">${fileBlock}</div>
+        <div class="actions-cell">
+          ${hasFile ? `<button class="btn btn-blue" data-act="download">⬇ Download</button>` : ''}
+          <button class="btn btn-navy" data-act="upload">${hasFile ? 'Replace' : 'Upload XLSX'}</button>
+          ${hasFile ? `<button class="btn btn-remove" data-act="remove">Remove</button>` : ''}
+          <input type="file" accept=".xlsx" data-file-input style="display:none">
+        </div>
+      </div>
+    `;
+  }
+
+  function renderFormats() {
+    const grid = document.getElementById('formatsGrid');
+    if (!grid) return;
+    grid.innerHTML = SPORTS.map(formatRowHtml).join('');
+  }
+
+  function publicFormatUrl(storagePath) {
+    if (!_db || !storagePath) return null;
+    const { data } = _db.storage.from(FORMATS_BUCKET).getPublicUrl(storagePath);
+    return data?.publicUrl || null;
+  }
+
+  async function uploadFormat(sportKey, file) {
+    if (!_db) { showToast('Supabase not ready', 'warn'); return; }
+    if (file.size > FORMATS_MAX_BYTES) {
+      showToast(`File is too large (${Math.round(file.size/1024/1024)} MB · max 10 MB)`, 'warn');
+      return;
+    }
+    if (!/\.xlsx$/i.test(file.name)) {
+      showToast('Please pick an .xlsx file', 'warn');
+      return;
+    }
+    const row = document.querySelector(`.format-row[data-sport="${sportKey}"]`);
+    if (row) row.classList.add('uploading');
+
+    const storagePath = `${sportKey}/format.xlsx`;
+    try {
+      const upRes = await _db.storage.from(FORMATS_BUCKET).upload(storagePath, file, {
+        upsert: true,
+        contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        cacheControl: '60'
+      });
+      if (upRes.error) throw upRes.error;
+
+      const dbRes = await _db.from('championship_formats').upsert({
+        sport_key: sportKey,
+        filename: file.name,
+        storage_path: storagePath,
+        content_type: file.type || null,
+        size_bytes: file.size,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: 'championships-admin'
+      }, { onConflict: 'sport_key' });
+      if (dbRes.error) throw dbRes.error;
+
+      showToast(`Uploaded ${file.name}`, 'success');
+      await loadAll();
+      renderFormats();
+    } catch (e) {
+      console.error(e);
+      showToast(`Upload failed: ${e.message || e}`, 'warn');
+      if (row) row.classList.remove('uploading');
+    }
+  }
+
+  async function removeFormat(sportKey) {
+    if (!_db) return;
+    const f = _formats.get(sportKey);
+    if (!f) return;
+    if (!confirm(`Remove ${f.filename}?\n\nThe public Championships page will fall back to the repo-committed file (if any) for ${sportByKey(sportKey)?.name || sportKey}.`)) return;
+
+    try {
+      await _db.storage.from(FORMATS_BUCKET).remove([f.storage_path]);
+      const dbRes = await _db.from('championship_formats').delete().eq('sport_key', sportKey);
+      if (dbRes.error) throw dbRes.error;
+      showToast('Removed', 'success');
+      await loadAll();
+      renderFormats();
+    } catch (e) {
+      console.error(e);
+      showToast(`Remove failed: ${e.message || e}`, 'warn');
+    }
+  }
+
+  function wireFormats() {
+    const grid = document.getElementById('formatsGrid');
+    if (!grid) return;
+    grid.addEventListener('click', e => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const row = btn.closest('.format-row');
+      if (!row) return;
+      const sportKey = row.dataset.sport;
+      const act = btn.dataset.act;
+      if (act === 'upload') {
+        row.querySelector('[data-file-input]').click();
+      } else if (act === 'remove') {
+        removeFormat(sportKey);
+      } else if (act === 'download') {
+        const f = _formats.get(sportKey);
+        const url = publicFormatUrl(f?.storage_path);
+        if (url) window.open(url, '_blank', 'noopener');
+        else showToast('No file URL available', 'warn');
+      }
+    });
+    grid.addEventListener('change', e => {
+      const input = e.target.closest('[data-file-input]');
+      if (!input || !input.files?.length) return;
+      const row = input.closest('.format-row');
+      const sportKey = row?.dataset.sport;
+      if (!sportKey) return;
+      uploadFormat(sportKey, input.files[0]).finally(() => { input.value = ''; });
+    });
+  }
+
   /* ── XLSX import/export — identical to championships.html ── */
   const XLSX_COLS = ['Sport', 'Season', 'Session #', 'Date', 'Time (ET)', 'Production Type', 'Venue'];
   function exportToXlsx() {
@@ -893,8 +1088,10 @@
     renderBreakClock();
     renderBoxLinks();
     renderLogos();
+    renderFormats();
     wireEditor();
     wireBoxLinks();
+    wireFormats();
     document.getElementById('bcSaveBtn').addEventListener('click', saveBreakClock);
     document.getElementById('exportXlsxBtn').addEventListener('click', exportToXlsx);
     document.getElementById('importXlsxBtn').addEventListener('click', () => document.getElementById('importXlsxFile').click());
@@ -911,6 +1108,9 @@
         .subscribe();
       _db.channel('champ-admin-boxlinks')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_box_links' }, async () => { await loadAll(); renderBoxLinks(); })
+        .subscribe();
+      _db.channel('champ-admin-formats')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_formats' }, async () => { await loadAll(); renderFormats(); })
         .subscribe();
     }
   }

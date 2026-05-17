@@ -217,7 +217,9 @@
   let _spons = [];       // championship_sponsorships rows
   let _commercials = []; // active commercials for deep-link names
   let _boxLinks = [];    // championship_box_links rows
+  let _formats = new Map(); // sport_key → championship_formats row (admin-uploaded XLSX overrides repo Formats/)
   let _activeTab = SPORTS[0].key;
+  const FORMATS_BUCKET = 'championship-formats';
 
   // Mirror of BOXLINK_SUBCATEGORIES in championships-admin.html. Sports whose
   // Box upload links are grouped by team on the public sport tab.
@@ -297,6 +299,33 @@
       console.warn('Box links load failed:', e);
       _boxLinks = [];
     }
+  }
+  async function loadFormats() {
+    if (!_db) { _formats = new Map(); return; }
+    try {
+      const { data, error } = await _db.from('championship_formats').select('*');
+      if (error) throw error;
+      _formats = new Map((data || []).map(r => [r.sport_key, r]));
+    } catch (e) {
+      // Table may not exist on older deploys — fail soft, keep the repo
+      // Formats/ fallback active.
+      console.warn('Formats load failed:', e);
+      _formats = new Map();
+    }
+  }
+  function formatForSport(sport) {
+    // Admin-uploaded XLSX wins over the repo-committed Formats/ file.
+    const f = _formats.get(sport.key);
+    if (f && f.storage_path) {
+      const { data } = _db.storage.from(FORMATS_BUCKET).getPublicUrl(f.storage_path);
+      if (data?.publicUrl) {
+        return { url: data.publicUrl, filename: f.filename, source: 'cloud' };
+      }
+    }
+    if (sport.format) {
+      return { url: 'Formats/' + encodeURIComponent(sport.format), filename: sport.format, source: 'repo' };
+    }
+    return null;
   }
   function boxLinksForSport(key) {
     return _boxLinks.filter(l => l.sport === key)
@@ -420,9 +449,12 @@
           <header><h3>📦 Resources</h3></header>
           <div class="body">
             <button class="btn btn-green" id="logoZipBtn">⬇ Download Championship Logos (ZIP)</button>
-            ${sport.format
-              ? `<button class="btn btn-navy" id="formatBtn">⬇ Download Commercial Format (XLSX)</button>`
-              : `<button class="btn muted" disabled title="No format file available for this sport">⬇ Commercial Format (none on file)</button>`}
+            ${(() => {
+              const fmt = formatForSport(sport);
+              return fmt
+                ? `<button class="btn btn-navy" id="formatBtn">⬇ Download Commercial Format (XLSX)</button>`
+                : `<button class="btn muted" disabled title="No format file available for this sport">⬇ Commercial Format (none on file)</button>`;
+            })()}
             <a class="btn btn-primary" id="commercialsBtn" href="commercials.html?sport=${encodeURIComponent(sport.name)}" target="_blank" rel="noopener" style="text-decoration:none;display:block">📺 Open Commercials Page</a>
             ${(() => {
               const links = boxLinksForSport(sport.key);
@@ -511,10 +543,14 @@
     }
   }
   function downloadFormat(sport) {
-    if (!sport.format) return;
+    const fmt = formatForSport(sport);
+    if (!fmt) return;
     const a = document.createElement('a');
-    a.href = 'Formats/' + encodeURIComponent(sport.format);
-    a.download = sport.format;
+    a.href = fmt.url;
+    a.download = fmt.filename;
+    // Cloud URLs are cross-origin; setting target=_blank keeps the click
+    // navigating away from our tab from failing silently on Safari.
+    if (fmt.source === 'cloud') { a.target = '_blank'; a.rel = 'noopener'; }
     a.click();
   }
 
@@ -556,12 +592,18 @@
         clearTimeout(t5); t5 = setTimeout(async () => { await loadBoxLinks(); switchTab(_activeTab); flashLive(); }, 400);
       })
       .subscribe();
+    let t6 = null;
+    _db.channel('champ-formats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_formats' }, () => {
+        clearTimeout(t6); t6 = setTimeout(async () => { await loadFormats(); switchTab(_activeTab); flashLive(); }, 400);
+      })
+      .subscribe();
   }
 
   /* ── Init ── */
   document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
-    await Promise.all([loadSchedule(), loadBreakClock(), loadSponsorships(), loadBoxLinks()]);
+    await Promise.all([loadSchedule(), loadBreakClock(), loadSponsorships(), loadBoxLinks(), loadFormats()]);
     renderTabs();
     // Allow ?tab=<key> deep link
     const params = new URLSearchParams(location.search);

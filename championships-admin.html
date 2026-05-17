@@ -94,6 +94,26 @@
   .toast.show { opacity: 1; }
   .toast.warn { background: var(--warn-border); color: var(--navy); }
   .toast.success { background: var(--green); color: var(--navy); }
+
+  /* Box file-request links editor */
+  .boxlinks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
+  .boxlinks-card { background: #fafbfc; border: 1px solid #eee; border-radius: 8px; padding: 14px; }
+  .boxlinks-card .h { font-size: 13px; font-weight: 800; color: var(--navy); margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
+  .boxlinks-card .h .season-pill { font-size: 9px; padding: 1px 7px; border-radius: 3px; color: #fff; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .boxlinks-card .h .season-pill.Fall { background: var(--fall); }
+  .boxlinks-card .h .season-pill.Winter { background: var(--winter); }
+  .boxlinks-card .h .season-pill.Spring { background: var(--spring); }
+  .boxlinks-card .sub { font-size: 10px; color: #888; margin-bottom: 10px; }
+  .boxlinks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .boxlinks-row { display: grid; grid-template-columns: 130px 1fr 28px; gap: 6px; align-items: center; }
+  .boxlinks-row input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; font-family: inherit; }
+  .boxlinks-row input.url-input { font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; }
+  .boxlinks-row input:focus { outline: none; border-color: var(--blue); }
+  .boxlinks-row .del-btn { border: none; background: transparent; cursor: pointer; color: #bbb; font-size: 14px; padding: 0; }
+  .boxlinks-row .del-btn:hover { color: var(--espn-red); }
+  .boxlinks-row.empty-hint { color: #aaa; font-style: italic; font-size: 11px; padding: 6px 0; grid-template-columns: 1fr; }
+  .boxlinks-card .add-row { font-size: 11px; font-weight: 700; color: var(--navy); background: #eef9ff; border: 1px dashed var(--blue); border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+  .boxlinks-card .add-row:hover { background: #dff1ff; }
 </style>
 </head>
 <body>
@@ -161,6 +181,19 @@
 
   <div class="section">
     <header>
+      <h2>📤 Upload Destinations (Box File Requests)</h2>
+      <span style="font-size:11px;color:#777;flex:1;margin-left:8px">Per-sport list of Box File Request URLs — shown as upload buttons on each sport tab.</span>
+    </header>
+    <div class="body">
+      <div style="font-size:11.5px;color:#555;line-height:1.5;margin-bottom:14px;background:#fffbeb;border:1px solid #f5d784;padding:10px 12px;border-radius:5px">
+        <strong>Tip:</strong> In Box, open a destination folder → <em>More options</em> → <em>Request files via email or shared link</em>. Paste the resulting File Request URL below with a clear label (e.g. <code>Broadcast Melts</code>, <code>Highlight Reel</code>, <code>Postgame Audio</code>). Anyone with the link can upload to that folder without a Box account.
+      </div>
+      <div class="boxlinks-grid" id="boxlinksGrid"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <header>
       <h2>🔒 Admin Session</h2>
     </header>
     <div class="body" style="display:flex;gap:14px;align-items:center">
@@ -213,6 +246,7 @@
   let _db = null;
   let _rows = [];
   let _bc = { url:'', username:'', password:'', notes:'' };
+  let _boxLinks = [];   // championship_box_links rows
   let _adminUnlocked = localStorage.getItem(ADMIN_UNLOCK_KEY) === 'true';
 
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -238,16 +272,59 @@
   async function loadAll() {
     if (!_db) return;
     try {
-      const [s, bc] = await Promise.all([
+      const [s, bc, bl] = await Promise.all([
         _db.from('championship_schedule').select('*'),
-        _db.from('championship_break_clock').select('*').eq('id', 'singleton').maybeSingle()
+        _db.from('championship_break_clock').select('*').eq('id', 'singleton').maybeSingle(),
+        _db.from('championship_box_links').select('*').order('sort_order').order('created_at')
       ]);
       if (s.error) throw s.error;
       _rows = s.data || [];
       if (bc.data) _bc = { url: bc.data.url || '', username: bc.data.username || '', password: bc.data.password || '', notes: bc.data.notes || '' };
+      if (bl && !bl.error) _boxLinks = bl.data || [];
     } catch (e) {
       console.error(e);
       showToast('Failed to load data', 'warn');
+    }
+  }
+
+  /* ── Box file-request links CRUD ── */
+  function linksForSport(key) {
+    return _boxLinks.filter(l => l.sport === key).sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+  }
+  async function upsertBoxLink(link) {
+    if (!_db) return null;
+    try {
+      const dbRow = {
+        id:         link.id || undefined,
+        sport:      link.sport,
+        label:      (link.label || '').trim(),
+        url:        (link.url || '').trim(),
+        sort_order: link.sort_order || 0
+      };
+      if (!dbRow.label || !dbRow.url) return null;   // incomplete row, skip
+      let res;
+      if (link.id) res = await _db.from('championship_box_links').update(dbRow).eq('id', link.id).select().single();
+      else         res = await _db.from('championship_box_links').insert(dbRow).select().single();
+      if (res.error) throw res.error;
+      const saved = res.data;
+      const idx = _boxLinks.findIndex(l => l.id === saved.id);
+      if (idx === -1) _boxLinks.push(saved); else _boxLinks[idx] = saved;
+      return saved;
+    } catch (e) {
+      console.error(e);
+      showToast('Save failed: ' + (e.message || e), 'warn');
+      return null;
+    }
+  }
+  async function deleteBoxLink(id) {
+    if (!_db || !id) return;
+    try {
+      const { error } = await _db.from('championship_box_links').delete().eq('id', id);
+      if (error) throw error;
+      _boxLinks = _boxLinks.filter(l => l.id !== id);
+    } catch (e) {
+      console.error(e);
+      showToast('Delete failed', 'warn');
     }
   }
   async function upsertRow(row) {
@@ -368,6 +445,90 @@
     document.getElementById('bcPass').value = _bc.password || '';
     document.getElementById('bcNotes').value = _bc.notes || '';
   }
+  function renderBoxLinks() {
+    const grid = document.getElementById('boxlinksGrid');
+    if (!grid) return;
+    grid.innerHTML = SPORTS.map(s => {
+      const links = linksForSport(s.key);
+      const rowsHtml = links.length
+        ? links.map(l => `
+            <div class="boxlinks-row" data-id="${l.id}" data-sport="${s.key}">
+              <input type="text" data-key="label" class="label-input" placeholder="Label (e.g. Broadcast Melts)" value="${escapeHtml(l.label || '')}">
+              <input type="url"  data-key="url"   class="url-input"   placeholder="https://app.box.com/f/..." value="${escapeHtml(l.url || '')}">
+              <button class="del-btn" data-del title="Remove">🗑</button>
+            </div>
+          `).join('')
+        : '<div class="boxlinks-row empty-hint">No upload destinations yet — click + Add link below.</div>';
+      return `
+        <div class="boxlinks-card" data-sport="${s.key}">
+          <div class="h"><span class="season-pill ${s.season}">${s.season}</span> ${escapeHtml(s.name)}</div>
+          <div class="sub">Shown in the Resources card on the ${escapeHtml(s.name)} sport tab.</div>
+          <div class="boxlinks-list">${rowsHtml}</div>
+          <button class="add-row" data-add="${s.key}">+ Add link</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function wireBoxLinks() {
+    const grid = document.getElementById('boxlinksGrid');
+    if (!grid) return;
+    // Save on blur so partial typing doesn't spam the DB.
+    grid.addEventListener('blur', async e => {
+      const t = e.target;
+      if (!t || !t.dataset || !t.dataset.key) return;
+      const row = t.closest('.boxlinks-row');
+      if (!row) return;
+      const id = row.dataset.id;
+      const sportKey = row.dataset.sport;
+      const label = (row.querySelector('input[data-key="label"]').value || '').trim();
+      const url   = (row.querySelector('input[data-key="url"]').value || '').trim();
+      if (!label || !url) return;   // wait until both are filled
+      const existing = id ? _boxLinks.find(l => l.id === id) : null;
+      if (existing && existing.label === label && existing.url === url) return;
+      const sortOrder = id ? (existing && existing.sort_order || 0) : linksForSport(sportKey).length;
+      const saved = await upsertBoxLink({ id: id || null, sport: sportKey, label, url, sort_order: sortOrder });
+      if (saved && !id) {
+        row.dataset.id = saved.id;
+        showToast('Link saved', 'success');
+      } else if (saved) {
+        showToast('Link updated', 'success');
+      }
+    }, true);
+    grid.addEventListener('click', async e => {
+      const addBtn = e.target.closest('[data-add]');
+      if (addBtn) {
+        const sportKey = addBtn.dataset.add;
+        // Optimistic: insert a blank row in the DOM; persistence happens on blur once both fields are filled.
+        const card = grid.querySelector(`.boxlinks-card[data-sport="${sportKey}"]`);
+        const list = card.querySelector('.boxlinks-list');
+        // If the only child is the empty-hint, clear it first.
+        const hint = list.querySelector('.empty-hint');
+        if (hint) hint.remove();
+        const wrap = document.createElement('div');
+        wrap.className = 'boxlinks-row';
+        wrap.dataset.sport = sportKey;
+        wrap.innerHTML = `
+          <input type="text" data-key="label" class="label-input" placeholder="Label (e.g. Broadcast Melts)" value="">
+          <input type="url"  data-key="url"   class="url-input"   placeholder="https://app.box.com/f/..." value="">
+          <button class="del-btn" data-del title="Remove">🗑</button>
+        `;
+        list.appendChild(wrap);
+        wrap.querySelector('input[data-key="label"]').focus();
+        return;
+      }
+      const delBtn = e.target.closest('[data-del]');
+      if (delBtn) {
+        const row = delBtn.closest('.boxlinks-row');
+        const id = row.dataset.id;
+        if (!id) { row.remove(); return; }     // unsaved row — just drop it
+        if (!confirm('Remove this upload destination?')) return;
+        await deleteBoxLink(id);
+        renderBoxLinks();
+      }
+    });
+  }
+
   async function renderLogos() {
     const grid = document.getElementById('logosGrid');
     grid.innerHTML = SPORTS.map(s => `<div class="logo-card" data-sport="${s.key}"><div class="h">${escapeHtml(s.name)}</div><div class="sub">championships/logos/${s.key}/</div><div class="files">Checking…</div></div>`).join('');
@@ -559,8 +720,10 @@
     await loadAll();
     renderEditor();
     renderBreakClock();
+    renderBoxLinks();
     renderLogos();
     wireEditor();
+    wireBoxLinks();
     document.getElementById('bcSaveBtn').addEventListener('click', saveBreakClock);
     document.getElementById('exportXlsxBtn').addEventListener('click', exportToXlsx);
     document.getElementById('importXlsxBtn').addEventListener('click', () => document.getElementById('importXlsxFile').click());
@@ -574,6 +737,9 @@
         .subscribe();
       _db.channel('champ-admin-bc')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_break_clock' }, async () => { await loadAll(); renderBreakClock(); })
+        .subscribe();
+      _db.channel('champ-admin-boxlinks')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_box_links' }, async () => { await loadAll(); renderBoxLinks(); })
         .subscribe();
     }
   }

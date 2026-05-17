@@ -216,6 +216,7 @@
   let _sponsors = [];    // sponsors directory
   let _spons = [];       // championship_sponsorships rows
   let _commercials = []; // active commercials for deep-link names
+  let _boxLinks = [];    // championship_box_links rows
   let _activeTab = SPORTS[0].key;
 
   /* ── Helpers ── */
@@ -274,6 +275,22 @@
     } catch (e) {
       console.warn('Break clock load failed:', e);
     }
+  }
+  async function loadBoxLinks() {
+    if (!_db) return;
+    try {
+      const { data, error } = await _db.from('championship_box_links').select('*').order('sort_order').order('created_at');
+      if (error) throw error;
+      _boxLinks = data || [];
+    } catch (e) {
+      // Table may not exist on older deploys — fail soft.
+      console.warn('Box links load failed:', e);
+      _boxLinks = [];
+    }
+  }
+  function boxLinksForSport(key) {
+    return _boxLinks.filter(l => l.sport === key)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
   }
   async function loadSponsorships() {
     if (!_db) return;
@@ -397,6 +414,21 @@
               ? `<button class="btn btn-navy" id="formatBtn">⬇ Download Commercial Format (XLSX)</button>`
               : `<button class="btn muted" disabled title="No format file available for this sport">⬇ Commercial Format (none on file)</button>`}
             <a class="btn btn-primary" id="commercialsBtn" href="commercials.html?sport=${encodeURIComponent(sport.name)}" target="_blank" rel="noopener" style="text-decoration:none;display:block">📺 Open Commercials Page</a>
+            ${(() => {
+              const links = boxLinksForSport(sport.key);
+              if (!links.length) return '';
+              return `
+                <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e9ed">
+                  <div style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+                    📤 Upload Destinations
+                    <span style="font-size:9px;font-weight:600;background:#eef9ff;color:#0369a1;padding:1px 6px;border-radius:3px;letter-spacing:0.4px">Box File Request</span>
+                  </div>
+                  ${links.map(l => `
+                    <a class="btn btn-blue" href="${escapeHtml(l.url)}" target="_blank" rel="noopener" style="text-decoration:none;display:block;margin-bottom:6px">⬆ ${escapeHtml(l.label)}</a>
+                  `).join('')}
+                </div>
+              `;
+            })()}
           </div>
         </div>
       </div>
@@ -490,12 +522,18 @@
         clearTimeout(t4); t4 = setTimeout(async () => { await loadSponsorships(); switchTab(_activeTab); flashLive(); }, 400);
       })
       .subscribe();
+    let t5 = null;
+    _db.channel('champ-boxlinks')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'championship_box_links' }, () => {
+        clearTimeout(t5); t5 = setTimeout(async () => { await loadBoxLinks(); switchTab(_activeTab); flashLive(); }, 400);
+      })
+      .subscribe();
   }
 
   /* ── Init ── */
   document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
-    await Promise.all([loadSchedule(), loadBreakClock(), loadSponsorships()]);
+    await Promise.all([loadSchedule(), loadBreakClock(), loadSponsorships(), loadBoxLinks()]);
     renderTabs();
     // Allow ?tab=<key> deep link
     const params = new URLSearchParams(location.search);

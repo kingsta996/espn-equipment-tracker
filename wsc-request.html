@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>CUSA × WSC Capture Request</title>
+<script src="config.js"></script>
+<style>
+  :root {
+    --wsc-black: #0a0a0a;
+    --wsc-bg: #111315;
+    --wsc-panel: #1a1d20;
+    --wsc-panel-hi: #23272b;
+    --wsc-line: #2a2f33;
+    --wsc-text: #f5f5f5;
+    --wsc-mute: #9aa0a6;
+    --wsc-green: #C8FF00;
+    --wsc-green-soft: rgba(200,255,0,0.18);
+    --navy: #00263A;
+    --espn-red: #EF4035;
+    --ok: #34d058;
+    --warn: #f9c74f;
+    --err: #f25f5c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--wsc-bg); color: var(--wsc-text);
+    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif;
+    min-height: 100vh;
+  }
+  a { color: var(--wsc-green); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Login overlay ── */
+  .pw-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .pw-overlay.open { display: flex; }
+  .pw-box {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 14px;
+    padding: 32px 36px; width: 92%; max-width: 380px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .pw-box h2 { color: var(--wsc-green); font-size: 18px; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .pw-box p { color: var(--wsc-mute); font-size: 12px; margin-bottom: 18px; }
+  .pw-input {
+    width: 100%; background: #0e1012; color: var(--wsc-text); border: 1px solid var(--wsc-line);
+    border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-bottom: 10px; font-family: inherit;
+  }
+  .pw-input:focus { border-color: var(--wsc-green); outline: 0; }
+  .pw-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  .pw-actions button {
+    background: var(--wsc-green); color: #000; border: 0; padding: 10px 20px;
+    border-radius: 8px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .pw-actions button.secondary { background: #2a2f33; color: var(--wsc-text); }
+  .pw-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pw-err { color: var(--err); font-size: 12px; margin-top: 4px; min-height: 16px; }
+
+  /* ── Header ── */
+  .header {
+    background: var(--wsc-black); border-bottom: 2px solid var(--wsc-green);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; flex: 1; min-width: 200px; }
+  .header h1 small { color: var(--wsc-green); font-weight: 600; letter-spacing: 1px; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .header .who { color: var(--wsc-mute); font-size: 11px; }
+  .header button.signout {
+    color: var(--wsc-mute); font-size: 11px; padding: 5px 12px; border-radius: 5px;
+    background: transparent; border: 1px solid var(--wsc-line); cursor: pointer; font-family: inherit;
+  }
+  .header button.signout:hover { color: var(--wsc-green); border-color: var(--wsc-green); }
+
+  /* ── Layout ── */
+  .container { max-width: 760px; margin: 24px auto; padding: 0 18px 60px; }
+  .step {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 12px;
+    padding: 22px 24px; margin-bottom: 18px;
+  }
+  .step.disabled { opacity: 0.4; pointer-events: none; }
+  .step.done { border-color: rgba(52,208,88,0.45); }
+  .step-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--wsc-green); color: #000; font-weight: 800; font-size: 13px;
+    flex-shrink: 0;
+  }
+  .step.done .step-num { background: var(--ok); color: #fff; }
+  .step-head h2 { font-size: 15px; letter-spacing: 0.3px; }
+  .step-head .hint { color: var(--wsc-mute); font-size: 11px; margin-left: auto; }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-grid .full { grid-column: 1 / -1; }
+  label.fl {
+    font-size: 10.5px; color: var(--wsc-mute); text-transform: uppercase;
+    letter-spacing: 1px; display: block; margin-bottom: 4px;
+  }
+  label.fl small { text-transform: none; letter-spacing: 0; color: var(--wsc-mute); font-weight: 400; }
+  input.fi, select.fi, textarea.fi {
+    width: 100%; padding: 9px 10px; background: rgba(0,0,0,0.35);
+    border: 1px solid var(--wsc-line); color: var(--wsc-text);
+    border-radius: 6px; font-family: inherit; font-size: 13px;
+  }
+  input.fi:focus, select.fi:focus, textarea.fi:focus { border-color: var(--wsc-green); outline: 0; }
+  input.mono { font-family: 'SF Mono', monospace; }
+  textarea.fi { min-height: 60px; resize: vertical; }
+
+  .btn-primary {
+    background: var(--wsc-green); color: #000; border: 0; padding: 11px 22px;
+    border-radius: 8px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent; color: var(--wsc-text); border: 1px solid var(--wsc-line);
+    padding: 11px 22px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .btn-secondary:hover { border-color: var(--wsc-green); color: var(--wsc-green); }
+
+  .row-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .err-msg { color: #ff7d8a; font-size: 12px; min-height: 18px; margin-top: 10px; }
+  .ok-msg  { color: var(--ok); font-size: 12px; min-height: 18px; margin-top: 10px; }
+
+  .summary-line {
+    font-size: 12px; color: var(--wsc-mute); display: flex; gap: 6px; padding: 2px 0;
+  }
+  .summary-line b { color: var(--wsc-text); font-weight: 600; min-width: 90px; }
+
+  .success-card {
+    background: linear-gradient(135deg, rgba(52,208,88,0.12), rgba(200,255,0,0.04));
+    border: 1px solid rgba(52,208,88,0.45); border-radius: 12px;
+    padding: 22px 24px; margin-top: 18px;
+  }
+  .success-card h2 { color: var(--ok); font-size: 16px; margin-bottom: 10px; letter-spacing: 0.3px; }
+  .success-card .check { font-size: 22px; }
+
+  @media (max-width: 620px) {
+    .field-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div class="pw-overlay open" id="pwOverlay">
+  <div class="pw-box">
+    <h2>WSC CAPTURE REQUEST</h2>
+    <p>Sign in with the shared portal credentials.</p>
+    <input class="pw-input" id="pwEmail"    type="email"    placeholder="you@example.com"  autocomplete="email">
+    <input class="pw-input" id="pwPassword" type="password" placeholder="Password"          autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPw()">
+    <div class="pw-err" id="pwErr"></div>
+    <div class="pw-actions">
+      <button id="pwSubmit" onclick="submitPw()">Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header" id="headerBar" style="display:none">
+  <h1><small>CUSA × WSC</small>Capture Request Portal</h1>
+  <span class="who" id="whoLabel"></span>
+  <button class="signout" onclick="signOut()">Sign out</button>
+</div>
+
+<!-- Main -->
+<div class="container" id="mainContainer" style="display:none">
+
+  <!-- Step 1: Schedule Roku -->
+  <div class="step" id="step1">
+    <div class="step-head">
+      <span class="step-num">1</span>
+      <h2>Schedule the Roku</h2>
+      <span class="hint">Fires the ESPN search macro at trigger time.</span>
+    </div>
+
+    <div class="field-grid">
+      <div>
+        <label class="fl">Your initials <small>(2–4 chars)</small></label>
+        <input class="fi mono" id="fStaff" type="text" maxlength="12" placeholder="e.g. KK">
+      </div>
+      <div>
+        <label class="fl">Your name <small>(optional)</small></label>
+        <input class="fi" id="fStaffName" type="text" maxlength="120" placeholder="Full name">
+      </div>
+
+      <div>
+        <label class="fl">CUSA school</label>
+        <input class="fi" id="fSchool" type="text" maxlength="80" placeholder="e.g. FIU">
+      </div>
+      <div>
+        <label class="fl">Opponent</label>
+        <input class="fi" id="fOpponent" type="text" maxlength="80" placeholder="e.g. JSU">
+      </div>
+
+      <div>
+        <label class="fl">Sport</label>
+        <select class="fi" id="fSport">
+          <option value="">— pick sport —</option>
+          <option>Football</option>
+          <option>Men's Basketball</option>
+          <option>Women's Basketball</option>
+          <option>Baseball</option>
+          <option>Softball</option>
+          <option>Volleyball</option>
+          <option>Soccer</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div>
+        <label class="fl">Encoder</label>
+        <select class="fi" id="fEncoder">
+          <option value="">— pick encoder —</option>
+          <option>CUSA1</option><option>CUSA2</option><option>CUSA3</option>
+          <option>CUSA4</option><option>CUSA5</option><option>CUSA6</option>
+          <option>CUSA7</option><option>CUSA8</option><option>CUSA9</option>
+          <option>CUSA10</option>
+        </select>
+      </div>
+
+      <div class="full">
+        <label class="fl">ESPN search query <small>(typed into the Roku ESPN app)</small></label>
+        <input class="fi mono" id="fQuery" type="text" maxlength="100" placeholder='e.g. "FIU Football"'>
+      </div>
+
+      <div>
+        <label class="fl">Result index <small>(0 = top result)</small></label>
+        <input class="fi mono" id="fResultIdx" type="number" min="0" max="20" value="0">
+      </div>
+      <div>
+        <label class="fl">Kickoff <small>(your local time)</small></label>
+        <input class="fi mono" id="fKickoff" type="datetime-local">
+      </div>
+
+      <div class="full">
+        <label class="fl">Trigger time <small>(macro fires here — defaults to kickoff − 4 min)</small></label>
+        <input class="fi mono" id="fTrigger" type="datetime-local">
+      </div>
+    </div>
+
+    <div class="err-msg" id="step1Err"></div>
+
+    <div class="row-actions">
+      <button class="btn-primary" id="step1Submit" onclick="submitStep1()">Schedule Roku</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Schedule in WSC Clipro -->
+  <div class="step disabled" id="step2">
+    <div class="step-head">
+      <span class="step-num">2</span>
+      <h2>Schedule the event in WSC Clipro</h2>
+      <span class="hint">Open Clipro, schedule the event, then confirm.</span>
+    </div>
+
+    <div id="step1Summary" style="margin-bottom:14px"></div>
+
+    <div class="row-actions">
+      <button class="btn-secondary" onclick="openClipro()">Open WSC Clipro ↗</button>
+      <button class="btn-primary" id="step2Submit" onclick="submitStep2()">Confirm Scheduled in Clipro</button>
+    </div>
+
+    <div class="err-msg" id="step2Err"></div>
+  </div>
+
+  <!-- Success -->
+  <div class="success-card" id="successCard" style="display:none">
+    <h2><span class="check">✓</span> Request Logged</h2>
+    <p style="color:var(--wsc-mute);font-size:12px;margin-bottom:12px">
+      Roku is scheduled and Clipro confirmation is on file. An admin can find this in the Recent Requests panel.
+    </p>
+    <div id="successDetails"></div>
+    <div class="row-actions">
+      <button class="btn-secondary" onclick="resetForAnother()">Submit Another Request</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Clipro URL — matches the wsc-portal.html admin tool so admins and
+  // staff land on the same library view.
+  const WSC_CLIPRO_URL = 'https://www.clipro.tv/clipro/clipro/?system=50876&group=105340&activeTab=pbp&libraryFilter_minRating=2&libraryFilter_mediaTypes=project%2Cvideo%2Cgraphics%2CimageGraphic%2CvideoGraphic%2Cimage%2Caudio%2Cgif&libraryFilter_assetTypes=10%2C9%2C0%2C15%2C1%2C16%2C13%2C3%2C11%2C5%2C6%2C12%2C2%2C4%2C17%2C19%2C20&lpbpFilter_minRating=2&lpbpFilter_sortPolicy=DateCreatedDesc';
+
+  const FN = '/.netlify/functions/wsc-request';
+  const TOKEN_KEY  = 'wsc_request_token';
+  const EMAIL_KEY  = 'wsc_request_email';
+  const EXPIRY_KEY = 'wsc_request_expires';
+
+  // Local-mode helper: when opened via file:// (no Netlify functions), the
+  // page degrades to "form-only" so Keith can eyeball layout. Form submits
+  // will fail; that's expected during local visual testing.
+  const isLocal = location.protocol === 'file:' ||
+                  location.hostname === 'localhost' ||
+                  location.hostname === '127.0.0.1';
+
+  let state = {
+    macroId: null,
+    pendingPayload: null
+  };
+
+  // ── Auth ────────────────────────────────────────────────────────────────
+  function getToken() {
+    const t   = sessionStorage.getItem(TOKEN_KEY);
+    const exp = parseInt(sessionStorage.getItem(EXPIRY_KEY) || '0', 10);
+    if (!t || !exp || Date.now() > exp) return null;
+    return t;
+  }
+  function setSession(token, email, expiresAt) {
+    sessionStorage.setItem(TOKEN_KEY,  token);
+    sessionStorage.setItem(EMAIL_KEY,  email);
+    sessionStorage.setItem(EXPIRY_KEY, String(expiresAt));
+  }
+  function clearSession() {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(EMAIL_KEY);
+    sessionStorage.removeItem(EXPIRY_KEY);
+  }
+
+  async function submitPw() {
+    const email = document.getElementById('pwEmail').value.trim().toLowerCase();
+    const pwd   = document.getElementById('pwPassword').value;
+    const errEl = document.getElementById('pwErr');
+    const btn   = document.getElementById('pwSubmit');
+    errEl.textContent = '';
+    if (!email || !pwd) { errEl.textContent = 'Email and password required.'; return; }
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const r = await fetch(`${FN}?action=auth`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password: pwd })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        errEl.textContent = data.error || `Sign-in failed (${r.status}).`;
+        return;
+      }
+      setSession(data.token, email, data.expiresAt);
+      showPortal(email);
+    } catch (e) {
+      errEl.textContent = isLocal
+        ? 'Sign-in needs the Netlify deployment (functions don\'t run on file://).'
+        : `Network error: ${e.message}`;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Sign In';
+    }
+  }
+
+  function signOut() {
+    clearSession();
+    location.reload();
+  }
+
+  function showPortal(email) {
+    document.getElementById('pwOverlay').classList.remove('open');
+    document.getElementById('headerBar').style.display    = 'flex';
+    document.getElementById('mainContainer').style.display = 'block';
+    document.getElementById('whoLabel').textContent = email;
+  }
+
+  // ── Step 1: Schedule Roku ───────────────────────────────────────────────
+  function readStep1() {
+    return {
+      staff_initials: document.getElementById('fStaff').value.trim(),
+      staff_name:     document.getElementById('fStaffName').value.trim() || null,
+      school:         document.getElementById('fSchool').value.trim(),
+      opponent:       document.getElementById('fOpponent').value.trim(),
+      sport:          document.getElementById('fSport').value,
+      encoder_id:     document.getElementById('fEncoder').value,
+      search_query:   document.getElementById('fQuery').value.trim(),
+      result_index:   parseInt(document.getElementById('fResultIdx').value, 10) || 0,
+      kickoff_at:     document.getElementById('fKickoff').value,
+      trigger_at:     document.getElementById('fTrigger').value
+    };
+  }
+
+  function validateStep1(p) {
+    if (!p.staff_initials) return 'Your initials are required.';
+    if (!p.school)         return 'CUSA school is required.';
+    if (!p.opponent)       return 'Opponent is required.';
+    if (!p.sport)          return 'Pick a sport.';
+    if (!p.encoder_id)     return 'Pick an encoder.';
+    if (!p.search_query || p.search_query.length > 100) return 'ESPN search query is required (≤ 100 chars).';
+    if (p.result_index < 0 || p.result_index > 20)      return 'Result index must be 0–20.';
+    if (!p.kickoff_at)     return 'Kickoff time is required.';
+    return null;
+  }
+
+  async function submitStep1() {
+    const errEl  = document.getElementById('step1Err');
+    const btn    = document.getElementById('step1Submit');
+    errEl.textContent = '';
+
+    const p = readStep1();
+    const err = validateStep1(p);
+    if (err) { errEl.textContent = err; return; }
+
+    const token = getToken();
+    if (!token) { errEl.textContent = 'Session expired. Please sign in again.'; clearSession(); location.reload(); return; }
+
+    btn.disabled = true; btn.textContent = 'Scheduling…';
+    try {
+      const matchup_label = `${p.opponent} @ ${p.school}`;
+      const r = await fetch(`${FN}?action=submit-roku`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          encoder_id:   p.encoder_id,
+          search_query: p.search_query,
+          result_index: p.result_index,
+          kickoff_at:   new Date(p.kickoff_at).toISOString(),
+          trigger_at:   p.trigger_at ? new Date(p.trigger_at).toISOString() : null,
+          matchup_label,
+          sport: p.sport
+        })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        errEl.textContent = data.error || `Schedule failed (${r.status}).`;
+        return;
+      }
+      state.macroId = data.macroId;
+      state.pendingPayload = Object.assign({}, p, {
+        kickoff_at_iso: new Date(p.kickoff_at).toISOString(),
+        trigger_at_iso: p.trigger_at ? new Date(p.trigger_at).toISOString() : data.trigger_at
+      });
+      markStep1Done(p, data);
+    } catch (e) {
+      errEl.textContent = isLocal
+        ? 'Scheduling needs the Netlify deployment (functions don\'t run on file://).'
+        : `Network error: ${e.message}`;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Schedule Roku';
+    }
+  }
+
+  function markStep1Done(p, data) {
+    document.getElementById('step1').classList.add('done');
+    document.getElementById('step1Submit').disabled = true;
+    document.getElementById('step1Submit').textContent = '✓ Scheduled';
+
+    // Lock all step-1 inputs so staff can't change them after submit.
+    ['fStaff','fStaffName','fSchool','fOpponent','fSport','fEncoder','fQuery','fResultIdx','fKickoff','fTrigger']
+      .forEach(id => document.getElementById(id).disabled = true);
+
+    const summary = document.getElementById('step1Summary');
+    const fmt = iso => new Date(iso).toLocaleString();
+    summary.innerHTML = `
+      <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)} (${esc(p.sport)})</div>
+      <div class="summary-line"><b>Encoder:</b> ${esc(p.encoder_id)}</div>
+      <div class="summary-line"><b>Kickoff:</b> ${fmt(data.kickoff_at)}</div>
+      <div class="summary-line"><b>Macro fires:</b> ${fmt(data.trigger_at)}</div>
+      <div class="summary-line"><b>Search:</b> "${esc(p.search_query)}" → result #${p.result_index}</div>
+    `;
+
+    document.getElementById('step2').classList.remove('disabled');
+  }
+
+  // ── Step 2: Clipro confirm ──────────────────────────────────────────────
+  function openClipro() {
+    window.open(WSC_CLIPRO_URL, '_blank', 'noopener');
+  }
+
+  async function submitStep2() {
+    const errEl = document.getElementById('step2Err');
+    const btn   = document.getElementById('step2Submit');
+    errEl.textContent = '';
+    if (!state.macroId) { errEl.textContent = 'Please schedule the Roku first.'; return; }
+
+    const token = getToken();
+    if (!token) { errEl.textContent = 'Session expired. Please sign in again.'; clearSession(); location.reload(); return; }
+
+    btn.disabled = true; btn.textContent = 'Logging…';
+    try {
+      const p = state.pendingPayload;
+      const r = await fetch(`${FN}?action=confirm-clipro`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          macroId:        state.macroId,
+          staff_initials: p.staff_initials,
+          staff_name:     p.staff_name,
+          school:         p.school,
+          opponent:       p.opponent,
+          sport:          p.sport,
+          encoder_id:     p.encoder_id,
+          search_query:   p.search_query,
+          result_index:   p.result_index,
+          kickoff_at:     p.kickoff_at_iso,
+          trigger_at:     p.trigger_at_iso
+        })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        errEl.textContent = data.error || `Confirm failed (${r.status}).`;
+        return;
+      }
+      showSuccess(p);
+    } catch (e) {
+      errEl.textContent = isLocal
+        ? 'Logging needs the Netlify deployment (functions don\'t run on file://).'
+        : `Network error: ${e.message}`;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Confirm Scheduled in Clipro';
+    }
+  }
+
+  function showSuccess(p) {
+    document.getElementById('step2').classList.add('done');
+    document.getElementById('step2Submit').disabled = true;
+    document.getElementById('step2Submit').textContent = '✓ Confirmed';
+
+    const fmt = iso => new Date(iso).toLocaleString();
+    document.getElementById('successDetails').innerHTML = `
+      <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)} (${esc(p.sport)})</div>
+      <div class="summary-line"><b>Encoder:</b> ${esc(p.encoder_id)}</div>
+      <div class="summary-line"><b>Kickoff:</b> ${fmt(p.kickoff_at_iso)}</div>
+      <div class="summary-line"><b>Macro fires:</b> ${fmt(p.trigger_at_iso)}</div>
+      <div class="summary-line"><b>Requested by:</b> ${esc(p.staff_initials)}${p.staff_name ? ' — ' + esc(p.staff_name) : ''}</div>
+    `;
+    document.getElementById('successCard').style.display = 'block';
+    document.getElementById('successCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Misc ────────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  function resetForAnother() {
+    // Soft-reset: clear form fields, re-enable, hide step 2 + success.
+    state = { macroId: null, pendingPayload: null };
+    ['fStaff','fStaffName','fSchool','fOpponent','fSport','fEncoder','fQuery','fResultIdx','fKickoff','fTrigger']
+      .forEach(id => {
+        const el = document.getElementById(id);
+        el.disabled = false;
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else if (el.id === 'fResultIdx') el.value = '0';
+        else el.value = '';
+      });
+    document.getElementById('step1').classList.remove('done');
+    document.getElementById('step1Submit').disabled = false;
+    document.getElementById('step1Submit').textContent = 'Schedule Roku';
+    document.getElementById('step1Err').textContent = '';
+    document.getElementById('step2').classList.add('disabled');
+    document.getElementById('step2').classList.remove('done');
+    document.getElementById('step2Submit').disabled = false;
+    document.getElementById('step2Submit').textContent = 'Confirm Scheduled in Clipro';
+    document.getElementById('step2Err').textContent = '';
+    document.getElementById('step1Summary').innerHTML = '';
+    document.getElementById('successCard').style.display = 'none';
+    document.getElementById('successDetails').innerHTML = '';
+    document.getElementById('fStaff').focus();
+  }
+
+  // Trigger default tracker: when kickoff changes, fill trigger with -4min.
+  document.getElementById('fKickoff').addEventListener('change', () => {
+    const k = document.getElementById('fKickoff').value;
+    const t = document.getElementById('fTrigger');
+    if (k && !t.value) {
+      const dt = new Date(k);
+      dt.setMinutes(dt.getMinutes() - 4);
+      // datetime-local needs YYYY-MM-DDTHH:MM (no seconds, no TZ)
+      const pad = n => String(n).padStart(2, '0');
+      t.value = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    }
+  });
+
+  // Auto-resume if session still valid.
+  (function init() {
+    const t = getToken();
+    if (t) {
+      const email = sessionStorage.getItem(EMAIL_KEY) || '';
+      showPortal(email);
+    }
+  })();
+</script>
+</body>
+</html>

@@ -54,5 +54,9 @@ create policy "public write melt uploads" on melt_uploads for all    using (true
 do $$ begin alter publication supabase_realtime add table melt_config;  exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table melt_uploads; exception when duplicate_object then null; end $$;
 
+-- Force PostgREST to re-read the schema so the newly-added folder_id column
+-- is visible to the JS client without a manual API restart.
+notify pgrst, 'reload schema';
+
 -- Sanity check
-select sport, file_request_url from melt_config order by sport;
+select sport, file_request_url, folder_id from melt_config order by sport;

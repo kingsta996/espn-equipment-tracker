@@ -55,4 +55,10 @@ create trigger championship_box_links_touch_updated_at
 do $$ begin alter publication supabase_realtime add table championship_box_links;
   exception when duplicate_object then null; when undefined_table then null; end $$;
 
+-- Force PostgREST to re-read the schema so newly-added columns
+-- (subcategory, folder_id) are visible to the JS client immediately.
+-- Without this the client gets "no <column> of championship_box_links
+-- in the schema cache" until the API is restarted manually.
+notify pgrst, 'reload schema';
+
 select 'championship_box_links migration applied' as status;

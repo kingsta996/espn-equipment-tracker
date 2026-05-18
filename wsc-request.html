@@ -282,11 +282,11 @@
     <div id="step1Summary" style="margin-bottom:14px"></div>
 
     <div class="clipro-row">
-      <div class="label">RTMP destination
-        <small>paste into Clipro as the laptop's <em>source feed</em></small>
+      <div class="label">HLS URL
+        <small>paste into Clipro's <em>source feed</em> field</small>
       </div>
-      <div class="value" id="cliproRtmp">—</div>
-      <button class="btn-copy" id="copyRtmpBtn" onclick="copyRtmp()" disabled>📋 Copy RTMP</button>
+      <div class="value" id="cliproHls">—</div>
+      <button class="btn-copy" id="copyHlsBtn" onclick="copyHls()" disabled>📋 Copy HLS</button>
     </div>
 
     <div class="clipro-row">
@@ -341,7 +341,7 @@
                   location.hostname === '127.0.0.1';
 
   let _sb = null;
-  let _laptops = [];     // [{id, label, rtmp, ...}] from wsc_data.json
+  let _laptops = [];     // [{id, label, hls, ...}] from wsc_data.json — laptops surface their OBS feed as a CUSA-format HLS playlist (CUSA11/CUSA12)
   let _dispatches = [];  // pending/launched rows for conflict checks
   let _espnEvents = [];  // wsc_espn_events rows (kickoff_at, home_team, away_team, espn_event_id)
   let _matchedEvent = null; // current best-match wsc_espn_events row given form inputs
@@ -717,16 +717,16 @@
     `;
 
     const laptop = _laptops.find(l => l.id === p.laptop_id);
-    const rtmp   = laptop?.rtmp || '(RTMP destination not configured for this laptop)';
+    const hls    = laptop?.hls || '(HLS URL not configured for this laptop)';
     const etValue = fmtEastern24(kickoffDate);
-    document.getElementById('cliproRtmp').textContent = rtmp;
-    document.getElementById('cliproEt').textContent   = etValue ? `${etValue} ET` : '—';
-    const copyRtmpBtn = document.getElementById('copyRtmpBtn');
-    const copyEtBtn   = document.getElementById('copyEtBtn');
-    copyRtmpBtn.disabled = !laptop?.rtmp;
-    copyEtBtn.disabled   = !etValue;
-    copyRtmpBtn.dataset.value = laptop?.rtmp || '';
-    copyEtBtn.dataset.value   = etValue || '';
+    document.getElementById('cliproHls').textContent = hls;
+    document.getElementById('cliproEt').textContent  = etValue ? `${etValue} ET` : '—';
+    const copyHlsBtn = document.getElementById('copyHlsBtn');
+    const copyEtBtn  = document.getElementById('copyEtBtn');
+    copyHlsBtn.disabled = !laptop?.hls;
+    copyEtBtn.disabled  = !etValue;
+    copyHlsBtn.dataset.value = laptop?.hls || '';
+    copyEtBtn.dataset.value  = etValue || '';
 
     document.getElementById('step2').classList.remove('disabled');
     document.getElementById('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -750,8 +750,8 @@
     btn.textContent = '✓ Copied';
     setTimeout(() => { btn.classList.remove('copied'); btn.textContent = original; }, 1400);
   }
-  function copyRtmp() {
-    const btn = document.getElementById('copyRtmpBtn');
+  function copyHls() {
+    const btn = document.getElementById('copyHlsBtn');
     copyText(btn.dataset.value, btn);
   }
   function copyEt() {
@@ -848,10 +848,10 @@
     document.getElementById('step2Submit').textContent = 'Confirm Scheduled in Clipro';
     document.getElementById('step2Err').textContent = '';
     document.getElementById('step1Summary').innerHTML = '';
-    document.getElementById('cliproRtmp').textContent = '—';
-    document.getElementById('cliproEt').textContent   = '—';
-    document.getElementById('copyRtmpBtn').disabled = true;
-    document.getElementById('copyEtBtn').disabled   = true;
+    document.getElementById('cliproHls').textContent = '—';
+    document.getElementById('cliproEt').textContent  = '—';
+    document.getElementById('copyHlsBtn').disabled = true;
+    document.getElementById('copyEtBtn').disabled  = true;
     document.getElementById('successCard').style.display = 'none';
     document.getElementById('successDetails').innerHTML = '';
     loadReferenceData(); // refresh so new dispatch shows up in conflict map

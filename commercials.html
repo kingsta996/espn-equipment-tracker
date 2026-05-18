@@ -5067,6 +5067,50 @@ function _safeChampFilename(name) {
   return base;
 }
 
+// Read the file as base64 (no data: prefix) for the parse-champ-pdf
+// Netlify function, which forwards it to Claude as a document block.
+function _fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(r.error || new Error('Could not read file'));
+    r.onload  = () => {
+      const s = String(r.result || '');
+      const i = s.indexOf(',');
+      resolve(i >= 0 ? s.slice(i + 1) : s);
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+async function _autoParseChampPdf(key, file) {
+  let b64;
+  try { b64 = await _fileToBase64(file); }
+  catch (e) { return { ok: false, error: 'Could not read file for parsing: ' + (e?.message || e) }; }
+  const pwHash = (() => { try { return localStorage.getItem('commHubAdminPwHash') || ''; } catch { return ''; } })();
+  if (!pwHash) return { ok: false, error: 'Admin password hash missing from this browser — sign out and back in.' };
+  const sportName = CHAMPIONSHIP_FORMAT_DATA[key]?.name || key;
+  let res, data;
+  try {
+    res = await fetch('/.netlify/functions/parse-champ-pdf', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'X-Admin-Pw-Hash': pwHash },
+      body: JSON.stringify({
+        sport_key:  key,
+        sport_name: sportName,
+        filename:   file.name,
+        pdf_base64: b64
+      })
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    return { ok: false, error: 'Network error calling parse function: ' + (e?.message || e) };
+  }
+  if (!res.ok || !data?.ok) {
+    return { ok: false, error: data?.error || `HTTP ${res.status}`, detail: data?.detail };
+  }
+  return { ok: true, parsed: data.parsed };
+}
+
 async function _uploadChampPdf(key, file) {
   if (!_db) { alert('Supabase is not connected — cannot save.'); return; }
   const safe = _safeChampFilename(file.name);
@@ -5078,6 +5122,7 @@ async function _uploadChampPdf(key, file) {
     const rm = await _db.storage.from(CBSSN_FORMATS_BUCKET).remove([prior.storage_path]);
     if (rm.error) console.warn('Old champ PDF cleanup failed:', rm.error);
   }
+  showToast(`Uploading ${safe}…`);
   const up = await _db.storage.from(CBSSN_FORMATS_BUCKET).upload(path, file, {
     upsert: true,
     contentType: file.type || 'application/pdf',
@@ -5101,8 +5146,40 @@ async function _uploadChampPdf(key, file) {
   if (error) { alert('Save failed: ' + error.message); return; }
   state.champPdfs[key] = meta;
   renderChampUploadList();
+
+  // Now hand the PDF to Claude for structured extraction so the
+  // Championships tab can render it the same way it renders the
+  // XLSX-uploaded sports.
+  showToast(`Parsing ${CHAMPIONSHIP_FORMAT_DATA[key].name} PDF with Claude…`);
+  const parseRes = await _autoParseChampPdf(key, file);
+  if (!parseRes.ok) {
+    console.warn('Champ PDF parse failed:', parseRes);
+    alert(
+      `${CHAMPIONSHIP_FORMAT_DATA[key].name}: PDF saved as a reference, but auto-parse failed:\n\n` +
+      (parseRes.error || 'unknown error') +
+      (parseRes.detail ? '\n\nDetail: ' + String(parseRes.detail).slice(0, 300) : '') +
+      `\n\nThe View Network PDF button will still appear on the Championships tab; the structured segment table will not.`
+    );
+    if (state.tab === 'championships') renderCurrentTab();
+    return;
+  }
+  // Save the parsed format under the same key the XLSX flow writes to so
+  // the Championships tab picks it up automatically.
+  const parsed = parseRes.parsed;
+  const saveRes = await _db.from('app_settings').upsert({
+    key: `champ_format_${key}`,
+    value: JSON.stringify(parsed),
+    updated_at: new Date().toISOString(),
+    updated_by: 'admin'
+  }, { onConflict: 'key' });
+  if (saveRes.error) {
+    alert('PDF parsed, but saving the structured format failed: ' + saveRes.error.message);
+    return;
+  }
+  state.champOverrides[key] = parsed;
+  renderChampUploadList();
   if (state.tab === 'championships') renderCurrentTab();
-  showToast(`${CHAMPIONSHIP_FORMAT_DATA[key].name} PDF uploaded`);
+  showToast(`${CHAMPIONSHIP_FORMAT_DATA[key].name} PDF parsed & saved (${parsed.segments?.length || 0} segments)`);
 }
 
 function handleChampUpload(input, key) {

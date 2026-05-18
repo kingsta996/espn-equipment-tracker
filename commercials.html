@@ -3796,6 +3796,13 @@ async function assignSpot(key, commId) {
   }
   showToast('Assignment saved');
   if (state._spotAssignKey === key) closeSpotAssignDialog();
+  // Re-render the active tab now so the new assignment appears immediately.
+  // We were previously relying on the format_assignments realtime channel to
+  // push the change back, but that's unreliable (publication add lives in
+  // schema.sql, not the per-feature migrations, so it may not be applied on
+  // every deploy) and at minimum has a noticeable latency. Realtime echoes
+  // are still wired up for cross-tab/cross-user updates.
+  renderCurrentTab();
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

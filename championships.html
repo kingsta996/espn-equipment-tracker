@@ -451,9 +451,11 @@
             <button class="btn btn-green" id="logoZipBtn">⬇ Download Championship Logos (ZIP)</button>
             ${(() => {
               const fmt = formatForSport(sport);
-              return fmt
-                ? `<button class="btn btn-navy" id="formatBtn">⬇ Download Commercial Format (XLSX)</button>`
-                : `<button class="btn muted" disabled title="No format file available for this sport">⬇ Commercial Format (none on file)</button>`;
+              if (!fmt) {
+                return `<button class="btn muted" disabled title="No format file available for this sport">⬇ Commercial Format (none on file)</button>`;
+              }
+              const ext = (fmt.filename || '').split('.').pop().toUpperCase() || 'FILE';
+              return `<button class="btn btn-navy" id="formatBtn">⬇ Download Commercial Format (${escapeHtml(ext)})</button>`;
             })()}
             <a class="btn btn-primary" id="commercialsBtn" href="commercials.html?sport=${encodeURIComponent(sport.name)}" target="_blank" rel="noopener" style="text-decoration:none;display:block">📺 Open Commercials Page</a>
             ${(() => {

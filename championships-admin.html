@@ -232,11 +232,11 @@
   <div class="section">
     <header>
       <h2>📊 Commercial Formats</h2>
-      <span style="font-size:11px;color:#777;flex:1;margin-left:8px">Per-sport ESPN+ commercial format XLSX. Latest upload appears on the public Championships page; older versions are overwritten.</span>
+      <span style="font-size:11px;color:#777;flex:1;margin-left:8px">Per-sport commercial format file (XLSX or PDF). Latest upload appears on the public Championships page; older versions are overwritten.</span>
     </header>
     <div class="body">
       <div style="font-size:11.5px;color:#555;line-height:1.5;margin-bottom:14px;background:#fffbeb;border:1px solid #f5d784;padding:10px 12px;border-radius:5px">
-        <strong>Tip:</strong> Use the original ESPN+ commercial format Excel layout. Files are stored in Supabase and replace the repo-committed defaults from <code>Formats/</code>. Max size 10&nbsp;MB.
+        <strong>Tip:</strong> Upload whatever the network sent — usually an Excel layout (ESPN+) or a PDF (CBSSN). Files are stored in Supabase and replace the repo-committed defaults from <code>Formats/</code>. Max size 10&nbsp;MB.
       </div>
       <div class="formats-grid" id="formatsGrid"></div>
     </div>
@@ -800,9 +800,9 @@
         <div class="file-cell">${fileBlock}</div>
         <div class="actions-cell">
           ${hasFile ? `<button class="btn btn-blue" data-act="download">⬇ Download</button>` : ''}
-          <button class="btn btn-navy" data-act="upload">${hasFile ? 'Replace' : 'Upload XLSX'}</button>
+          <button class="btn btn-navy" data-act="upload">${hasFile ? 'Replace' : 'Upload format'}</button>
           ${hasFile ? `<button class="btn btn-remove" data-act="remove">Remove</button>` : ''}
-          <input type="file" accept=".xlsx" data-file-input style="display:none">
+          <input type="file" accept=".xlsx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-file-input style="display:none">
         </div>
       </div>
     `;
@@ -820,33 +820,59 @@
     return data?.publicUrl || null;
   }
 
+  // XLSX (network-provided spreadsheet) and PDF (network-provided PDF) are
+  // the two formats networks actually send. Anything else is a typo.
+  const ALLOWED_FORMAT_EXTS = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                pdf:  'application/pdf' };
+
+  function detectFormatExt(file) {
+    const name = (file.name || '').toLowerCase();
+    if (name.endsWith('.xlsx')) return 'xlsx';
+    if (name.endsWith('.pdf'))  return 'pdf';
+    return null;
+  }
+
   async function uploadFormat(sportKey, file) {
     if (!_db) { showToast('Supabase not ready', 'warn'); return; }
     if (file.size > FORMATS_MAX_BYTES) {
       showToast(`File is too large (${Math.round(file.size/1024/1024)} MB · max 10 MB)`, 'warn');
       return;
     }
-    if (!/\.xlsx$/i.test(file.name)) {
-      showToast('Please pick an .xlsx file', 'warn');
+    const ext = detectFormatExt(file);
+    if (!ext) {
+      showToast('Please pick an .xlsx or .pdf file', 'warn');
       return;
     }
     const row = document.querySelector(`.format-row[data-sport="${sportKey}"]`);
     if (row) row.classList.add('uploading');
 
-    const storagePath = `${sportKey}/format.xlsx`;
+    const storagePath = `${sportKey}/format.${ext}`;
+    const contentType = file.type || ALLOWED_FORMAT_EXTS[ext];
+    // If the previous upload was a different extension (e.g. replacing
+    // format.xlsx with format.pdf), the old object would orphan because
+    // upsert only overwrites at the same path. Delete it explicitly.
+    const existing = _formats.get(sportKey);
+    const oldPath = existing?.storage_path;
+
     try {
       const upRes = await _db.storage.from(FORMATS_BUCKET).upload(storagePath, file, {
         upsert: true,
-        contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        contentType,
         cacheControl: '60'
       });
       if (upRes.error) throw upRes.error;
+
+      if (oldPath && oldPath !== storagePath) {
+        // Best-effort — don't fail the whole upload if the cleanup hiccups.
+        const rmRes = await _db.storage.from(FORMATS_BUCKET).remove([oldPath]);
+        if (rmRes.error) console.warn('Old format cleanup failed:', rmRes.error);
+      }
 
       const dbRes = await _db.from('championship_formats').upsert({
         sport_key: sportKey,
         filename: file.name,
         storage_path: storagePath,
-        content_type: file.type || null,
+        content_type: contentType,
         size_bytes: file.size,
         uploaded_at: new Date().toISOString(),
         uploaded_by: 'championships-admin'

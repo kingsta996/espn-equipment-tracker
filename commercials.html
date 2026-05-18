@@ -1879,7 +1879,8 @@ let state = {
   tab: 'status',
   loginTab: 'school',
   champSport: 'football',
-  champOverrides: {},      // Supabase-backed: { [sport_key]: parsed_format }
+  champOverrides: {},      // Supabase-backed: { [sport_key]: parsed_format } (from .xlsx)
+  champPdfs: {},           // Supabase-backed: { [sport_key]: { filename, url, uploaded_at } }
   // data (from Supabase)
   schools: [],
   commercials: [],
@@ -3141,10 +3142,17 @@ async function loadAllData() {
   (asgRes.data || []).forEach(r => {
     if (r.commercial_id) state.assignments[`${r.sport}:${r.break_key}:${r.spot_index}`] = r.commercial_id;
   });
-  // Parse app_settings: champ_format_<sport>
+  // Parse app_settings: champ_format_<sport> (structured XLSX) and
+  // champ_format_pdf_<sport> (reference PDF for networks that don't ship
+  // a structured layout, e.g. CBSSN).
   state.champOverrides = {};
+  state.champPdfs = {};
   (settingsRes?.data || []).forEach(r => {
-    if (r.key && r.key.startsWith('champ_format_')) {
+    if (!r.key) return;
+    if (r.key.startsWith('champ_format_pdf_')) {
+      try { state.champPdfs[r.key.replace('champ_format_pdf_', '')] = JSON.parse(r.value); }
+      catch (e) { console.warn('bad champ pdf JSON for', r.key, e); }
+    } else if (r.key.startsWith('champ_format_')) {
       try { state.champOverrides[r.key.replace('champ_format_', '')] = JSON.parse(r.value); }
       catch (e) { console.warn('bad champ override JSON for', r.key, e); }
     }
@@ -3876,6 +3884,10 @@ function renderChampionshipsTab() {
   const sport = state.champSport;
   const data = state.champOverrides[sport] || CHAMPIONSHIP_FORMAT_DATA[sport];
   const isCustom = !!state.champOverrides[sport];
+  const pdfRef = state.champPdfs[sport] || null;
+  const pdfLinkHtml = pdfRef && pdfRef.url
+    ? `<a class="champ-pdf-link" href="${esc(pdfRef.url)}" target="_blank" rel="noopener" title="${esc(pdfRef.filename || 'View PDF')}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:rgba(124,58,237,0.15);color:#7c3aed;border:1px solid rgba(124,58,237,0.4);border-radius:6px;text-decoration:none;font-size:12px;font-weight:700;margin-left:8px">📄 View Network PDF</a>`
+    : '';
   const optsHtml = CHAMPIONSHIP_SPORT_KEYS.map(k => {
     const d = CHAMPIONSHIP_FORMAT_DATA[k];
     return `<option value="${esc(k)}" ${k === sport ? 'selected' : ''}>${esc(d.name)}</option>`;
@@ -3895,19 +3907,28 @@ function renderChampionshipsTab() {
       <div class="champ-sport-select">
         <label for="champSportSelect">Sport</label>
         <select id="champSportSelect" onchange="setChampSport(this.value)">${optsHtml}</select>
+        ${pdfLinkHtml}
         <button class="champ-export-btn" onclick="exportChampFormatPdf('${esc(sport)}')" title="Download this championship format with current assignments as a branded PDF">⬇ Export PDF</button>
       </div>
     </div>
   `;
 
   if (data.placeholder) {
-    return headerHtml + `
-      <div class="champ-placeholder">
-        <div class="champ-placeholder-icon">📋</div>
-        <h3>${esc(data.name)} — No CBSSN Format Yet</h3>
-        <p>${esc(data.placeholder)}</p>
-      </div>
-    `;
+    // If a PDF reference is uploaded but no structured XLSX exists, surface
+    // the PDF prominently — that's the next best thing to a parsed format.
+    const placeholderInner = pdfRef && pdfRef.url
+      ? `
+          <div class="champ-placeholder-icon">📄</div>
+          <h3>${esc(data.name)} — PDF Reference Available</h3>
+          <p>The network sent this format as a PDF. Open it via the <strong>📄 View Network PDF</strong> button above or upload an .xlsx in the Admin Panel for a structured segment table.</p>
+          <p style="margin-top:14px"><a href="${esc(pdfRef.url)}" target="_blank" rel="noopener" style="display:inline-block;padding:10px 18px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:6px;font-weight:700;font-size:13px">📄 Open ${esc(pdfRef.filename || 'PDF')}</a></p>
+        `
+      : `
+          <div class="champ-placeholder-icon">📋</div>
+          <h3>${esc(data.name)} — No CBSSN Format Yet</h3>
+          <p>${esc(data.placeholder)}</p>
+        `;
+    return headerHtml + `<div class="champ-placeholder">${placeholderInner}</div>`;
   }
 
   const m = data.meta || {};
@@ -4478,13 +4499,19 @@ function renderChampUploadList() {
   el.innerHTML = CHAMPIONSHIP_SPORT_KEYS.map(key => {
     const sport = CHAMPIONSHIP_FORMAT_DATA[key];
     const hasOverride = !!state.champOverrides[key];
+    const pdfMeta = state.champPdfs[key];
+    const hasPdf = !!pdfMeta;
+    const pdfChip = hasPdf
+      ? `<a class="custom-badge" href="${esc(pdfMeta.url || '#')}" target="_blank" rel="noopener" title="${esc(pdfMeta.filename || '')}" style="background:#7c3aed;color:#fff;text-decoration:none">📄 PDF</a>`
+      : '';
     return `
       <div class="upload-row">
         <span class="sport-label">${esc(sport.name)}</span>
         ${hasOverride ? '<span class="custom-badge">Custom</span>' : ''}
-        <button class="upload-file-btn" onclick="document.getElementById('champup_${key}').click()">Upload .xlsx</button>
-        ${hasOverride ? `<button class="upload-reset-btn" onclick="resetChampFormat('${key}')">Reset</button>` : ''}
-        <input type="file" id="champup_${key}" accept=".xlsx" style="display:none" onchange="handleChampUpload(this,'${key}')">
+        ${pdfChip}
+        <button class="upload-file-btn" onclick="document.getElementById('champup_${key}').click()">Upload .xlsx/.pdf</button>
+        ${(hasOverride || hasPdf) ? `<button class="upload-reset-btn" onclick="resetChampFormat('${key}')">Reset</button>` : ''}
+        <input type="file" id="champup_${key}" accept=".xlsx,.pdf,application/pdf" style="display:none" onchange="handleChampUpload(this,'${key}')">
       </div>
     `;
   }).join('');
@@ -5026,9 +5053,74 @@ function fmtXLSXTime(v) {
 /* ──────────────────────────────────────────────────────────────────────────
    CBSSN Championship format upload (Supabase-backed)
    ─────────────────────────────────────────────────────────────────────── */
+// XLSX (parsed → structured segment table) and PDF (stored as a reference
+// link, no parsing). CBSSN sometimes sends formats as PDFs, so an admin
+// needs to attach them even if we can't auto-extract segments.
+const CBSSN_FORMATS_BUCKET = 'championship-formats';
+const CBSSN_PDF_PREFIX = 'cbssn/';   // namespace inside the shared bucket
+
+function _safeChampFilename(name) {
+  let base = String(name || 'format.pdf').trim().split(/[\\/]/).pop();
+  base = base.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!base) base = 'format.pdf';
+  if (base.length > 120) base = base.slice(0, 120);
+  return base;
+}
+
+async function _uploadChampPdf(key, file) {
+  if (!_db) { alert('Supabase is not connected — cannot save.'); return; }
+  const safe = _safeChampFilename(file.name);
+  const path = `${CBSSN_PDF_PREFIX}${key}/${safe}`;
+  // Wipe any prior PDF for this key first so we don't accumulate
+  // orphans when the new filename differs.
+  const prior = state.champPdfs[key];
+  if (prior && prior.storage_path && prior.storage_path !== path) {
+    const rm = await _db.storage.from(CBSSN_FORMATS_BUCKET).remove([prior.storage_path]);
+    if (rm.error) console.warn('Old champ PDF cleanup failed:', rm.error);
+  }
+  const up = await _db.storage.from(CBSSN_FORMATS_BUCKET).upload(path, file, {
+    upsert: true,
+    contentType: file.type || 'application/pdf',
+    cacheControl: '60'
+  });
+  if (up.error) { alert('Upload failed: ' + up.error.message); return; }
+  const { data: pub } = _db.storage.from(CBSSN_FORMATS_BUCKET).getPublicUrl(path);
+  const meta = {
+    filename:     safe,
+    storage_path: path,
+    url:          pub?.publicUrl || null,
+    size_bytes:   file.size,
+    uploaded_at:  new Date().toISOString()
+  };
+  const { error } = await _db.from('app_settings').upsert({
+    key: `champ_format_pdf_${key}`,
+    value: JSON.stringify(meta),
+    updated_at: meta.uploaded_at,
+    updated_by: 'admin'
+  }, { onConflict: 'key' });
+  if (error) { alert('Save failed: ' + error.message); return; }
+  state.champPdfs[key] = meta;
+  renderChampUploadList();
+  if (state.tab === 'championships') renderCurrentTab();
+  showToast(`${CHAMPIONSHIP_FORMAT_DATA[key].name} PDF uploaded`);
+}
+
 function handleChampUpload(input, key) {
   const file = input.files[0];
   if (!file) return;
+  const name = (file.name || '').toLowerCase();
+  const isPdf  = name.endsWith('.pdf')  || file.type === 'application/pdf';
+  const isXlsx = name.endsWith('.xlsx');
+  if (!isPdf && !isXlsx) {
+    alert('Please pick an .xlsx (structured format) or .pdf (reference document).');
+    input.value = '';
+    return;
+  }
+  if (isPdf) {
+    _uploadChampPdf(key, file).finally(() => { input.value = ''; });
+    return;
+  }
+  // XLSX path — parse into the structured segment table and save.
   const reader = new FileReader();
   reader.onload = async e => {
     try {
@@ -5061,10 +5153,22 @@ function handleChampUpload(input, key) {
 
 async function resetChampFormat(key) {
   if (!_db) return;
-  if (!confirm(`Reset ${CHAMPIONSHIP_FORMAT_DATA[key].name} format to the built-in default? Schools will see the change immediately.`)) return;
-  const { error } = await _db.from('app_settings').delete().eq('key', `champ_format_${key}`);
+  const hasXlsx = !!state.champOverrides[key];
+  const hasPdf  = !!state.champPdfs[key];
+  if (!hasXlsx && !hasPdf) return;
+  const bits = [hasXlsx && 'structured format', hasPdf && 'PDF reference'].filter(Boolean).join(' + ');
+  if (!confirm(`Remove ${CHAMPIONSHIP_FORMAT_DATA[key].name} ${bits}? Schools will see the change immediately.`)) return;
+  // Delete both settings keys; ignore "not found" for whichever isn't present.
+  const { error } = await _db.from('app_settings').delete().in('key', [`champ_format_${key}`, `champ_format_pdf_${key}`]);
   if (error) { showToast('Reset failed: ' + error.message, true); return; }
+  // Best-effort wipe of the PDF object so storage doesn't leak.
+  const priorPath = state.champPdfs[key]?.storage_path;
+  if (priorPath) {
+    const rm = await _db.storage.from(CBSSN_FORMATS_BUCKET).remove([priorPath]);
+    if (rm.error) console.warn('PDF cleanup failed:', rm.error);
+  }
   delete state.champOverrides[key];
+  delete state.champPdfs[key];
   renderChampUploadList();
   if (state.tab === 'championships') renderCurrentTab();
   showToast('Format reset to built-in default');

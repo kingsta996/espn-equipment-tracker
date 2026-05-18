@@ -249,5 +249,9 @@
     { "id": "CUSA8",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA8/manifest.m3u8",  "roku_ip": "10.11.50.61", "aja_ip": "10.11.50.18" },
     { "id": "CUSA9",  "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA9/manifest.m3u8",  "roku_ip": "10.11.50.53", "aja_ip": "10.11.50.19" },
     { "id": "CUSA10", "hls": "http://wsc-rtmp-sus.southcentralus.cloudapp.azure.com:1935/CUSA/CUSA10/manifest.m3u8", "roku_ip": "10.11.50.50", "aja_ip": "10.11.50.20" }
+  ],
+  "laptops": [
+    { "id": "LAPTOP-A", "label": "Laptop A", "rtmp": "rtmp://TBD-replace-in-wsc_data.json/live/LAPTOP-A", "espn_plus_account": "", "notes": "OBS+RTMP browser capture. Update rtmp URL when WSC ingest endpoint is finalized." },
+    { "id": "LAPTOP-B", "label": "Laptop B", "rtmp": "rtmp://TBD-replace-in-wsc_data.json/live/LAPTOP-B", "espn_plus_account": "", "notes": "OBS+RTMP browser capture. Update rtmp URL when WSC ingest endpoint is finalized." }
   ]
 }

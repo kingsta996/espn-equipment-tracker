@@ -140,6 +140,14 @@
   .enc-option-busy { color: #ff9aa3; }
   .enc-option-ok   { color: var(--wsc-text); }
 
+  /* Event match hint */
+  .event-hint {
+    font-size: 11px; padding: 8px 10px; border-radius: 6px;
+    background: rgba(0,0,0,0.25); border: 1px solid var(--wsc-line); margin-top: 4px;
+  }
+  .event-hint.ok    { border-color: rgba(52,208,88,0.45); color: var(--ok); }
+  .event-hint.miss  { border-color: rgba(249,199,79,0.4); color: var(--warn); }
+
   /* Clipro paste block */
   .clipro-row {
     display: flex; align-items: center; gap: 12px; padding: 12px 14px;
@@ -203,12 +211,12 @@
 <!-- Main -->
 <div class="container" id="mainContainer" style="display:none">
 
-  <!-- Step 1: Schedule the Roku -->
+  <!-- Step 1: Schedule the laptop browser launch -->
   <div class="step" id="step1">
     <div class="step-head">
       <span class="step-num">1</span>
-      <h2>Schedule the Roku capture</h2>
-      <span class="hint">The macro fires automatically at kickoff − 4 min.</span>
+      <h2>Schedule the browser launch</h2>
+      <span class="hint">Laptop opens the ESPN URL at kickoff − 4 min.</span>
     </div>
 
     <div class="field-grid">
@@ -222,7 +230,7 @@
       </div>
 
       <div>
-        <label class="fl">CUSA school <small>(also the ESPN search term)</small></label>
+        <label class="fl">CUSA school</label>
         <input class="fi" id="fSchool" type="text" maxlength="80" placeholder="e.g. FIU">
       </div>
       <div>
@@ -240,20 +248,26 @@
       </div>
 
       <div class="full">
-        <label class="fl">Encoder</label>
-        <select class="fi" id="fEncoder">
-          <option value="">— pick encoder —</option>
+        <label class="fl">Laptop</label>
+        <select class="fi" id="fLaptop">
+          <option value="">— pick laptop —</option>
         </select>
         <div class="enc-status-help" id="encStatusHelp">
-          Pick a date + time first to see which encoders are free at that slot.
+          Pick a date + time first to see which laptops are free at that slot.
         </div>
+      </div>
+
+      <div class="full">
+        <label class="fl">ESPN watch URL <small>(auto-filled when we can match the event; override here if needed)</small></label>
+        <input class="fi mono" id="fLaunchUrl" type="url" maxlength="2000" placeholder="https://www.espn.com/watch/player/_/id/…">
+        <div class="event-hint" id="eventHint" style="display:none"></div>
       </div>
     </div>
 
     <div class="err-msg" id="step1Err"></div>
 
     <div class="row-actions">
-      <button class="btn-primary" id="step1Submit" onclick="submitStep1()">Schedule Roku</button>
+      <button class="btn-primary" id="step1Submit" onclick="submitStep1()">Schedule Browser Launch</button>
     </div>
   </div>
 
@@ -268,11 +282,11 @@
     <div id="step1Summary" style="margin-bottom:14px"></div>
 
     <div class="clipro-row">
-      <div class="label">HLS URL
-        <small>paste into Clipro's <em>source feed</em> field</small>
+      <div class="label">RTMP destination
+        <small>paste into Clipro as the laptop's <em>source feed</em></small>
       </div>
-      <div class="value" id="cliproHls">—</div>
-      <button class="btn-copy" id="copyHlsBtn" onclick="copyHls()" disabled>📋 Copy HLS</button>
+      <div class="value" id="cliproRtmp">—</div>
+      <button class="btn-copy" id="copyRtmpBtn" onclick="copyRtmp()" disabled>📋 Copy RTMP</button>
     </div>
 
     <div class="clipro-row">
@@ -295,7 +309,7 @@
   <div class="success-card" id="successCard" style="display:none">
     <h2><span class="check">✓</span> Request Logged</h2>
     <p style="color:var(--wsc-mute);font-size:12px;margin-bottom:12px">
-      Roku is scheduled and Clipro confirmation is on file. An admin can find this in the Recent Requests panel.
+      Laptop is scheduled and Clipro confirmation is on file. The browser-launch agent will open the URL at trigger time.
     </p>
     <div id="successDetails"></div>
     <div class="row-actions">
@@ -313,19 +327,27 @@
   const EMAIL_KEY  = 'wsc_request_email';
   const EXPIRY_KEY = 'wsc_request_expires';
 
-  const ENCODER_CONFLICT_WINDOW_MS = 4 * 60 * 60 * 1000; // 4 hours, matches wsc-portal
+  // ESPN watch player URL pattern — matches what the Roku ESPN app opens
+  // for a given game id, but on a desktop browser. The browser-launch
+  // agent will navigate the laptop's logged-in Chrome to this URL.
+  const ESPN_WATCH_URL = id => `https://www.espn.com/watch/player/_/id/${encodeURIComponent(id)}`;
+
+  // Laptop dispatches use the same 4-hour conflict window as the Roku
+  // path so simultaneous bookings flag the dropdown.
+  const LAPTOP_CONFLICT_WINDOW_MS = 4 * 60 * 60 * 1000;
 
   const isLocal = location.protocol === 'file:' ||
                   location.hostname === 'localhost' ||
                   location.hostname === '127.0.0.1';
 
-  let _sb       = null;
-  let _encoders = [];  // [{id, hls}]
-  let _macros   = [];  // pending/fired wsc_espn_macros rows (encoder_id, kickoff_at, matchup_label, search_query)
-  let _captures = [];  // active wsc_capture_status rows (encoder)
+  let _sb = null;
+  let _laptops = [];     // [{id, label, rtmp, ...}] from wsc_data.json
+  let _dispatches = [];  // pending/launched rows for conflict checks
+  let _espnEvents = [];  // wsc_espn_events rows (kickoff_at, home_team, away_team, espn_event_id)
+  let _matchedEvent = null; // current best-match wsc_espn_events row given form inputs
 
   let state = {
-    macroId: null,
+    dispatchId: null,
     pendingPayload: null
   };
 
@@ -390,37 +412,40 @@
     await loadReferenceData();
   }
 
-  // ── Reference data: encoders + conflict sources ─────────────────────────
+  // ── Reference data: laptops + conflict dispatches + ESPN events ─────────
   async function loadReferenceData() {
-    // Encoders (id + HLS URL) from public wsc_data.json
     try {
       const r = await fetch('wsc_data.json', { cache: 'no-store' });
       if (r.ok) {
         const cfg = await r.json();
-        _encoders = (cfg.encoders || []).filter(e => /^CUSA([1-9]|10)$/.test(e.id));
+        _laptops = (cfg.laptops || []).filter(l => /^LAPTOP-[AB]$/.test(l.id));
       }
-    } catch (e) { /* keep _encoders empty; dropdown will show empty list */ }
+    } catch (e) { /* dropdown will show empty */ }
 
-    // Conflict data (anon SELECT is allowed on both tables)
     if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && typeof supabase !== 'undefined') {
       try {
         _sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
         const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-        const [statusRes, macroRes] = await Promise.all([
-          _sb.from('wsc_capture_status').select('schedule_event_id, encoder'),
-          _sb.from('wsc_espn_macros')
-            .select('encoder_id, kickoff_at, status, matchup_label, search_query')
-            .in('status', ['pending', 'fired'])
+        const lookahead = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString();
+        const [dispRes, evRes] = await Promise.all([
+          _sb.from('wsc_laptop_dispatches')
+            .select('laptop_id, kickoff_at, status, matchup_label')
+            .in('status', ['pending', 'launched'])
+            .gte('kickoff_at', since),
+          _sb.from('wsc_espn_events')
+            .select('espn_event_id, sport, kickoff_at, home_team, away_team, short_name')
             .gte('kickoff_at', since)
+            .lte('kickoff_at', lookahead)
         ]);
-        _captures = (statusRes.data || []).filter(r => r.encoder);
-        _macros   = macroRes.data || [];
-      } catch (e) { /* offline / RLS / table missing — degrade silently */ }
+        _dispatches = dispRes.data || [];
+        _espnEvents = evRes.data || [];
+      } catch (e) { /* offline or migration not run yet */ }
     }
-    refreshEncoderDropdown();
+    refreshLaptopDropdown();
+    refreshEventMatch();
   }
 
-  // ── Encoder dropdown with conflict labels ───────────────────────────────
+  // ── Laptop dropdown with conflict labels ────────────────────────────────
   function readKickoffMs() {
     const date = document.getElementById('fDate').value;
     const time = document.getElementById('fTime').value;
@@ -429,64 +454,129 @@
     return Number.isFinite(ms) ? ms : null;
   }
 
-  function encoderConflictsAt(kickoffMs) {
-    // Returns Map<encoderId, conflictLabel>
+  function laptopConflictsAt(kickoffMs) {
     const map = new Map();
     if (!kickoffMs) return map;
-    for (const m of _macros) {
-      if (!m.encoder_id) continue;
-      const mMs = Date.parse(m.kickoff_at);
-      if (!Number.isFinite(mMs)) continue;
-      if (Math.abs(mMs - kickoffMs) < ENCODER_CONFLICT_WINDOW_MS) {
-        if (!map.has(m.encoder_id)) {
-          const label = m.matchup_label || m.search_query || 'ESPN macro';
-          map.set(m.encoder_id, label);
+    for (const d of _dispatches) {
+      if (!d.laptop_id) continue;
+      const dMs = Date.parse(d.kickoff_at);
+      if (!Number.isFinite(dMs)) continue;
+      if (Math.abs(dMs - kickoffMs) < LAPTOP_CONFLICT_WINDOW_MS) {
+        if (!map.has(d.laptop_id)) {
+          map.set(d.laptop_id, d.matchup_label || 'in use');
         }
       }
     }
     return map;
   }
 
-  function refreshEncoderDropdown() {
-    const sel  = document.getElementById('fEncoder');
+  function refreshLaptopDropdown() {
+    const sel  = document.getElementById('fLaptop');
     const help = document.getElementById('encStatusHelp');
     const prev = sel.value;
-    sel.innerHTML = '<option value="">— pick encoder —</option>';
+    sel.innerHTML = '<option value="">— pick laptop —</option>';
 
-    if (!_encoders.length) {
-      help.textContent = 'Encoder list unavailable.';
+    if (!_laptops.length) {
+      help.textContent = 'Laptop list unavailable.';
       return;
     }
     const kickoffMs = readKickoffMs();
-    const conflicts = encoderConflictsAt(kickoffMs);
-    let busyCount = 0;
+    const conflicts = laptopConflictsAt(kickoffMs);
+    let busy = 0;
 
-    _encoders.forEach(enc => {
-      const conflict = conflicts.get(enc.id);
+    _laptops.forEach(lt => {
+      const conflict = conflicts.get(lt.id);
       const opt = document.createElement('option');
-      opt.value = enc.id;
+      opt.value = lt.id;
       if (conflict) {
-        busyCount += 1;
-        opt.textContent = `${enc.id} — ⛔ in use (${conflict})`;
+        busy += 1;
+        opt.textContent = `${lt.label || lt.id} — ⛔ in use (${conflict})`;
         opt.className = 'enc-option-busy';
         opt.disabled = true;
       } else if (kickoffMs) {
-        opt.textContent = `${enc.id} — ✓ available`;
+        opt.textContent = `${lt.label || lt.id} — ✓ available`;
         opt.className = 'enc-option-ok';
       } else {
-        opt.textContent = enc.id;
+        opt.textContent = lt.label || lt.id;
       }
       sel.appendChild(opt);
     });
-
     if (prev && !conflicts.get(prev)) sel.value = prev;
 
     if (!kickoffMs) {
-      help.textContent = 'Pick a date + time to see which encoders are free at that slot.';
+      help.textContent = 'Pick a date + time to see which laptops are free at that slot.';
     } else {
-      help.textContent = busyCount
-        ? `${_encoders.length - busyCount} available, ${busyCount} in use within ±4 hours of your time.`
-        : `All ${_encoders.length} encoders available at that time.`;
+      help.textContent = busy
+        ? `${_laptops.length - busy} available, ${busy} in use within ±4 hours of your time.`
+        : `All ${_laptops.length} laptops available at that time.`;
+    }
+  }
+
+  // ── ESPN event auto-match ───────────────────────────────────────────────
+  function _normalize(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function _teamMatch(team, query) {
+    if (!query) return false;
+    const t = _normalize(team), q = _normalize(query);
+    if (!t || !q) return false;
+    return t.includes(q) || q.includes(t);
+  }
+
+  function findEventMatch(school, opponent, kickoffMs) {
+    if (!school || !kickoffMs || !_espnEvents.length) return null;
+    const SAME_DAY = 36 * 3600 * 1000; // allow ±36h to absorb TZ slop
+    let best = null;
+    let bestScore = -1;
+    for (const ev of _espnEvents) {
+      const evMs = Date.parse(ev.kickoff_at);
+      if (!Number.isFinite(evMs)) continue;
+      if (Math.abs(evMs - kickoffMs) > SAME_DAY) continue;
+      const homeMatchesSchool   = _teamMatch(ev.home_team, school);
+      const awayMatchesSchool   = _teamMatch(ev.away_team, school);
+      const homeMatchesOpponent = _teamMatch(ev.home_team, opponent);
+      const awayMatchesOpponent = _teamMatch(ev.away_team, opponent);
+      let score = 0;
+      if (homeMatchesSchool || awayMatchesSchool) score += 2;
+      if (opponent && (homeMatchesOpponent || awayMatchesOpponent)) score += 2;
+      // Closer time wins ties
+      score -= Math.abs(evMs - kickoffMs) / SAME_DAY;
+      if (score > bestScore) { bestScore = score; best = ev; }
+    }
+    // Require at least a school match
+    if (best && bestScore >= 2) return best;
+    return null;
+  }
+
+  function refreshEventMatch() {
+    const hint = document.getElementById('eventHint');
+    const urlEl = document.getElementById('fLaunchUrl');
+    const school   = document.getElementById('fSchool').value.trim();
+    const opponent = document.getElementById('fOpponent').value.trim();
+    const kickoffMs = readKickoffMs();
+
+    if (!school || !kickoffMs) {
+      _matchedEvent = null;
+      hint.style.display = 'none';
+      return;
+    }
+    const match = findEventMatch(school, opponent, kickoffMs);
+    _matchedEvent = match;
+    if (match) {
+      hint.className = 'event-hint ok';
+      hint.style.display = 'block';
+      hint.innerHTML = `✓ Matched ESPN event: <strong>${esc(match.short_name || (match.away_team + ' @ ' + match.home_team))}</strong> (id ${esc(match.espn_event_id)}) — URL auto-filled.`;
+      // Only auto-fill if user hasn't manually typed a URL different from a prior auto-fill
+      if (!urlEl.value || urlEl.dataset.autofilled === '1') {
+        urlEl.value = ESPN_WATCH_URL(match.espn_event_id);
+        urlEl.dataset.autofilled = '1';
+      }
+    } else {
+      hint.className = 'event-hint miss';
+      hint.style.display = 'block';
+      hint.innerHTML = `No ESPN event matched ${esc(school)}${opponent ? ' vs ' + esc(opponent) : ''} at that time. Paste a URL manually below (events.espn.com / watch / etc.) or proceed without one.`;
+      if (urlEl.dataset.autofilled === '1') {
+        urlEl.value = '';
+        delete urlEl.dataset.autofilled;
+      }
     }
   }
 
@@ -534,7 +624,8 @@
       staff_name:     document.getElementById('fStaffName').value.trim() || null,
       school:         document.getElementById('fSchool').value.trim(),
       opponent:       document.getElementById('fOpponent').value.trim(),
-      encoder_id:     document.getElementById('fEncoder').value,
+      laptop_id:      document.getElementById('fLaptop').value,
+      launch_url:     document.getElementById('fLaunchUrl').value.trim(),
       date:           document.getElementById('fDate').value,
       time:           document.getElementById('fTime').value
     };
@@ -542,11 +633,11 @@
 
   function validateStep1(p) {
     if (!p.staff_initials) return 'Your initials are required.';
-    if (!p.school)         return 'CUSA school is required (also used as the ESPN search term).';
-    if (p.school.length > 100) return 'School name too long for ESPN search (max 100 chars).';
+    if (!p.school)         return 'CUSA school is required.';
     if (!p.opponent)       return 'Opponent is required.';
     if (!p.date || !p.time) return 'Date and time are required.';
-    if (!p.encoder_id)     return 'Pick an encoder.';
+    if (!p.laptop_id)      return 'Pick a laptop.';
+    if (!/^https?:\/\//i.test(p.launch_url)) return 'A launch URL is required (auto-filled when we match the event).';
     return null;
   }
 
@@ -568,19 +659,20 @@
 
     btn.disabled = true; btn.textContent = 'Scheduling…';
     try {
-      const r = await fetch(`${FN}?action=submit-roku`, {
+      const r = await fetch(`${FN}?action=submit-laptop`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          encoder_id:   p.encoder_id,
-          search_query: p.school,    // school IS the ESPN search term
-          // result_index defaults to 0 server-side
-          kickoff_at:   kickoffIso,
+          laptop_id:     p.laptop_id,
+          launch_url:    p.launch_url,
+          kickoff_at:    kickoffIso,
           // trigger_at omitted → server uses kickoff − 4 min
-          matchup_label
+          matchup_label,
+          sport:         _matchedEvent?.sport || null,
+          espn_event_id: _matchedEvent?.espn_event_id || null
         })
       });
       const data = await r.json().catch(() => ({}));
@@ -588,7 +680,7 @@
         errEl.textContent = data.error || `Schedule failed (${r.status}).`;
         return;
       }
-      state.macroId = data.macroId;
+      state.dispatchId = data.dispatchId;
       state.pendingPayload = Object.assign({}, p, {
         kickoff_at_iso: data.kickoff_at,
         trigger_at_iso: data.trigger_at,
@@ -600,7 +692,7 @@
         ? 'Scheduling needs the Netlify deployment (functions don\'t run on file://).'
         : `Network error: ${e.message}`;
     } finally {
-      btn.disabled = false; btn.textContent = 'Schedule Roku';
+      btn.disabled = false; btn.textContent = 'Schedule Browser Launch';
     }
   }
 
@@ -609,7 +701,7 @@
     document.getElementById('step1Submit').disabled = true;
     document.getElementById('step1Submit').textContent = '✓ Scheduled';
 
-    ['fStaff','fStaffName','fSchool','fOpponent','fEncoder','fDate','fTime']
+    ['fStaff','fStaffName','fSchool','fOpponent','fLaptop','fDate','fTime','fLaunchUrl']
       .forEach(id => document.getElementById(id).disabled = true);
 
     const kickoffDate = new Date(data.kickoff_at);
@@ -618,24 +710,23 @@
     const summary = document.getElementById('step1Summary');
     summary.innerHTML = `
       <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)}</div>
-      <div class="summary-line"><b>Encoder:</b> ${esc(p.encoder_id)}</div>
+      <div class="summary-line"><b>Laptop:</b> ${esc(p.laptop_id)}</div>
       <div class="summary-line"><b>Kickoff:</b> ${esc(fmtEasternFull(kickoffDate))}</div>
-      <div class="summary-line"><b>Macro fires:</b> ${esc(fmtEasternFull(triggerDate))}</div>
-      <div class="summary-line"><b>ESPN search:</b> "${esc(p.school)}" → top result</div>
+      <div class="summary-line"><b>Browser opens:</b> ${esc(fmtEasternFull(triggerDate))}</div>
+      <div class="summary-line"><b>URL:</b> <span style="word-break:break-all">${esc(p.launch_url)}</span></div>
     `;
 
-    // Populate Clipro paste values
-    const enc = _encoders.find(e => e.id === p.encoder_id);
-    const hlsValue = enc?.hls || '(HLS URL not configured for this encoder)';
-    const etValue  = fmtEastern24(kickoffDate);
-    document.getElementById('cliproHls').textContent = hlsValue;
-    document.getElementById('cliproEt').textContent  = etValue ? `${etValue} ET` : '—';
-    const copyHlsBtn = document.getElementById('copyHlsBtn');
-    const copyEtBtn  = document.getElementById('copyEtBtn');
-    copyHlsBtn.disabled = !enc?.hls;
-    copyEtBtn.disabled  = !etValue;
-    copyHlsBtn.dataset.value = enc?.hls || '';
-    copyEtBtn.dataset.value  = etValue || '';
+    const laptop = _laptops.find(l => l.id === p.laptop_id);
+    const rtmp   = laptop?.rtmp || '(RTMP destination not configured for this laptop)';
+    const etValue = fmtEastern24(kickoffDate);
+    document.getElementById('cliproRtmp').textContent = rtmp;
+    document.getElementById('cliproEt').textContent   = etValue ? `${etValue} ET` : '—';
+    const copyRtmpBtn = document.getElementById('copyRtmpBtn');
+    const copyEtBtn   = document.getElementById('copyEtBtn');
+    copyRtmpBtn.disabled = !laptop?.rtmp;
+    copyEtBtn.disabled   = !etValue;
+    copyRtmpBtn.dataset.value = laptop?.rtmp || '';
+    copyEtBtn.dataset.value   = etValue || '';
 
     document.getElementById('step2').classList.remove('disabled');
     document.getElementById('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -650,7 +741,6 @@
     if (!text) return;
     try { await navigator.clipboard.writeText(text); }
     catch {
-      // Fallback for older browsers
       const ta = document.createElement('textarea');
       ta.value = text; document.body.appendChild(ta); ta.select();
       try { document.execCommand('copy'); } finally { ta.remove(); }
@@ -660,8 +750,8 @@
     btn.textContent = '✓ Copied';
     setTimeout(() => { btn.classList.remove('copied'); btn.textContent = original; }, 1400);
   }
-  function copyHls() {
-    const btn = document.getElementById('copyHlsBtn');
+  function copyRtmp() {
+    const btn = document.getElementById('copyRtmpBtn');
     copyText(btn.dataset.value, btn);
   }
   function copyEt() {
@@ -673,7 +763,7 @@
     const errEl = document.getElementById('step2Err');
     const btn   = document.getElementById('step2Submit');
     errEl.textContent = '';
-    if (!state.macroId) { errEl.textContent = 'Please schedule the Roku first.'; return; }
+    if (!state.dispatchId) { errEl.textContent = 'Please schedule the laptop first.'; return; }
 
     const token = getToken();
     if (!token) { errEl.textContent = 'Session expired. Please sign in again.'; clearSession(); location.reload(); return; }
@@ -688,14 +778,11 @@
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          macroId:        state.macroId,
+          dispatchId:     state.dispatchId,
           staff_initials: p.staff_initials,
           staff_name:     p.staff_name,
           school:         p.school,
           opponent:       p.opponent,
-          // sport omitted intentionally — wsc_requests.sport is nullable per v2 migration
-          encoder_id:     p.encoder_id,
-          search_query:   p.school,
           kickoff_at:     p.kickoff_at_iso,
           trigger_at:     p.trigger_at_iso
         })
@@ -722,9 +809,9 @@
 
     document.getElementById('successDetails').innerHTML = `
       <div class="summary-line"><b>Matchup:</b> ${esc(p.opponent)} @ ${esc(p.school)}</div>
-      <div class="summary-line"><b>Encoder:</b> ${esc(p.encoder_id)}</div>
+      <div class="summary-line"><b>Laptop:</b> ${esc(p.laptop_id)}</div>
       <div class="summary-line"><b>Kickoff:</b> ${esc(fmtEasternFull(new Date(p.kickoff_at_iso)))}</div>
-      <div class="summary-line"><b>Macro fires:</b> ${esc(fmtEasternFull(new Date(p.trigger_at_iso)))}</div>
+      <div class="summary-line"><b>Browser opens:</b> ${esc(fmtEasternFull(new Date(p.trigger_at_iso)))}</div>
       <div class="summary-line"><b>Requested by:</b> ${esc(p.staff_initials)}${p.staff_name ? ' — ' + esc(p.staff_name) : ''}</div>
     `;
     document.getElementById('successCard').style.display = 'block';
@@ -739,18 +826,21 @@
   }
 
   function resetForAnother() {
-    state = { macroId: null, pendingPayload: null };
-    ['fStaff','fStaffName','fSchool','fOpponent','fEncoder','fDate','fTime']
+    state = { dispatchId: null, pendingPayload: null };
+    _matchedEvent = null;
+    ['fStaff','fStaffName','fSchool','fOpponent','fLaptop','fDate','fTime','fLaunchUrl']
       .forEach(id => {
         const el = document.getElementById(id);
         el.disabled = false;
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
         else el.value = '';
+        delete el.dataset.autofilled;
       });
     document.getElementById('fTimeEastern').textContent = '';
+    document.getElementById('eventHint').style.display = 'none';
     document.getElementById('step1').classList.remove('done');
     document.getElementById('step1Submit').disabled = false;
-    document.getElementById('step1Submit').textContent = 'Schedule Roku';
+    document.getElementById('step1Submit').textContent = 'Schedule Browser Launch';
     document.getElementById('step1Err').textContent = '';
     document.getElementById('step2').classList.add('disabled');
     document.getElementById('step2').classList.remove('done');
@@ -758,21 +848,26 @@
     document.getElementById('step2Submit').textContent = 'Confirm Scheduled in Clipro';
     document.getElementById('step2Err').textContent = '';
     document.getElementById('step1Summary').innerHTML = '';
-    document.getElementById('cliproHls').textContent = '—';
-    document.getElementById('cliproEt').textContent  = '—';
-    document.getElementById('copyHlsBtn').disabled = true;
-    document.getElementById('copyEtBtn').disabled  = true;
+    document.getElementById('cliproRtmp').textContent = '—';
+    document.getElementById('cliproEt').textContent   = '—';
+    document.getElementById('copyRtmpBtn').disabled = true;
+    document.getElementById('copyEtBtn').disabled   = true;
     document.getElementById('successCard').style.display = 'none';
     document.getElementById('successDetails').innerHTML = '';
-    // Reload conflict data so the new request sees the macro we just created.
-    loadReferenceData();
+    loadReferenceData(); // refresh so new dispatch shows up in conflict map
     document.getElementById('fStaff').focus();
   }
 
-  // Date/Time change → refresh encoder dropdown + ET pill
-  document.getElementById('fDate').addEventListener('change', () => { refreshEncoderDropdown(); refreshEtPill(); });
-  document.getElementById('fTime').addEventListener('change', () => { refreshEncoderDropdown(); refreshEtPill(); });
+  // Reactive updates
+  document.getElementById('fDate').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); refreshEventMatch(); });
+  document.getElementById('fTime').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); refreshEventMatch(); });
   document.getElementById('fTime').addEventListener('input',  refreshEtPill);
+  document.getElementById('fSchool').addEventListener('input',   refreshEventMatch);
+  document.getElementById('fOpponent').addEventListener('input', refreshEventMatch);
+  // If the user edits the URL manually, mark it non-autofilled so we don't clobber.
+  document.getElementById('fLaunchUrl').addEventListener('input', e => {
+    delete e.target.dataset.autofilled;
+  });
 
   // Auto-resume if session still valid
   (function init() {

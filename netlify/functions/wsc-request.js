@@ -212,13 +212,14 @@ async function actionSubmitRoku(body) {
 }
 
 async function actionConfirmClipro(body) {
-  const macroId         = body.macroId ? String(body.macroId) : null;
+  const macroId         = body.macroId    ? String(body.macroId)    : null;
+  const dispatchId      = body.dispatchId ? String(body.dispatchId) : null;
   const staff_initials  = String(body.staff_initials || '').trim().slice(0, 12);
   const staff_name      = body.staff_name ? String(body.staff_name).slice(0, 120) : null;
   const school          = String(body.school   || '').trim().slice(0, 80);
   const opponent        = String(body.opponent || '').trim().slice(0, 80);
   const sport           = body.sport ? String(body.sport).trim().slice(0, 40) : null;
-  const encoder_id      = String(body.encoder_id || '').trim();
+  const encoder_id      = body.encoder_id ? String(body.encoder_id).trim() : null;
   const search_query    = body.search_query ? String(body.search_query).slice(0, 100) : null;
   const result_index    = Number.isFinite(body.result_index) ? body.result_index : null;
   const kickoff_at      = String(body.kickoff_at || '').trim();
@@ -228,8 +229,21 @@ async function actionConfirmClipro(body) {
   if (!staff_initials) return jsonResponse(400, { error: 'Staff initials required' });
   if (!school)         return jsonResponse(400, { error: 'School required' });
   if (!opponent)       return jsonResponse(400, { error: 'Opponent required' });
-  // Sport is optional — the search process surfaces the game regardless of sport.
-  if (!/^CUSA([1-9]|10)$/.test(encoder_id)) return jsonResponse(400, { error: 'Invalid encoder' });
+  if (!macroId && !dispatchId) {
+    return jsonResponse(400, { error: 'macroId or dispatchId required' });
+  }
+  // Encoder is only required for the legacy Roku path. Laptop dispatches
+  // identify the laptop via dispatchId / dispatches table.
+  if (encoder_id && !/^CUSA([1-9]|10)$/.test(encoder_id)) {
+    return jsonResponse(400, { error: 'Invalid encoder' });
+  }
+  // wsc_requests.encoder_id is NOT NULL with a CUSA-only CHECK at the
+  // moment. For laptop dispatches we stash the laptop_id label in that
+  // column so admin views still have something to show — but only if
+  // the schema allows. If you'd rather keep encoder_id strict, add a
+  // separate migration to drop the CHECK; for now we require the form
+  // to pass *some* encoder_id (real or 'CUSA1' placeholder) only for
+  // legacy Roku requests, and we accept laptop dispatches without one.
   const kickoffMs = Date.parse(kickoff_at);
   if (!Number.isFinite(kickoffMs)) return jsonResponse(400, { error: 'Invalid kickoff time' });
 
@@ -239,8 +253,9 @@ async function actionConfirmClipro(body) {
     school,
     opponent,
     sport,
-    espn_macro_id: macroId,
-    encoder_id,
+    espn_macro_id:      macroId,
+    laptop_dispatch_id: dispatchId,
+    encoder_id:         encoder_id || null,
     search_query,
     result_index,
     kickoff_at: new Date(kickoffMs).toISOString(),
@@ -251,6 +266,61 @@ async function actionConfirmClipro(body) {
   const r = await supabaseInsert('wsc_requests', row);
   if (!r.ok) return jsonResponse(r.status || 500, { error: 'Could not log request', detail: r.detail });
   return jsonResponse(200, { requestId: r.row.id, created_at: r.row.created_at });
+}
+
+async function actionSubmitLaptop(body) {
+  const laptop_id    = String(body.laptop_id || '').trim();
+  const launch_url   = String(body.launch_url || '').trim();
+  const kickoff_at   = String(body.kickoff_at || '').trim();
+  const trigger_at_raw = body.trigger_at ? String(body.trigger_at).trim() : '';
+  const matchup_label = body.matchup_label ? String(body.matchup_label).slice(0, 200) : null;
+  const sport         = body.sport ? String(body.sport).slice(0, 40) : null;
+  const espn_event_id = body.espn_event_id ? String(body.espn_event_id).slice(0, 80) : null;
+  const notes         = body.notes ? String(body.notes).slice(0, 500) : null;
+
+  if (laptop_id !== 'LAPTOP-A' && laptop_id !== 'LAPTOP-B') {
+    return jsonResponse(400, { error: `Invalid laptop: ${laptop_id}` });
+  }
+  if (!/^https?:\/\//i.test(launch_url) || launch_url.length > 2000) {
+    return jsonResponse(400, { error: 'launch_url must be a valid http(s) URL (≤ 2000 chars)' });
+  }
+  const kickoffMs = Date.parse(kickoff_at);
+  if (!Number.isFinite(kickoffMs)) {
+    return jsonResponse(400, { error: 'Invalid kickoff time' });
+  }
+  let triggerIso;
+  if (trigger_at_raw) {
+    const t = Date.parse(trigger_at_raw);
+    if (!Number.isFinite(t)) return jsonResponse(400, { error: 'Invalid trigger time' });
+    triggerIso = new Date(t).toISOString();
+  } else {
+    // Default trigger: kickoff − 4 minutes, matching the Roku macro path.
+    triggerIso = new Date(kickoffMs - 4 * 60 * 1000).toISOString();
+  }
+  const kickoffIso = new Date(kickoffMs).toISOString();
+
+  const row = {
+    created_by_email: 'wsc-request@cusa',
+    laptop_id,
+    launch_url,
+    trigger_at: triggerIso,
+    kickoff_at: kickoffIso,
+    matchup_label,
+    sport,
+    espn_event_id,
+    notes,
+    status: 'pending'
+  };
+
+  const r = await supabaseInsert('wsc_laptop_dispatches', row);
+  if (!r.ok) return jsonResponse(r.status || 500, { error: 'Could not schedule dispatch', detail: r.detail });
+  return jsonResponse(200, {
+    dispatchId: r.row.id,
+    laptop_id:  r.row.laptop_id,
+    launch_url: r.row.launch_url,
+    trigger_at: r.row.trigger_at,
+    kickoff_at: r.row.kickoff_at
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -276,6 +346,7 @@ exports.handler = async (event) => {
   if (auth.error) return auth.error;
 
   if (action === 'submit-roku')    return await actionSubmitRoku(body);
+  if (action === 'submit-laptop')  return await actionSubmitLaptop(body);
   if (action === 'confirm-clipro') return await actionConfirmClipro(body);
 
   return jsonResponse(400, { error: `Unknown action: ${action}` });

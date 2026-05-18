@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template LaunchAgent for wsc_laptop_agent.py. Copy to
+  ~/Library/LaunchAgents/com.cusa.wsc-laptop-agent.plist, edit the marked
+  values below, then:
+
+    launchctl load ~/Library/LaunchAgents/com.cusa.wsc-laptop-agent.plist
+    launchctl start com.cusa.wsc-laptop-agent
+
+  Logs land under /tmp/wsc-laptop-agent.* — adjust StandardOutPath /
+  StandardErrorPath if you want them somewhere persistent.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cusa.wsc-laptop-agent</string>
+
+  <!-- EDIT: absolute path to your python3 + the script -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/cusa/wsc-laptop-agent/wsc_laptop_agent.py</string>
+  </array>
+
+  <!-- EDIT: env vars for this laptop -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>LAPTOP_ID</key>
+    <string>LAPTOP-A</string>
+    <key>SUPABASE_URL</key>
+    <string>https://your-project-id.supabase.co</string>
+    <key>SUPABASE_ANON_KEY</key>
+    <string>your-anon-key-here</string>
+    <key>BROWSER_APP</key>
+    <string>Google Chrome</string>
+  </dict>
+
+  <!-- Survive login, relaunch on crash -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/wsc-laptop-agent.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/wsc-laptop-agent.err.log</string>
+</dict>
+</plist>

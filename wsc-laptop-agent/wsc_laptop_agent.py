@@ -87,6 +87,13 @@ class Agent:
         self.browser_app = _env("BROWSER_APP", "Google Chrome")
         self.poll_interval = int(_env("POLL_INTERVAL_S", "30"))
         self.lead_time = int(_env("LEAD_TIME_S", "5"))
+        # Fullscreen-the-player post-launch macro. ESPN's web player binds
+        # the `f` key to fullscreen, so we send a keystroke a few seconds
+        # after Chrome opens the URL (long enough for the player to load).
+        # Requires Terminal/iTerm to have Accessibility permission in
+        # System Settings → Privacy & Security → Accessibility.
+        self.fullscreen_enabled = _env("FULLSCREEN_AFTER_LAUNCH", "true").strip().lower() in ("1", "true", "yes", "on")
+        self.fullscreen_delay = float(_env("FULLSCREEN_DELAY_S", "8"))
 
     # ── Supabase REST helpers ───────────────────────────────────────────
     def _headers(self) -> dict[str, str]:
@@ -153,6 +160,9 @@ class Agent:
                 "host": os.uname().nodename,
                 "at": _iso_now(),
             }
+            if ok and self.fullscreen_enabled:
+                fs = self.trigger_player_fullscreen()
+                log["fullscreen"] = fs
             return ok, log
         except subprocess.TimeoutExpired:
             return False, {"cmd": cmd, "error": "timeout", "browser_app": self.browser_app, "at": _iso_now()}
@@ -160,6 +170,35 @@ class Agent:
             return False, {"cmd": cmd, "error": "`open` not found — agent must run on macOS", "at": _iso_now()}
         except Exception as e:
             return False, {"cmd": cmd, "error": str(e), "at": _iso_now()}
+
+    def trigger_player_fullscreen(self) -> dict[str, Any]:
+        """Send the `f` key to the browser to toggle ESPN's player fullscreen.
+
+        Fired in a detached osascript subprocess so the poll loop isn't
+        blocked while we wait for the player to load. Requires the host
+        running this agent (Terminal / iTerm / launchd) to have
+        Accessibility permission in System Settings → Privacy & Security.
+        Without it, macOS silently drops the keystroke — the agent still
+        reports success here, since the URL open itself worked.
+        """
+        # `delay` inside the script handles the wait, so the subprocess
+        # returns immediately and the agent isn't blocked.
+        script = (
+            f'delay {self.fullscreen_delay}\n'
+            f'tell application "{self.browser_app}" to activate\n'
+            f'delay 0.5\n'
+            f'tell application "System Events" to keystroke "f"\n'
+        )
+        try:
+            subprocess.Popen(
+                ["osascript", "-e", script],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+            )
+            return {"queued": True, "delay_s": self.fullscreen_delay, "key": "f"}
+        except Exception as e:
+            return {"queued": False, "error": str(e)}
 
     # ── Main loop ───────────────────────────────────────────────────────
     def tick(self, dry_run: bool = False) -> int:
@@ -203,7 +242,8 @@ class Agent:
 
     def loop(self, dry_run: bool = False) -> None:
         print(f"[startup] laptop_id={self.laptop_id} poll={self.poll_interval}s lead={self.lead_time}s "
-              f"browser={self.browser_app!r} dry_run={dry_run}", file=sys.stderr)
+              f"browser={self.browser_app!r} fullscreen={'on' if self.fullscreen_enabled else 'off'} "
+              f"fs_delay={self.fullscreen_delay}s dry_run={dry_run}", file=sys.stderr)
         while True:
             try:
                 self.tick(dry_run=dry_run)

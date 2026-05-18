@@ -46,12 +46,32 @@ whichever profile of Chrome is currently default. Two things matter:
 
 - **ESPN+ must be logged in** in the default Chrome profile. The agent
   doesn't handle auth; it relies on the browser's existing session.
-- **Pop the window full-screen + start OBS scene** is a manual step
-  the laptop operator does. The agent's job ends at "URL is open in
-  the foreground tab."
+- **OBS scene** is started by the laptop operator (or by an OBS
+  hotkey/auto-start). The agent's job ends at "URL is open and the
+  ESPN player is fullscreen."
 
 If you'd rather route to Safari or Edge, set `BROWSER_APP=Safari` (or
 the exact `.app` bundle name) in `.env`.
+
+### ESPN player fullscreen automation
+
+After the URL opens, the agent sends `f` to Chrome via AppleScript +
+`System Events` keystroke — ESPN's built-in fullscreen shortcut. This
+happens `FULLSCREEN_DELAY_S` seconds after launch (default 8s) so the
+player has time to load.
+
+**One-time setup per laptop:** grant Accessibility permission to
+whatever runs the agent. The first time the agent fires the keystroke,
+macOS will prompt:
+*"Terminal would like to control your computer using accessibility
+features."* Click **Open System Settings** and toggle Terminal on
+under Privacy & Security → Accessibility. (Use iTerm / Hyper / etc. if
+that's what you're running — grant whichever one owns the agent
+process.) Without this, the URL still opens but the `f` keystroke is
+silently dropped and the operator has to press `f` manually.
+
+To disable the automation entirely (e.g. for events where the player
+auto-fullscreens already), set `FULLSCREEN_AFTER_LAUNCH=false` in `.env`.
 
 ## Auto-start with LaunchAgent (later)
 

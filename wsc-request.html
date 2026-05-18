@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>CUSA × WSC Capture Request</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="config.js"></script>
 <style>
   :root {
@@ -140,13 +141,58 @@
   .enc-option-busy { color: #ff9aa3; }
   .enc-option-ok   { color: var(--wsc-text); }
 
-  /* Event match hint */
-  .event-hint {
-    font-size: 11px; padding: 8px 10px; border-radius: 6px;
-    background: rgba(0,0,0,0.25); border: 1px solid var(--wsc-line); margin-top: 4px;
+  /* URL mode tabs */
+  .url-mode-tabs {
+    display: flex; gap: 0; margin-bottom: 8px; border-bottom: 1px solid var(--wsc-line);
   }
-  .event-hint.ok    { border-color: rgba(52,208,88,0.45); color: var(--ok); }
-  .event-hint.miss  { border-color: rgba(249,199,79,0.4); color: var(--warn); }
+  .url-mode-tabs button {
+    background: transparent; color: var(--wsc-mute); border: 0;
+    padding: 8px 14px; font-size: 11px; font-weight: 600; cursor: pointer;
+    font-family: inherit; letter-spacing: 0.3px;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .url-mode-tabs button.active { color: var(--wsc-green); border-bottom-color: var(--wsc-green); }
+  .url-mode-tabs button:hover:not(.active) { color: var(--wsc-text); }
+
+  /* XLSX picker */
+  .xlsx-drop {
+    border: 1px dashed var(--wsc-line); border-radius: 6px;
+    padding: 18px 14px; text-align: center; cursor: pointer;
+    background: rgba(0,0,0,0.2); transition: border-color 0.15s;
+  }
+  .xlsx-drop:hover { border-color: var(--wsc-green); }
+  .xlsx-drop.loaded { border-style: solid; border-color: rgba(52,208,88,0.45); background: rgba(52,208,88,0.05); text-align: left; padding: 10px 14px; }
+  .xlsx-drop .hint { color: var(--wsc-mute); font-size: 11.5px; }
+  .xlsx-drop strong { color: var(--wsc-green); font-weight: 700; }
+
+  .xlsx-event-list {
+    margin-top: 10px; max-height: 260px; overflow-y: auto;
+    border: 1px solid var(--wsc-line); border-radius: 6px; background: rgba(0,0,0,0.2);
+  }
+  .xlsx-event-row {
+    padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center;
+    font-size: 12px;
+  }
+  .xlsx-event-row:last-child { border-bottom: 0; }
+  .xlsx-event-row .when { color: var(--wsc-green); font-family: 'SF Mono', monospace; font-size: 11px; }
+  .xlsx-event-row .title { color: var(--wsc-text); }
+  .xlsx-event-row .title small { color: var(--wsc-mute); display: block; font-size: 10.5px; margin-top: 2px; }
+  .xlsx-event-row.match  { background: rgba(200,255,0,0.06); border-left: 3px solid var(--wsc-green); padding-left: 9px; }
+  .xlsx-event-row.picked { background: rgba(52,208,88,0.12); border-left: 3px solid var(--ok); padding-left: 9px; }
+  .xlsx-event-row .pick-btn {
+    background: rgba(200,255,0,0.12); color: var(--wsc-green);
+    border: 1px solid rgba(200,255,0,0.35); padding: 5px 10px;
+    border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .xlsx-event-row .pick-btn:hover { background: var(--wsc-green); color: #000; }
+  .xlsx-event-row.picked .pick-btn { background: var(--ok); color: #fff; border-color: var(--ok); cursor: default; }
+  .xlsx-empty { padding: 18px; text-align: center; color: var(--wsc-mute); font-size: 12px; }
+  .xlsx-filter {
+    width: 100%; padding: 7px 10px; background: rgba(0,0,0,0.35);
+    border: 1px solid var(--wsc-line); color: var(--wsc-text);
+    border-radius: 6px; font-family: inherit; font-size: 12px; margin-top: 8px;
+  }
 
   /* Clipro paste block */
   .clipro-row {
@@ -258,9 +304,27 @@
       </div>
 
       <div class="full">
-        <label class="fl">ESPN watch URL <small>(auto-filled when we can match the event; override here if needed)</small></label>
-        <input class="fi mono" id="fLaunchUrl" type="url" maxlength="2000" placeholder="https://www.espn.com/watch/player/_/id/…">
-        <div class="event-hint" id="eventHint" style="display:none"></div>
+        <label class="fl">ESPN watch URL <small>(pick from the weekly broadcast file, or paste a URL directly)</small></label>
+        <div class="url-mode-tabs">
+          <button type="button" id="urlModePasteBtn"  class="active" onclick="setUrlMode('paste')">Paste URL</button>
+          <button type="button" id="urlModeUploadBtn"             onclick="setUrlMode('upload')">Upload weekly XLSX</button>
+        </div>
+
+        <!-- Paste mode -->
+        <div id="urlModePaste">
+          <input class="fi mono" id="fLaunchUrl" type="url" maxlength="2000" placeholder="https://www.espn.com/watch/player?id=…  or  /watch/catalog/…/conference-usa#bucketId=…">
+        </div>
+
+        <!-- Upload mode -->
+        <div id="urlModeUpload" style="display:none">
+          <label class="xlsx-drop" id="xlsxDrop" for="fXlsx">
+            <div class="hint">Drop the weekly <strong>Broadcast Links</strong> XLSX here, or click to choose a file.<br>We parse the <em>Main Filtered Results</em> sheet — pre-filtered to CUSA events.</div>
+            <input type="file" id="fXlsx" accept=".xlsx,.xls" style="display:none">
+          </label>
+          <input class="xlsx-filter" id="xlsxFilter" type="text" placeholder="Filter events (team, sport, day)…" style="display:none">
+          <div class="xlsx-event-list" id="xlsxEventList" style="display:none"></div>
+          <div class="summary-line" id="xlsxPickedSummary" style="margin-top:10px;display:none"><b>Picked URL:</b> <span id="xlsxPickedUrl" style="word-break:break-all;color:var(--wsc-text)"></span></div>
+        </div>
       </div>
     </div>
 
@@ -330,7 +394,6 @@
   // ESPN watch player URL pattern — matches what the Roku ESPN app opens
   // for a given game id, but on a desktop browser. The browser-launch
   // agent will navigate the laptop's logged-in Chrome to this URL.
-  const ESPN_WATCH_URL = id => `https://www.espn.com/watch/player/_/id/${encodeURIComponent(id)}`;
 
   // Laptop dispatches use the same 4-hour conflict window as the Roku
   // path so simultaneous bookings flag the dropdown.
@@ -343,8 +406,15 @@
   let _sb = null;
   let _laptops = [];     // [{id, label, hls, ...}] from wsc_data.json — laptops surface their OBS feed as a CUSA-format HLS playlist (CUSA11/CUSA12)
   let _dispatches = [];  // pending/launched rows for conflict checks
-  let _espnEvents = [];  // wsc_espn_events rows (kickoff_at, home_team, away_team, espn_event_id)
-  let _matchedEvent = null; // current best-match wsc_espn_events row given form inputs
+  // ── URL mode state ──────────────────────────────────────────────────────
+  // The requester provides the launch URL one of two ways:
+  //   1. Paste mode — type/paste any ESPN URL (specific game OR catalog
+  //      browse page for future events not yet on the broadcast list).
+  //   2. Upload mode — drop the weekly Broadcast Links XLSX; we parse the
+  //      "Main Filtered Results" sheet and let the staffer pick a row.
+  let _urlMode = 'paste';   // 'paste' | 'upload'
+  let _xlsxEvents = [];     // parsed [{ network, league, title, day, kickoff_at, event_url, _ms }]
+  let _xlsxPickedUrl = '';  // the URL currently chosen from the parsed list
 
   let state = {
     dispatchId: null,
@@ -426,23 +496,14 @@
       try {
         _sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
         const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-        const lookahead = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString();
-        const [dispRes, evRes] = await Promise.all([
-          _sb.from('wsc_laptop_dispatches')
-            .select('laptop_id, kickoff_at, status, matchup_label')
-            .in('status', ['pending', 'launched'])
-            .gte('kickoff_at', since),
-          _sb.from('wsc_espn_events')
-            .select('espn_event_id, sport, kickoff_at, home_team, away_team, short_name')
-            .gte('kickoff_at', since)
-            .lte('kickoff_at', lookahead)
-        ]);
+        const dispRes = await _sb.from('wsc_laptop_dispatches')
+          .select('laptop_id, kickoff_at, status, matchup_label')
+          .in('status', ['pending', 'launched'])
+          .gte('kickoff_at', since);
         _dispatches = dispRes.data || [];
-        _espnEvents = evRes.data || [];
       } catch (e) { /* offline or migration not run yet */ }
     }
     refreshLaptopDropdown();
-    refreshEventMatch();
   }
 
   // ── Laptop dropdown with conflict labels ────────────────────────────────
@@ -512,7 +573,7 @@
     }
   }
 
-  // ── ESPN event auto-match ───────────────────────────────────────────────
+  // ── URL mode (paste vs. weekly XLSX upload) ─────────────────────────────
   function _normalize(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
   function _teamMatch(team, query) {
     if (!query) return false;
@@ -521,63 +582,149 @@
     return t.includes(q) || q.includes(t);
   }
 
-  function findEventMatch(school, opponent, kickoffMs) {
-    if (!school || !kickoffMs || !_espnEvents.length) return null;
-    const SAME_DAY = 36 * 3600 * 1000; // allow ±36h to absorb TZ slop
-    let best = null;
-    let bestScore = -1;
-    for (const ev of _espnEvents) {
-      const evMs = Date.parse(ev.kickoff_at);
-      if (!Number.isFinite(evMs)) continue;
-      if (Math.abs(evMs - kickoffMs) > SAME_DAY) continue;
-      const homeMatchesSchool   = _teamMatch(ev.home_team, school);
-      const awayMatchesSchool   = _teamMatch(ev.away_team, school);
-      const homeMatchesOpponent = _teamMatch(ev.home_team, opponent);
-      const awayMatchesOpponent = _teamMatch(ev.away_team, opponent);
-      let score = 0;
-      if (homeMatchesSchool || awayMatchesSchool) score += 2;
-      if (opponent && (homeMatchesOpponent || awayMatchesOpponent)) score += 2;
-      // Closer time wins ties
-      score -= Math.abs(evMs - kickoffMs) / SAME_DAY;
-      if (score > bestScore) { bestScore = score; best = ev; }
-    }
-    // Require at least a school match
-    if (best && bestScore >= 2) return best;
-    return null;
+  function setUrlMode(mode) {
+    _urlMode = (mode === 'upload') ? 'upload' : 'paste';
+    document.getElementById('urlModePasteBtn').classList.toggle('active', _urlMode === 'paste');
+    document.getElementById('urlModeUploadBtn').classList.toggle('active', _urlMode === 'upload');
+    document.getElementById('urlModePaste').style.display  = _urlMode === 'paste'  ? 'block' : 'none';
+    document.getElementById('urlModeUpload').style.display = _urlMode === 'upload' ? 'block' : 'none';
   }
 
-  function refreshEventMatch() {
-    const hint = document.getElementById('eventHint');
-    const urlEl = document.getElementById('fLaunchUrl');
+  // Parse the date cell from the XLSX. xlsx-js-style returns a Date object
+  // when cellDates:true is set; otherwise it's a string we parse manually.
+  function _parseXlsxDate(v) {
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === 'number') {
+      // Excel serial number → ms (xlsx js gives serial when cellDates is false).
+      // 25569 = days between 1900-01-01 and 1970-01-01 in Excel's epoch.
+      return Math.round((v - 25569) * 86400 * 1000);
+    }
+    if (typeof v === 'string') {
+      const t = Date.parse(v);
+      return Number.isFinite(t) ? t : NaN;
+    }
+    return NaN;
+  }
+
+  async function handleXlsxFile(file) {
+    if (!file) return;
+    const drop = document.getElementById('xlsxDrop');
+    drop.innerHTML = `<div class="hint">Parsing <strong>${esc(file.name)}</strong>…</div>`;
+    try {
+      const buf = await file.arrayBuffer();
+      // xlsx-js-style is loaded as `XLSX` global.
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      // Prefer the "Main Filtered Results" sheet — it's pre-curated to CUSA.
+      // Fall back to the first sheet so we degrade gracefully if the file
+      // shape changes.
+      const sheetName = wb.SheetNames.find(n => /main\s*filtered\s*results/i.test(n))
+                     || wb.SheetNames[0];
+      if (!sheetName) throw new Error('No sheets found in workbook');
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+      _xlsxEvents = rows
+        .map(r => {
+          const ms = _parseXlsxDate(r['Start Time']);
+          return {
+            network:    String(r['Network'] || '').trim(),
+            league:     String(r['League']  || '').trim(),
+            title:      String(r['Title']   || '').trim(),
+            day:        String(r['Day']     || '').trim(),
+            kickoff_at: Number.isFinite(ms) ? new Date(ms).toISOString() : null,
+            _ms:        Number.isFinite(ms) ? ms : null,
+            event_url:  String(r['Event Link'] || '').trim()
+          };
+        })
+        .filter(r => r.event_url && r.title)
+        .sort((a, b) => (a._ms || 0) - (b._ms || 0));
+
+      drop.classList.add('loaded');
+      drop.innerHTML = `<div class="hint">📄 <strong>${esc(file.name)}</strong> · ${_xlsxEvents.length} event${_xlsxEvents.length === 1 ? '' : 's'} parsed from <em>${esc(sheetName)}</em> · <a href="javascript:void(0)" onclick="resetXlsx()">use a different file</a></div>`;
+      document.getElementById('xlsxFilter').style.display    = 'block';
+      document.getElementById('xlsxEventList').style.display = 'block';
+      renderXlsxList();
+    } catch (e) {
+      drop.classList.remove('loaded');
+      drop.innerHTML = `<div class="hint" style="color:#ff7d8a">Could not parse this file: ${esc(e.message || e)}</div>`;
+      _xlsxEvents = [];
+      document.getElementById('xlsxFilter').style.display    = 'none';
+      document.getElementById('xlsxEventList').style.display = 'none';
+    }
+  }
+
+  function resetXlsx() {
+    _xlsxEvents = [];
+    _xlsxPickedUrl = '';
+    document.getElementById('fXlsx').value = '';
+    document.getElementById('xlsxFilter').value = '';
+    document.getElementById('xlsxFilter').style.display    = 'none';
+    document.getElementById('xlsxEventList').style.display = 'none';
+    document.getElementById('xlsxEventList').innerHTML = '';
+    document.getElementById('xlsxPickedSummary').style.display = 'none';
+    const drop = document.getElementById('xlsxDrop');
+    drop.classList.remove('loaded');
+    drop.innerHTML = `<div class="hint">Drop the weekly <strong>Broadcast Links</strong> XLSX here, or click to choose a file.<br>We parse the <em>Main Filtered Results</em> sheet — pre-filtered to CUSA events.</div><input type="file" id="fXlsx" accept=".xlsx,.xls" style="display:none">`;
+    // Re-wire the (newly recreated) input
+    wireXlsxInput();
+  }
+
+  function _xlsxRowMatchesForm(ev) {
     const school   = document.getElementById('fSchool').value.trim();
     const opponent = document.getElementById('fOpponent').value.trim();
-    const kickoffMs = readKickoffMs();
+    if (!school) return false;
+    if (!_teamMatch(ev.title, school)) return false;
+    if (opponent && !_teamMatch(ev.title, opponent)) return false;
+    return true;
+  }
 
-    if (!school || !kickoffMs) {
-      _matchedEvent = null;
-      hint.style.display = 'none';
+  function renderXlsxList() {
+    const list = document.getElementById('xlsxEventList');
+    const filter = document.getElementById('xlsxFilter').value.trim().toLowerCase();
+    const filtered = _xlsxEvents.filter(ev => {
+      if (!filter) return true;
+      const hay = `${ev.title} ${ev.league} ${ev.day} ${ev.network}`.toLowerCase();
+      return hay.includes(filter);
+    });
+    if (!filtered.length) {
+      list.innerHTML = `<div class="xlsx-empty">No events match this filter.</div>`;
       return;
     }
-    const match = findEventMatch(school, opponent, kickoffMs);
-    _matchedEvent = match;
-    if (match) {
-      hint.className = 'event-hint ok';
-      hint.style.display = 'block';
-      hint.innerHTML = `✓ Matched ESPN event: <strong>${esc(match.short_name || (match.away_team + ' @ ' + match.home_team))}</strong> (id ${esc(match.espn_event_id)}) — URL auto-filled.`;
-      // Only auto-fill if user hasn't manually typed a URL different from a prior auto-fill
-      if (!urlEl.value || urlEl.dataset.autofilled === '1') {
-        urlEl.value = ESPN_WATCH_URL(match.espn_event_id);
-        urlEl.dataset.autofilled = '1';
-      }
-    } else {
-      hint.className = 'event-hint miss';
-      hint.style.display = 'block';
-      hint.innerHTML = `No ESPN event matched ${esc(school)}${opponent ? ' vs ' + esc(opponent) : ''} at that time. Paste a URL manually below (events.espn.com / watch / etc.) or proceed without one.`;
-      if (urlEl.dataset.autofilled === '1') {
-        urlEl.value = '';
-        delete urlEl.dataset.autofilled;
-      }
-    }
+    list.innerHTML = filtered.map(ev => {
+      const match  = _xlsxRowMatchesForm(ev);
+      const picked = ev.event_url === _xlsxPickedUrl;
+      const when = ev._ms
+        ? new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York',
+            weekday: 'short', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
+          }).format(new Date(ev._ms)) + ' ET'
+        : (ev.day || '');
+      return `
+        <div class="xlsx-event-row${match ? ' match' : ''}${picked ? ' picked' : ''}" data-url="${esc(ev.event_url)}">
+          <div class="when">${esc(when)}</div>
+          <div class="title">${esc(ev.title)}<small>${esc(ev.league)}${ev.network ? ' · ' + esc(ev.network) : ''}</small></div>
+          <button type="button" class="pick-btn" onclick="pickXlsxUrl('${esc(ev.event_url)}')">${picked ? '✓ Picked' : 'Use this URL'}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function pickXlsxUrl(url) {
+    _xlsxPickedUrl = url;
+    // Mirror into the paste input so submit reads the same field.
+    document.getElementById('fLaunchUrl').value = url;
+    document.getElementById('xlsxPickedUrl').textContent = url;
+    document.getElementById('xlsxPickedSummary').style.display = 'flex';
+    renderXlsxList();
+  }
+
+  function wireXlsxInput() {
+    const input = document.getElementById('fXlsx');
+    if (!input || input.dataset.wired === '1') return;
+    input.dataset.wired = '1';
+    input.addEventListener('change', e => {
+      const f = e.target.files?.[0];
+      if (f) handleXlsxFile(f);
+    });
   }
 
   // ── ET formatter (matches wsc-portal _fmtEastern24) ─────────────────────
@@ -671,8 +818,11 @@
           kickoff_at:    kickoffIso,
           // trigger_at omitted → server uses kickoff − 4 min
           matchup_label,
-          sport:         _matchedEvent?.sport || null,
-          espn_event_id: _matchedEvent?.espn_event_id || null
+          // sport + espn_event_id are no longer derived client-side — the
+          // launch URL is the source of truth now (either pasted directly
+          // or chosen from the weekly Broadcast Links XLSX).
+          sport:         null,
+          espn_event_id: null
         })
       });
       const data = await r.json().catch(() => ({}));
@@ -827,7 +977,6 @@
 
   function resetForAnother() {
     state = { dispatchId: null, pendingPayload: null };
-    _matchedEvent = null;
     ['fStaff','fStaffName','fSchool','fOpponent','fLaptop','fDate','fTime','fLaunchUrl']
       .forEach(id => {
         const el = document.getElementById(id);
@@ -837,7 +986,9 @@
         delete el.dataset.autofilled;
       });
     document.getElementById('fTimeEastern').textContent = '';
-    document.getElementById('eventHint').style.display = 'none';
+    // Reset XLSX upload state + paste-mode default.
+    setUrlMode('paste');
+    resetXlsx();
     document.getElementById('step1').classList.remove('done');
     document.getElementById('step1Submit').disabled = false;
     document.getElementById('step1Submit').textContent = 'Schedule Browser Launch';
@@ -859,14 +1010,22 @@
   }
 
   // Reactive updates
-  document.getElementById('fDate').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); refreshEventMatch(); });
-  document.getElementById('fTime').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); refreshEventMatch(); });
+  document.getElementById('fDate').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); renderXlsxList(); });
+  document.getElementById('fTime').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); });
   document.getElementById('fTime').addEventListener('input',  refreshEtPill);
-  document.getElementById('fSchool').addEventListener('input',   refreshEventMatch);
-  document.getElementById('fOpponent').addEventListener('input', refreshEventMatch);
-  // If the user edits the URL manually, mark it non-autofilled so we don't clobber.
+  // Re-render XLSX list when school/opponent change so the "match" highlight tracks the form
+  document.getElementById('fSchool').addEventListener('input',   () => { if (_xlsxEvents.length) renderXlsxList(); });
+  document.getElementById('fOpponent').addEventListener('input', () => { if (_xlsxEvents.length) renderXlsxList(); });
+  document.getElementById('xlsxFilter').addEventListener('input', renderXlsxList);
+  // Wire the file input now (it's already in the DOM)
+  wireXlsxInput();
+  // If the user types in the URL field manually, clear any prior XLSX pick.
   document.getElementById('fLaunchUrl').addEventListener('input', e => {
-    delete e.target.dataset.autofilled;
+    if (_xlsxPickedUrl && e.target.value !== _xlsxPickedUrl) {
+      _xlsxPickedUrl = '';
+      document.getElementById('xlsxPickedSummary').style.display = 'none';
+      if (_xlsxEvents.length) renderXlsxList();
+    }
   });
 
   // Auto-resume if session still valid

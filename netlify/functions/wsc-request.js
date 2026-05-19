@@ -98,9 +98,49 @@ function requireAuth(event) {
   return { claims };
 }
 
+function _sbCreds() {
+  return { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
+}
+
+async function supabaseGetById(table, id, select = '*') {
+  const { url, key } = _sbCreds();
+  if (!url || !key) return { ok: false, status: 503, detail: 'Supabase not configured' };
+  const r = await fetch(`${url}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}&select=${encodeURIComponent(select)}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' }
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    return { ok: false, status: r.status, detail: txt.slice(0, 600) };
+  }
+  const data = await r.json();
+  if (!Array.isArray(data) || !data.length) return { ok: false, status: 404, detail: 'Not found' };
+  return { ok: true, row: data[0] };
+}
+
+async function supabasePatchById(table, id, patch) {
+  const { url, key } = _sbCreds();
+  if (!url || !key) return { ok: false, status: 503, detail: 'Supabase not configured' };
+  const r = await fetch(`${url}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation'
+    },
+    body: JSON.stringify(patch)
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    return { ok: false, status: r.status, detail: txt.slice(0, 600) };
+  }
+  const data = await r.json();
+  if (!Array.isArray(data) || !data.length) return { ok: false, status: 404, detail: 'No rows updated' };
+  return { ok: true, row: data[0] };
+}
+
 async function supabaseInsert(table, row) {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const { url, key } = _sbCreds();
   if (!url || !key) {
     return { ok: false, status: 503, detail: 'Supabase not configured' };
   }
@@ -323,6 +363,98 @@ async function actionSubmitLaptop(body) {
   });
 }
 
+// Update editable fields on a pending dispatch. Refuses if the dispatch
+// has already fired (status != 'pending') or its trigger_at is already
+// past — those rows are immutable from the requester's perspective.
+async function actionUpdateLaptop(body) {
+  const dispatchId = body.dispatchId ? String(body.dispatchId) : '';
+  if (!dispatchId) return jsonResponse(400, { error: 'dispatchId required' });
+
+  // Fetch current state so we can guard on status + trigger_at without
+  // trusting the client to tell us what they were.
+  const cur = await supabaseGetById('wsc_laptop_dispatches', dispatchId,
+    'id,status,trigger_at,kickoff_at,laptop_id,launch_url,matchup_label');
+  if (!cur.ok) return jsonResponse(cur.status || 500, { error: 'Dispatch not found', detail: cur.detail });
+  if (cur.row.status !== 'pending') {
+    return jsonResponse(409, { error: `Cannot edit a ${cur.row.status} dispatch` });
+  }
+  const existingTrigger = Date.parse(cur.row.trigger_at);
+  if (Number.isFinite(existingTrigger) && existingTrigger <= Date.now()) {
+    return jsonResponse(409, { error: 'Trigger time has already passed' });
+  }
+
+  const patch = {};
+
+  if (body.laptop_id !== undefined) {
+    const laptop_id = String(body.laptop_id || '').trim();
+    if (laptop_id !== 'LAPTOP-A' && laptop_id !== 'LAPTOP-B') {
+      return jsonResponse(400, { error: `Invalid laptop: ${laptop_id}` });
+    }
+    patch.laptop_id = laptop_id;
+  }
+
+  if (body.launch_url !== undefined) {
+    const launch_url = String(body.launch_url || '').trim();
+    if (!/^https?:\/\//i.test(launch_url) || launch_url.length > 2000) {
+      return jsonResponse(400, { error: 'launch_url must be a valid http(s) URL (≤ 2000 chars)' });
+    }
+    patch.launch_url = launch_url;
+  }
+
+  if (body.kickoff_at !== undefined) {
+    const kickoffMs = Date.parse(String(body.kickoff_at));
+    if (!Number.isFinite(kickoffMs)) {
+      return jsonResponse(400, { error: 'Invalid kickoff time' });
+    }
+    if (kickoffMs <= Date.now()) {
+      return jsonResponse(400, { error: 'Kickoff must be in the future' });
+    }
+    patch.kickoff_at = new Date(kickoffMs).toISOString();
+    // Trigger always tracks kickoff − 4 min; we don't accept a separate
+    // trigger_at from the client. Keeps the contract consistent with
+    // submit-laptop.
+    patch.trigger_at = new Date(kickoffMs - 4 * 60 * 1000).toISOString();
+  }
+
+  if (body.matchup_label !== undefined) {
+    patch.matchup_label = String(body.matchup_label || '').slice(0, 200) || null;
+  }
+
+  if (!Object.keys(patch).length) {
+    return jsonResponse(400, { error: 'No editable fields supplied' });
+  }
+
+  const r = await supabasePatchById('wsc_laptop_dispatches', dispatchId, patch);
+  if (!r.ok) return jsonResponse(r.status || 500, { error: 'Could not update dispatch', detail: r.detail });
+  return jsonResponse(200, {
+    dispatchId: r.row.id,
+    laptop_id:  r.row.laptop_id,
+    launch_url: r.row.launch_url,
+    trigger_at: r.row.trigger_at,
+    kickoff_at: r.row.kickoff_at,
+    status:     r.row.status
+  });
+}
+
+// Flip a pending dispatch to canceled. The agent's WHERE clause
+// already filters on status='pending', so a canceled row stops being
+// polled. Refuses if not pending.
+async function actionCancelLaptop(body) {
+  const dispatchId = body.dispatchId ? String(body.dispatchId) : '';
+  if (!dispatchId) return jsonResponse(400, { error: 'dispatchId required' });
+
+  const cur = await supabaseGetById('wsc_laptop_dispatches', dispatchId, 'id,status');
+  if (!cur.ok) return jsonResponse(cur.status || 500, { error: 'Dispatch not found', detail: cur.detail });
+  if (cur.row.status !== 'pending') {
+    return jsonResponse(409, { error: `Cannot cancel a ${cur.row.status} dispatch` });
+  }
+
+  const r = await supabasePatchById('wsc_laptop_dispatches', dispatchId,
+    { status: 'canceled', notes: body.reason ? String(body.reason).slice(0, 500) : null });
+  if (!r.ok) return jsonResponse(r.status || 500, { error: 'Could not cancel', detail: r.detail });
+  return jsonResponse(200, { dispatchId: r.row.id, status: r.row.status });
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Entry
 // ──────────────────────────────────────────────────────────────────────────
@@ -347,6 +479,8 @@ exports.handler = async (event) => {
 
   if (action === 'submit-roku')    return await actionSubmitRoku(body);
   if (action === 'submit-laptop')  return await actionSubmitLaptop(body);
+  if (action === 'update-laptop')  return await actionUpdateLaptop(body);
+  if (action === 'cancel-laptop')  return await actionCancelLaptop(body);
   if (action === 'confirm-clipro') return await actionConfirmClipro(body);
 
   return jsonResponse(400, { error: `Unknown action: ${action}` });

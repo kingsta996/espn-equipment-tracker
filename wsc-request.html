@@ -226,6 +226,62 @@
   .success-card h2 { color: var(--ok); font-size: 16px; margin-bottom: 10px; letter-spacing: 0.3px; }
   .success-card .check { font-size: 22px; }
 
+  /* Scheduled requests panel */
+  .sched-panel {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 12px;
+    padding: 18px 22px; margin-top: 22px;
+  }
+  .sched-panel h2 { font-size: 14px; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .sched-panel .hint { font-size: 11px; color: var(--wsc-mute); margin-bottom: 14px; }
+  .sched-empty { color: var(--wsc-mute); font-size: 12px; padding: 14px; text-align: center; font-style: italic; }
+  .sched-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--wsc-line);
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .sched-row.status-pending  { border-left: 3px solid var(--wsc-green); }
+  .sched-row.status-launched { border-left: 3px solid var(--ok); opacity: 0.85; }
+  .sched-row.status-completed { border-left: 3px solid var(--ok); opacity: 0.7; }
+  .sched-row.status-failed   { border-left: 3px solid var(--err); }
+  .sched-row.status-canceled { border-left: 3px solid #555; opacity: 0.6; }
+  .sched-row .meta { min-width: 0; }
+  .sched-row .meta .matchup { font-size: 13px; font-weight: 700; color: var(--wsc-text); margin-bottom: 4px; }
+  .sched-row .meta .matchup .laptop-pill {
+    font-size: 10px; padding: 1px 7px; border-radius: 3px; background: rgba(0,181,226,0.2);
+    color: #6ed4f5; font-weight: 700; letter-spacing: 0.5px; margin-left: 6px; vertical-align: middle;
+  }
+  .sched-row .meta .when { font-size: 11.5px; color: var(--wsc-mute); margin-bottom: 4px; font-family: 'SF Mono', monospace; }
+  .sched-row .meta .url  { font-size: 11px; color: var(--wsc-mute); word-break: break-all; font-family: 'SF Mono', monospace; }
+  .sched-row .actions { display: flex; gap: 6px; align-items: flex-start; }
+  .sched-row .actions button {
+    background: transparent; border: 1px solid var(--wsc-line); color: var(--wsc-mute);
+    padding: 6px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; font-family: inherit; font-weight: 600;
+  }
+  .sched-row .actions button:hover { color: var(--wsc-text); border-color: var(--wsc-text); }
+  .sched-row .actions button.edit:hover   { color: var(--wsc-green); border-color: var(--wsc-green); }
+  .sched-row .actions button.cancel:hover { color: var(--err);       border-color: var(--err); }
+  .sched-status-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 9.5px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .sched-status-pill.pending   { background: rgba(200,255,0,0.15); color: var(--wsc-green); }
+  .sched-status-pill.launched  { background: rgba(52,208,88,0.18); color: var(--ok); }
+  .sched-status-pill.completed { background: rgba(52,208,88,0.10); color: var(--ok); }
+  .sched-status-pill.failed    { background: rgba(242,95,92,0.18); color: var(--err); }
+  .sched-status-pill.canceled  { background: rgba(154,160,166,0.15); color: var(--wsc-mute); }
+
+  /* Edit modal sizing */
+  .pw-box.edit-box {
+    max-width: 520px; text-align: left;
+  }
+  .pw-box.edit-box h2 { color: var(--wsc-green); font-size: 16px; margin-bottom: 6px; text-align: left; }
+  .pw-box.edit-box .sub { color: var(--wsc-mute); font-size: 11px; margin-bottom: 14px; text-align: left; }
+
   @media (max-width: 620px) {
     .field-grid { grid-template-columns: 1fr; }
   }
@@ -380,6 +436,52 @@
       <button class="btn-secondary" onclick="resetForAnother()">Submit Another Request</button>
     </div>
   </div>
+
+  <!-- Scheduled / upcoming requests -->
+  <div class="sched-panel" id="schedPanel">
+    <h2>📅 Scheduled Requests</h2>
+    <div class="hint">Pending laptop dispatches plus anything fired in the last 24 hours. Edit or cancel pending rows before their trigger time.</div>
+    <div id="schedList"></div>
+  </div>
+</div>
+
+<!-- Edit dispatch modal -->
+<div class="pw-overlay" id="editOverlay">
+  <div class="pw-box edit-box">
+    <h2>Edit Scheduled Request</h2>
+    <div class="sub">Changes apply only while the dispatch is still pending. Time auto-recomputes trigger as kickoff − 4 min.</div>
+    <input type="hidden" id="editDispatchId">
+
+    <div class="field-grid">
+      <div class="full">
+        <label class="fl">Matchup label <small>(shown in queues)</small></label>
+        <input class="fi" id="editMatchup" type="text" maxlength="200">
+      </div>
+      <div>
+        <label class="fl">Date</label>
+        <input class="fi mono" id="editDate" type="date">
+      </div>
+      <div>
+        <label class="fl">Time <small>(your local TZ)</small> <span class="et-pill" id="editTimeEastern"></span></label>
+        <input class="fi mono" id="editTime" type="time">
+      </div>
+      <div class="full">
+        <label class="fl">Laptop</label>
+        <select class="fi" id="editLaptop"></select>
+      </div>
+      <div class="full">
+        <label class="fl">ESPN watch URL</label>
+        <input class="fi mono" id="editLaunchUrl" type="url" maxlength="2000">
+      </div>
+    </div>
+
+    <div class="err-msg" id="editErr"></div>
+
+    <div class="pw-actions">
+      <button type="button" class="secondary" onclick="closeEditModal()">Close</button>
+      <button type="button" id="editSubmitBtn" onclick="submitEdit()">Save Changes</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -480,6 +582,8 @@
     document.getElementById('mainContainer').style.display = 'block';
     document.getElementById('whoLabel').textContent = email;
     await loadReferenceData();
+    await loadScheduled();
+    subscribeScheduled();
   }
 
   // ── Reference data: laptops + conflict dispatches + ESPN events ─────────
@@ -504,6 +608,185 @@
       } catch (e) { /* offline or migration not run yet */ }
     }
     refreshLaptopDropdown();
+  }
+
+  // ── Scheduled Requests panel ────────────────────────────────────────────
+  let _scheduled = [];        // wsc_laptop_dispatches rows for the panel
+  let _editingDispatch = null;
+  let _schedChannel = null;
+
+  async function loadScheduled() {
+    if (!_sb) return;
+    try {
+      // Show pending forever, plus launched/completed/failed/canceled
+      // within the last 24h for short-term audit.
+      const since24h = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const { data, error } = await _sb.from('wsc_laptop_dispatches')
+        .select('id, laptop_id, matchup_label, sport, launch_url, trigger_at, kickoff_at, status, launched_at, created_at, notes')
+        .or(`status.eq.pending,created_at.gte.${since24h}`)
+        .order('kickoff_at', { ascending: true });
+      if (error) throw error;
+      _scheduled = data || [];
+    } catch (e) {
+      console.warn('loadScheduled failed:', e?.message || e);
+      _scheduled = [];
+    }
+    renderScheduled();
+  }
+
+  function subscribeScheduled() {
+    if (!_sb || _schedChannel) return;
+    _schedChannel = _sb.channel('wsc-request-dispatches')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'wsc_laptop_dispatches' },
+        () => { loadScheduled(); }
+      )
+      .subscribe();
+  }
+
+  function renderScheduled() {
+    const list = document.getElementById('schedList');
+    if (!_scheduled.length) {
+      list.innerHTML = '<div class="sched-empty">No scheduled requests yet. Submit one above.</div>';
+      return;
+    }
+    list.innerHTML = _scheduled.map(d => {
+      const kickoffDate = d.kickoff_at ? new Date(d.kickoff_at) : null;
+      const triggerDate = d.trigger_at ? new Date(d.trigger_at) : null;
+      const when = kickoffDate ? fmtEasternFull(kickoffDate) : '(no time)';
+      const trig = triggerDate ? fmtEasternFull(triggerDate) : '';
+      const triggerMs = triggerDate ? triggerDate.getTime() : 0;
+      const isEditable = d.status === 'pending' && triggerMs > Date.now();
+      return `
+        <div class="sched-row status-${esc(d.status)}" data-id="${esc(d.id)}">
+          <div class="meta">
+            <div class="matchup">
+              ${esc(d.matchup_label || '(no label)')}
+              <span class="laptop-pill">${esc(d.laptop_id)}</span>
+              <span class="sched-status-pill ${esc(d.status)}">${esc(d.status)}</span>
+            </div>
+            <div class="when">Kickoff ${esc(when)}${trig ? ' · fires ' + esc(trig) : ''}</div>
+            <div class="url">${esc(d.launch_url || '')}</div>
+          </div>
+          <div class="actions">
+            ${isEditable
+              ? `<button class="edit"   onclick="openEditModal('${esc(d.id)}')">Edit</button>
+                 <button class="cancel" onclick="cancelDispatch('${esc(d.id)}')">Cancel</button>`
+              : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function _findScheduled(id) { return _scheduled.find(d => d.id === id); }
+
+  function openEditModal(id) {
+    const d = _findScheduled(id);
+    if (!d) return;
+    _editingDispatch = d;
+    document.getElementById('editDispatchId').value = d.id;
+    document.getElementById('editMatchup').value = d.matchup_label || '';
+    document.getElementById('editLaunchUrl').value = d.launch_url || '';
+    // Split kickoff_at into local date + time fields.
+    const kickoff = d.kickoff_at ? new Date(d.kickoff_at) : new Date();
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('editDate').value = `${kickoff.getFullYear()}-${pad(kickoff.getMonth()+1)}-${pad(kickoff.getDate())}`;
+    document.getElementById('editTime').value = `${pad(kickoff.getHours())}:${pad(kickoff.getMinutes())}`;
+    // Populate laptop dropdown.
+    const sel = document.getElementById('editLaptop');
+    sel.innerHTML = _laptops.map(lt =>
+      `<option value="${esc(lt.id)}" ${lt.id === d.laptop_id ? 'selected' : ''}>${esc(lt.label || lt.id)}</option>`
+    ).join('');
+    document.getElementById('editErr').textContent = '';
+    refreshEditEtPill();
+    document.getElementById('editOverlay').classList.add('open');
+  }
+
+  function closeEditModal() {
+    document.getElementById('editOverlay').classList.remove('open');
+    _editingDispatch = null;
+  }
+
+  function refreshEditEtPill() {
+    const date = document.getElementById('editDate').value;
+    const time = document.getElementById('editTime').value;
+    const span = document.getElementById('editTimeEastern');
+    if (!date || !time) { span.textContent = ''; return; }
+    const ms = Date.parse(`${date}T${time}`);
+    if (!Number.isFinite(ms)) { span.textContent = ''; return; }
+    const et = fmtEastern24(new Date(ms));
+    span.textContent = et ? `= ${et} ET` : '';
+  }
+
+  async function submitEdit() {
+    const errEl = document.getElementById('editErr');
+    const btn   = document.getElementById('editSubmitBtn');
+    errEl.textContent = '';
+
+    const dispatchId = document.getElementById('editDispatchId').value;
+    const date = document.getElementById('editDate').value;
+    const time = document.getElementById('editTime').value;
+    const laptop_id = document.getElementById('editLaptop').value;
+    const launch_url = document.getElementById('editLaunchUrl').value.trim();
+    const matchup_label = document.getElementById('editMatchup').value.trim();
+
+    if (!date || !time) { errEl.textContent = 'Date and time are required.'; return; }
+    const kickoffMs = Date.parse(`${date}T${time}`);
+    if (!Number.isFinite(kickoffMs)) { errEl.textContent = 'Invalid date/time.'; return; }
+    if (kickoffMs <= Date.now()) { errEl.textContent = 'Kickoff must be in the future.'; return; }
+    if (!/^https?:\/\//i.test(launch_url)) { errEl.textContent = 'Launch URL must start with http(s)://'; return; }
+    if (!laptop_id) { errEl.textContent = 'Pick a laptop.'; return; }
+
+    const token = getToken();
+    if (!token) { errEl.textContent = 'Session expired. Please sign in again.'; clearSession(); location.reload(); return; }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch(`${FN}?action=update-laptop`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          dispatchId,
+          laptop_id,
+          launch_url,
+          kickoff_at: new Date(kickoffMs).toISOString(),
+          matchup_label
+        })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { errEl.textContent = data.error || `Update failed (${r.status}).`; return; }
+      closeEditModal();
+      await loadScheduled();
+    } catch (e) {
+      errEl.textContent = isLocal
+        ? 'Edit needs the Netlify deployment (functions don\'t run on file://).'
+        : `Network error: ${e.message}`;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Changes';
+    }
+  }
+
+  async function cancelDispatch(id) {
+    const d = _findScheduled(id);
+    if (!d) return;
+    const label = d.matchup_label || '(this request)';
+    if (!confirm(`Cancel ${label}?\n\nThe agent will skip this dispatch. This cannot be undone.`)) return;
+
+    const token = getToken();
+    if (!token) { clearSession(); location.reload(); return; }
+    try {
+      const r = await fetch(`${FN}?action=cancel-laptop`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ dispatchId: id })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(data.error || `Cancel failed (${r.status}).`); return; }
+      await loadScheduled();
+    } catch (e) {
+      alert(isLocal ? 'Cancel needs the Netlify deployment.' : `Network error: ${e.message}`);
+    }
   }
 
   // ── Laptop dropdown with conflict labels ────────────────────────────────
@@ -831,6 +1114,8 @@
         return;
       }
       state.dispatchId = data.dispatchId;
+      // Refresh the panel so the just-submitted dispatch appears immediately.
+      loadScheduled();
       state.pendingPayload = Object.assign({}, p, {
         kickoff_at_iso: data.kickoff_at,
         trigger_at_iso: data.trigger_at,
@@ -1013,6 +1298,10 @@
   document.getElementById('fDate').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); renderXlsxList(); });
   document.getElementById('fTime').addEventListener('change', () => { refreshLaptopDropdown(); refreshEtPill(); });
   document.getElementById('fTime').addEventListener('input',  refreshEtPill);
+  // Edit modal: keep its ET pill in sync the same way the main form does.
+  document.getElementById('editDate').addEventListener('change', refreshEditEtPill);
+  document.getElementById('editTime').addEventListener('change', refreshEditEtPill);
+  document.getElementById('editTime').addEventListener('input',  refreshEditEtPill);
   // Re-render XLSX list when school/opponent change so the "match" highlight tracks the form
   document.getElementById('fSchool').addEventListener('input',   () => { if (_xlsxEvents.length) renderXlsxList(); });
   document.getElementById('fOpponent').addEventListener('input', () => { if (_xlsxEvents.length) renderXlsxList(); });

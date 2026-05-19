@@ -7,6 +7,7 @@
 <title>CUSA × WSC Capture Request</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script src="config.js"></script>
 <style>
   :root {
@@ -282,6 +283,31 @@
   .pw-box.edit-box h2 { color: var(--wsc-green); font-size: 16px; margin-bottom: 6px; text-align: left; }
   .pw-box.edit-box .sub { color: var(--wsc-mute); font-size: 11px; margin-bottom: 14px; text-align: left; }
 
+  /* CUSA11 / CUSA12 HLS preview strip */
+  .preview-strip {
+    display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .preview-card {
+    background: var(--wsc-panel); border: 1px solid var(--wsc-line); border-radius: 10px;
+    padding: 10px 12px; flex: 1 1 240px; min-width: 0;
+  }
+  .preview-card h3 {
+    font-size: 11px; color: var(--wsc-mute); text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+  }
+  .preview-card h3 .laptop-name { color: var(--wsc-text); }
+  .preview-card h3 .ch-tag { color: var(--wsc-green); font-weight: 700; }
+  .preview-card h3 .status {
+    margin-left: auto; font-size: 10px; padding: 1px 7px; border-radius: 3px;
+    background: rgba(154,160,166,0.15); color: var(--wsc-mute); text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .preview-card h3 .status.live  { background: rgba(52,208,88,0.18); color: var(--ok); }
+  .preview-card h3 .status.error { background: rgba(249,199,79,0.18); color: var(--warn); }
+  .preview-card video {
+    width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; display: block;
+  }
+  .preview-card .hint { font-size: 10px; color: var(--wsc-mute); margin-top: 6px; }
+
   @media (max-width: 620px) {
     .field-grid { grid-template-columns: 1fr; }
   }
@@ -312,6 +338,10 @@
 
 <!-- Main -->
 <div class="container" id="mainContainer" style="display:none">
+
+  <!-- CUSA11 / CUSA12 live HLS previews — confirm the laptops are pushing
+       to WSC before scheduling. Filled in by attachPreviews() on init. -->
+  <div class="preview-strip" id="previewStrip"></div>
 
   <!-- Step 1: Schedule the laptop browser launch -->
   <div class="step" id="step1">
@@ -608,6 +638,96 @@
       } catch (e) { /* offline or migration not run yet */ }
     }
     refreshLaptopDropdown();
+    attachPreviews();
+  }
+
+  // ── CUSA11 / CUSA12 HLS previews ────────────────────────────────────────
+  // Reuse the /wsc-encoder/* Netlify rewrite already set up for wsc-portal:
+  // the upstream is HTTP-only, so we proxy through Netlify to keep the
+  // browser on same-origin HTTPS.
+  function proxyHlsUrl(u) {
+    if (!u) return u;
+    return u.replace(
+      /^https?:\/\/wsc-rtmp-sus\.southcentralus\.cloudapp\.azure\.com:1935\/CUSA/i,
+      '/wsc-encoder'
+    );
+  }
+
+  const _previewHls = new Map(); // laptop_id → Hls instance (so we can tear down on signOut)
+
+  function attachPreviews() {
+    const strip = document.getElementById('previewStrip');
+    if (!strip || !_laptops.length) return;
+    if (strip.dataset.built === '1') return; // idempotent — only build once per session
+    strip.dataset.built = '1';
+
+    strip.innerHTML = _laptops.map(lt => {
+      const ch = (lt.hls || '').match(/\/CUSA(\d+)\//i);
+      const chLabel = ch ? `CUSA${ch[1]}` : '';
+      return `
+        <div class="preview-card" data-laptop="${esc(lt.id)}">
+          <h3>
+            <span class="laptop-name">${esc(lt.label || lt.id)}</span>
+            ${chLabel ? `<span class="ch-tag">${esc(chLabel)}</span>` : ''}
+            <span class="status" data-status>connecting…</span>
+          </h3>
+          <video muted playsinline controls preload="none"></video>
+          <div class="hint">Live feed from the laptop's OBS push. Use this to confirm video is reaching WSC before scheduling.</div>
+        </div>
+      `;
+    }).join('');
+
+    _laptops.forEach(lt => {
+      const card = strip.querySelector(`.preview-card[data-laptop="${lt.id}"]`);
+      if (!card || !lt.hls) return;
+      const video  = card.querySelector('video');
+      const status = card.querySelector('[data-status]');
+      const url    = proxyHlsUrl(lt.hls);
+
+      const setStatus = (text, kind) => {
+        status.textContent = text;
+        status.classList.remove('live', 'error');
+        if (kind) status.classList.add(kind);
+      };
+
+      if (window.Hls && Hls.isSupported()) {
+        const hls = new Hls({
+          maxBufferLength: 6,
+          liveSyncDuration: 3,
+          enableWorker: true,
+        });
+        _previewHls.set(lt.id, hls);
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setStatus('● live', 'live');
+          video.play().catch(() => {/* autoplay blocked — controls visible */});
+        });
+        hls.on(Hls.Events.ERROR, (_evt, data) => {
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            setStatus('no signal', 'error');
+            // Try to recover from intermittent manifest errors.
+            try { hls.startLoad(); } catch {}
+          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            setStatus('media error', 'error');
+            try { hls.recoverMediaError(); } catch {}
+          } else {
+            setStatus('error', 'error');
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS (Safari).
+        video.src = url;
+        video.addEventListener('loadedmetadata', () => {
+          setStatus('● live', 'live');
+          video.play().catch(() => {});
+        });
+        video.addEventListener('error', () => setStatus('no signal', 'error'));
+      } else {
+        setStatus('HLS not supported', 'error');
+      }
+    });
   }
 
   // ── Scheduled Requests panel ────────────────────────────────────────────

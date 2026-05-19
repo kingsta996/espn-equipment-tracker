@@ -406,7 +406,10 @@
         <option value="1">Last 24h</option>
         <option value="7" selected>Last 7 days</option>
         <option value="30">Last 30 days</option>
-        <option value="90">Last 90 days</option>
+        <option value="90">Last 3 months</option>
+        <option value="180">Last 6 months</option>
+        <option value="270">Last 9 months</option>
+        <option value="365">Last 1 year</option>
         <option value="0">All time</option>
       </select>
     </label>
@@ -435,7 +438,7 @@
     <span class="grow"></span>
     <span class="ca-live" data-live title="Auto-refreshes every 30 seconds. Pauses while this tab is hidden."><span class="dot"></span><span data-live-text>Live</span></span>
     <button data-action="refresh">↻ Refresh</button>
-    <button data-action="download" class="primary">⬇ Download Report</button>
+    <button data-action="download-excel" class="primary" title="Export the current window as a multi-sheet XLSX (Events / Sessions / Risk Summary / Metadata)">⬇ Download Excel</button>
   </div>
 
   <div class="ca-pane active" data-pane-body="overview"></div>
@@ -477,7 +480,16 @@
       }
     });
     root.querySelector('[data-action="refresh"]').addEventListener('click', () => reload(state));
-    root.querySelector('[data-action="download"]').addEventListener('click', () => downloadReport(state));
+    // Delegated handler for any download button — toolbar and subpane share
+    // these action names so the same dispatch table covers both.
+    root.addEventListener('click', (ev) => {
+      const t = ev.target.closest && ev.target.closest('[data-action]');
+      if (!t || !root.contains(t)) return;
+      const a = t.dataset.action;
+      if (a === 'download-excel') downloadExcel(state);
+      else if (a === 'download-html') downloadReport(state);
+      else if (a === 'download-jsonl' || a === 'download-json') downloadJsonl(state);
+    });
   }
 
   async function reload(state) {
@@ -863,11 +875,12 @@
   </div>
 </div>
 <div style="display:flex;gap:10px;flex-wrap:wrap;">
-  <button class="primary" data-action="download" style="background:#EF4035;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">⬇ Download HTML report</button>
-  <button data-action="download-json" style="background:rgba(127,127,127,0.12);color:inherit;border:1px solid rgba(127,127,127,0.3);border-radius:8px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇ Download raw JSONL</button>
+  <button class="primary" data-action="download-excel" style="background:#EF4035;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">⬇ Download Excel (XLSX)</button>
+  <button data-action="download-html" style="background:rgba(127,127,127,0.12);color:inherit;border:1px solid rgba(127,127,127,0.3);border-radius:8px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇ Download HTML report</button>
+  <button data-action="download-jsonl" style="background:rgba(127,127,127,0.12);color:inherit;border:1px solid rgba(127,127,127,0.3);border-radius:8px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⬇ Download raw JSONL</button>
 </div>
 <p style="margin-top:14px;font-size:11.5px;opacity:0.65;line-height:1.55;">
-  The HTML report is self-styled and embeds the same risk taxonomy used in this dashboard. The JSONL export gives IT the raw event stream for their own SIEM ingestion if they prefer.
+  <strong>Excel</strong> ships a multi-sheet workbook (Events / Sessions / Risk Summary / Metadata) ready for IT to filter or pivot. <strong>HTML</strong> is the original self-contained styled report you can email. <strong>JSONL</strong> is the raw event stream for SIEM ingestion.
 </p>`;
   }
 
@@ -883,6 +896,140 @@
     const blob = new Blob([lines + '\n'], { type: 'application/x-ndjson' });
     const stamp = new Date().toISOString().slice(0, 10);
     triggerDownload(blob, `claude-audit-${slug(state.cfg.repoLabel || 'repo')}-${stamp}.jsonl`);
+  }
+
+  // Multi-sheet XLSX export. Requires xlsx-js-style to be loaded on the
+  // host page (see admin.html / hub-admin.html — they both include the
+  // CDN script). Falls back to a clear error if not loaded.
+  function downloadExcel(state) {
+    if (typeof XLSX === 'undefined') {
+      alert('Excel export library (xlsx-js-style) is not loaded on this page.');
+      return;
+    }
+    const cfg = state.cfg;
+    const events = state.events.slice();
+    const generated = new Date().toISOString();
+    const w = state.filters.days === 0 ? 'All time' : `Last ${state.filters.days} day(s)`;
+
+    // ── Sheet 1: Events ──────────────────────────────────────────────────
+    const eventHeader = [
+      'Timestamp', 'Session ID', 'Event', 'Tool', 'Severity', 'Status',
+      'Resolved By', 'Resolved At', 'Resolution Notes',
+      'Input Summary', 'CWD', 'Host', 'OS User',
+      'Full Input JSON', 'Response JSON'
+    ];
+    const eventRows = events.map(e => {
+      const sev = e.event === 'PreToolUse' ? classify(e).sev : '';
+      const status = isResolved(e)
+        ? 'RESOLVED'
+        : ((sev === 'critical' || sev === 'high') ? 'ACTIVE' : '');
+      return [
+        fmtTs(e.ts),
+        e.session_id || '',
+        e.event || '',
+        e.tool || '',
+        sev,
+        status,
+        e.resolved_by || '',
+        e.resolved_at ? fmtTs(e.resolved_at) : '',
+        e.resolution_notes || '',
+        (summarizeInput(e) || '').slice(0, 800),
+        e.cwd || '',
+        e.host || '',
+        e.os_user || '',
+        e.input ? JSON.stringify(e.input).slice(0, 32000) : '',
+        e.response ? JSON.stringify(e.response).slice(0, 32000) : ''
+      ];
+    });
+    const evWs = XLSX.utils.aoa_to_sheet([eventHeader, ...eventRows]);
+    evWs['!cols'] = [
+      { wch: 19 }, { wch: 36 }, { wch: 18 }, { wch: 18 }, { wch: 10 },
+      { wch: 10 }, { wch: 28 }, { wch: 19 }, { wch: 40 }, { wch: 60 },
+      { wch: 40 }, { wch: 20 }, { wch: 16 }, { wch: 60 }, { wch: 60 }
+    ];
+    if (evWs['!ref']) evWs['!autofilter'] = { ref: evWs['!ref'] };
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, evWs, 'Events');
+
+    // ── Sheet 2: Sessions ────────────────────────────────────────────────
+    const sessions = groupSessions(events);
+    const sessHeader = [
+      'Start', 'End', 'Duration (ms)', 'Session ID', 'Prompts',
+      'Bash', 'Read', 'Edit', 'Write', 'WebFetch/Search', 'MCP', 'Task', 'Other',
+      'Critical', 'High', 'Medium', 'Low',
+      'Files Touched', 'URLs Touched'
+    ];
+    const sessRows = sessions.map(s => [
+      fmtTs(s.start.toISOString ? s.start.toISOString() : new Date(s.start).toISOString()),
+      fmtTs(s.end.toISOString   ? s.end.toISOString()   : new Date(s.end).toISOString()),
+      s.end - s.start,
+      s.sid,
+      s.prompts,
+      s.tally.bash, s.tally.read, s.tally.edit, s.tally.write,
+      s.tally.web,  s.tally.mcp,  s.tally.task, s.tally.other,
+      s.sevTally.critical, s.sevTally.high, s.sevTally.medium, s.sevTally.low,
+      (s.files || []).join('\n'),
+      (s.urls  || []).join('\n')
+    ]);
+    const sessWs = XLSX.utils.aoa_to_sheet([sessHeader, ...sessRows]);
+    sessWs['!cols'] = [
+      { wch: 19 }, { wch: 19 }, { wch: 14 }, { wch: 36 }, { wch: 8 },
+      { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 14 }, { wch: 6 }, { wch: 6 }, { wch: 7 },
+      { wch: 9 }, { wch: 6 }, { wch: 8 }, { wch: 6 },
+      { wch: 60 }, { wch: 60 }
+    ];
+    if (sessWs['!ref']) sessWs['!autofilter'] = { ref: sessWs['!ref'] };
+    XLSX.utils.book_append_sheet(wb, sessWs, 'Sessions');
+
+    // ── Sheet 3: Risk Summary ────────────────────────────────────────────
+    const buckets = buildRiskBuckets(events);
+    const riskHeader = ['Bucket', 'Severity', 'Count', 'Active', 'Resolved'];
+    const riskRows = [];
+    for (const b of buckets) {
+      riskRows.push([b.title, b.sev, b.events.length, b.events.filter(e => !isResolved(e)).length, b.events.filter(isResolved).length]);
+    }
+    const totals = { critical: 0, high: 0, medium: 0, low: 0 };
+    const active = { critical: 0, high: 0 };
+    for (const e of events.filter(e => e.event === 'PreToolUse')) {
+      const sev = classify(e).sev;
+      totals[sev]++;
+      if ((sev === 'critical' || sev === 'high') && !isResolved(e)) active[sev]++;
+    }
+    riskRows.push(
+      [],
+      ['Severity totals (PreToolUse only)'],
+      ['Critical', '', totals.critical, active.critical, totals.critical - active.critical],
+      ['High',     '', totals.high,     active.high,     totals.high     - active.high],
+      ['Medium',   '', totals.medium,   '',              ''],
+      ['Low',      '', totals.low,      '',              '']
+    );
+    const riskWs = XLSX.utils.aoa_to_sheet([riskHeader, ...riskRows]);
+    riskWs['!cols'] = [{ wch: 50 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, riskWs, 'Risk Summary');
+
+    // ── Sheet 4: Metadata ────────────────────────────────────────────────
+    const metaRows = [
+      ['Generated at',        generated],
+      ['Repo / scope',        cfg.repoLabel || ''],
+      ['Window',              w],
+      ['Total events',        events.length],
+      ['PreToolUse',          events.filter(e => e.event === 'PreToolUse').length],
+      ['PostToolUse',         events.filter(e => e.event === 'PostToolUse').length],
+      ['PostToolUseFailure',  events.filter(e => e.event === 'PostToolUseFailure').length],
+      ['UserPromptSubmit',    events.filter(e => e.event === 'UserPromptSubmit').length],
+      ['Sessions',            sessions.length],
+      ['Active critical',     active.critical],
+      ['Active high',         active.high],
+      ['Resolved (any sev)',  events.filter(isResolved).length]
+    ];
+    const metaWs = XLSX.utils.aoa_to_sheet(metaRows);
+    metaWs['!cols'] = [{ wch: 22 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, metaWs, 'Metadata');
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const filename = `claude-audit-${slug(cfg.repoLabel || 'repo')}-${stamp}.xlsx`;
+    XLSX.writeFile(wb, filename);
   }
 
   function triggerDownload(blob, filename) {
